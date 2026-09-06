@@ -161,16 +161,14 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     vec3 iResolution;
     float iTime;
     float iTimeDelta;
+    float iFrameRate;
     int iFrame;
     vec4 iMouse;
-} ubo;
-
-#define iResolution (ubo.iResolution)
-#define iTime (ubo.iTime)
-#define iTimeDelta (ubo.iTimeDelta)
-#define iFrame (ubo.iFrame)
-#define iMouse (ubo.iMouse)
+    vec4 iDate;
+    float iSampleRate;
+};
 ''');
+
 
     final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
         ? '$commonGlsl\n$userGlsl'
@@ -271,12 +269,14 @@ void main() {
         impellerc,
         [
           platformFlag,
+          '--gles-language-version=300',
           '--shader-bundle=$manifestJson',
           '--sl=${bundleFile.path}',
           '--verbose',
         ],
         workingDirectory: tempDir.path,
       );
+
 
       if (result.exitCode != 0) {
         final stderr = result.stderr.toString().trim();

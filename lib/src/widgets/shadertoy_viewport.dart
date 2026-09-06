@@ -38,6 +38,7 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
   void didUpdateWidget(covariant ShaderToyViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.detachTicker(this);
       widget.controller.attachTicker(this);
       widget.controller.renderSingleFrame();
     }
@@ -45,7 +46,7 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
 
   @override
   void dispose() {
-    widget.controller.detachTicker();
+    widget.controller.detachTicker(this);
     super.dispose();
   }
 
@@ -77,11 +78,13 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
             Size(targetW.floorToDouble(), targetH.floorToDouble());
 
         // Schedule resize if dimensions changed
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            widget.controller.resize(renderSize);
-          }
-        });
+        if (widget.controller.resolution != renderSize) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.controller.resolution != renderSize) {
+              widget.controller.resize(renderSize);
+            }
+          });
+        }
 
         return Stack(
           fit: StackFit.expand,

@@ -168,8 +168,13 @@ class FlutterGpuRenderer {
     if (_imageSurface != null) {
       try {
         _imageSurface!.resize(width, height);
-      } catch (_) {
-        _initGpuResources();
+      } catch (e) {
+        debugPrint('Flutter GPU imageSurface.resize: $e; recreating image surface');
+        try {
+          _imageSurface = gpu.gpuContext.createImageSurface(width, height);
+        } catch (e2) {
+          debugPrint('Failed to recreate imageSurface: $e2');
+        }
       }
     }
 
@@ -255,8 +260,9 @@ class FlutterGpuRenderer {
       return null;
     }
 
+    gpu.GpuImageSurfaceFrame? surfaceFrame;
     try {
-      final surfaceFrame = _imageSurface!.acquireNextFrame();
+      surfaceFrame = _imageSurface!.acquireNextFrame();
       final renderTarget = gpu.RenderTarget.singleColor(
         gpu.ColorAttachment(texture: surfaceFrame.colorTexture),
       );
@@ -283,26 +289,40 @@ class FlutterGpuRenderer {
       );
       renderPass.bindVertexBuffer(quadView);
 
-      // 3. Pack std140 / MSL FrameInfo uniform buffer (48 bytes):
+      // 3. Pack std140 / MSL FrameInfo uniform buffer (80 bytes):
       // Offset  0..11: iResolution (vec3: width, height, aspect)
       // Offset 12..15: iTime (float)
       // Offset 16..19: iTimeDelta (float)
-      // Offset 20..23: iFrame (int32)
-      // Offset 24..31: padding (8 bytes for 16-byte alignment of float4)
+      // Offset 20..23: iFrameRate (float)
+      // Offset 24..27: iFrame (int32)
+      // Offset 28..31: padding (4 bytes for 16-byte alignment of vec4 iMouse)
       // Offset 32..47: iMouse (vec4: x, y, z, w)
-      final uniformByteData = ByteData(48);
+      // Offset 48..63: iDate (vec4: year, month-1, day, secondsOfDay)
+      // Offset 64..67: iSampleRate (float)
+      // Offset 68..79: padding (12 bytes for 16-byte block alignment)
+      final uniformByteData = ByteData(80);
       uniformByteData.setFloat32(0, targetWidth.toDouble(), Endian.host);
       uniformByteData.setFloat32(4, targetHeight.toDouble(), Endian.host);
       uniformByteData.setFloat32(8, 1.0, Endian.host); // Shadertoy spec: z is pixel aspect ratio (1.0)
       uniformByteData.setFloat32(12, uniforms.time, Endian.host);
       uniformByteData.setFloat32(16, uniforms.timeDelta, Endian.host);
-      uniformByteData.setInt32(20, uniforms.frame, Endian.host);
-      uniformByteData.setInt32(24, 0, Endian.host);
+      uniformByteData.setFloat32(20, uniforms.frameRate, Endian.host);
+      uniformByteData.setInt32(24, uniforms.frame, Endian.host);
       uniformByteData.setInt32(28, 0, Endian.host);
       uniformByteData.setFloat32(32, uniforms.mouse.x, Endian.host);
       uniformByteData.setFloat32(36, uniforms.mouse.y, Endian.host);
       uniformByteData.setFloat32(40, uniforms.mouse.z, Endian.host);
       uniformByteData.setFloat32(44, uniforms.mouse.w, Endian.host);
+      final secondsOfDay = uniforms.date.hour * 3600.0 +
+          uniforms.date.minute * 60.0 +
+          uniforms.date.second.toDouble() +
+          uniforms.date.millisecond / 1000.0;
+      uniformByteData.setFloat32(48, uniforms.date.year.toDouble(), Endian.host);
+      uniformByteData.setFloat32(52, (uniforms.date.month - 1).toDouble(), Endian.host);
+      uniformByteData.setFloat32(56, uniforms.date.day.toDouble(), Endian.host);
+      uniformByteData.setFloat32(60, secondsOfDay, Endian.host);
+      uniformByteData.setFloat32(64, uniforms.sampleRate, Endian.host);
+
 
       gpu.DeviceBuffer? uniformDeviceBuffer;
       try {
@@ -372,9 +392,11 @@ class FlutterGpuRenderer {
       // 7. Present frame and submit GPU command buffer
       surfaceFrame.present(commandBuffer);
       commandBuffer.submit();
+      surfaceFrame = null;
 
       return _imageSurface!.currentImage;
     } catch (e) {
+      surfaceFrame?.discard();
       debugPrint('Flutter GPU renderFrame error: $e');
       return null;
     }

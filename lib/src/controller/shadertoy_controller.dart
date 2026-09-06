@@ -31,6 +31,7 @@ class ShaderToyController
     bool autoPlay = false,
   }) : _project = initialProject ?? ShaderToyProject.empty(),
        _uniforms = ShaderToyUniforms(resolution: initialResolution),
+       _vsync = vsync,
        isPlayingNotifier = listen.ValueNotifier<bool>(autoPlay),
        isCompilingNotifier = listen.ValueNotifier<bool>(true),
        lastErrorNotifier = listen.ValueNotifier<String?>(null),
@@ -53,6 +54,8 @@ class ShaderToyController
     compile();
   }
 
+  TickerProvider? _vsync;
+  TickerProvider? _attachedVsync;
   ShaderToyProject _project;
   final ShaderToyUniforms _uniforms;
   late final ShaderToyRenderer _renderer;
@@ -500,21 +503,52 @@ class ShaderToyController
 
   /// Attaches a ticker if one was not provided in the constructor.
   void attachTicker(TickerProvider vsync) {
-    if (_ticker != null) return;
+    if (_vsync != null) {
+      // External vsync was provided in constructor; ensure ticker is alive
+      _ticker ??= _vsync!.createTicker(_onTick);
+      if (isPlaying) {
+        _startTicker();
+      }
+      return;
+    }
+    if (_attachedVsync == vsync && _ticker != null) {
+      if (isPlaying) {
+        _startTicker();
+      }
+      return;
+    }
+    _stopTicker();
+    _ticker?.dispose();
+    _attachedVsync = vsync;
     _ticker = vsync.createTicker(_onTick);
     if (isPlaying) {
       _startTicker();
     }
   }
 
-  /// Detaches the ticker if it was attached.
-  void detachTicker() {
+  /// Detaches the ticker if it was attached by [vsync].
+  /// If vsync was provided in the constructor, detaching by a viewport is a no-op.
+  void detachTicker([TickerProvider? vsync]) {
+    if (_vsync != null) {
+      // Controller is driven by constructor vsync; do not let child views detach it.
+      return;
+    }
+    if (vsync != null && _attachedVsync != vsync) {
+      return;
+    }
     _stopTicker();
     _ticker?.dispose();
     _ticker = null;
+    _attachedVsync = null;
   }
 
   void _startTicker() {
+    if (_ticker == null) {
+      final provider = _vsync ?? _attachedVsync;
+      if (provider != null) {
+        _ticker = provider.createTicker(_onTick);
+      }
+    }
     if (_ticker != null && !_ticker!.isActive) {
       _ticker!.start();
     }
@@ -530,6 +564,12 @@ class ShaderToyController
     isPlayingNotifier.value = true;
     _lastTimestamp = 0.0;
     _uniforms.timeDelta = 0.016;
+    if (_ticker == null) {
+      final provider = _vsync ?? _attachedVsync;
+      if (provider != null) {
+        _ticker = provider.createTicker(_onTick);
+      }
+    }
     _startTicker();
     final audio = _findActiveAudioChannel();
     if (audio is SoLoudAudioChannel) {
@@ -720,6 +760,8 @@ class ShaderToyController
     _stopTicker();
     _ticker?.dispose();
     _ticker = null;
+    _vsync = null;
+    _attachedVsync = null;
     currentImageNotifier.value?.dispose();
     currentImageNotifier.value = null;
     isPlayingNotifier.dispose();

@@ -26,6 +26,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   String _compileStatus = 'Ready';
   bool _compileSuccess = true;
   final double _fontSize = 13.0;
+  final GlobalKey _viewportKey = GlobalKey();
 
   @override
   void initState() {
@@ -261,6 +262,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
 
           if (_isFullscreen) {
             return ShaderToyViewport(
+              key: _viewportKey,
               controller: _controller,
               isFullscreen: true,
               onToggleFullscreen: () => setState(() => _isFullscreen = false),
@@ -268,6 +270,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
           }
 
           final viewportWidget = ShaderToyViewport(
+            key: _viewportKey,
             controller: _controller,
             isFullscreen: false,
             onToggleFullscreen: () => setState(() => _isFullscreen = true),
