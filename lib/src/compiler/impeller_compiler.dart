@@ -147,9 +147,13 @@ void main() {
   }
 
   /// Wraps user Shadertoy GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// Wraps user-provided Shadertoy GLSL code with Flutter GPU (Impeller) compatible
+  /// uniforms (std140 FrameInfo uniform block at set 0, binding 0), optional
   /// samplers, macros, and standard main() entry point.
+  /// If [commonGlsl] is provided, it is prepended so shared functions/structs
+  /// are accessible to the pass.
   /// Uses `#line 1` so compiler error lines match the user's source lines.
-  static String wrapShadertoyGlsl(String userGlsl) {
+  static String wrapShadertoyGlsl(String userGlsl, {String? commonGlsl}) {
     final sb = StringBuffer();
     sb.writeln('''#version 460 core
 
@@ -168,18 +172,28 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 #define iMouse (ubo.iMouse)
 ''');
 
+    final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+        ? '$commonGlsl\n$userGlsl'
+        : userGlsl;
+
     final declaredChannels = <int>[];
     for (int i = 0; i < 4; i++) {
-      if (shaderUsesChannel(userGlsl, i)) {
+      if (shaderUsesChannel(codeForChannels, i)) {
         declaredChannels.add(i);
         sb.writeln('layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;');
       }
     }
 
-    sb.writeln('''
-layout(location = 0) out vec4 fragColor;
+    sb.writeln('layout(location = 0) out vec4 fragColor;');
+    sb.writeln();
 
-#line 1
+    if (commonGlsl != null && commonGlsl.trim().isNotEmpty) {
+      sb.writeln('// Common Tab source');
+      sb.writeln(commonGlsl);
+      sb.writeln();
+    }
+
+    sb.writeln('''#line 1
 $userGlsl
 
 void main() {
@@ -205,10 +219,12 @@ void main() {
   }
 
   /// Compiles a Shadertoy GLSL code string using `impellerc`.
+  /// If [commonGlsl] is specified, it is injected before [shadertoyGlsl].
   /// Returns [CompileResult.success] with the compiled `.shaderbundle` bytes,
   /// or [CompileResult.error] with the exact compiler diagnostics from `stderr`.
   static Future<CompileResult> compile({
     required String shadertoyGlsl,
+    String? commonGlsl,
     String? customImpellercPath,
   }) async {
     final impellerc = customImpellercPath ?? findImpellerc();
@@ -226,7 +242,9 @@ void main() {
       final bundleFile = File('${tempDir.path}/output.shaderbundle');
 
       await vertFile.writeAsString(quadVertexShader);
-      await fragFile.writeAsString(wrapShadertoyGlsl(shadertoyGlsl));
+      await fragFile.writeAsString(
+        wrapShadertoyGlsl(shadertoyGlsl, commonGlsl: commonGlsl),
+      );
 
       final manifestJson = json.encode({
         'QuadVertex': {

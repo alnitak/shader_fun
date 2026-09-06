@@ -10,7 +10,6 @@ enum PassType {
   bufferC,
   bufferD,
   common,
-  sound,
 }
 
 extension PassTypeExtension on PassType {
@@ -28,8 +27,6 @@ extension PassTypeExtension on PassType {
         return 'Buffer D';
       case PassType.common:
         return 'Common';
-      case PassType.sound:
-        return 'Sound';
     }
   }
 

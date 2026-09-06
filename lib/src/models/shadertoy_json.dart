@@ -52,6 +52,91 @@ class ShaderToyProject {
   ShaderPass? get imagePass => getPass(PassType.image);
   ShaderPass? get commonPass => getPass(PassType.common);
 
+  bool hasPass(PassType type) => getPass(type) != null;
+
+  /// Default starter GLSL template for each pass type.
+  static String defaultCodeForPass(PassType type) {
+    switch (type) {
+      case PassType.common:
+        return '''// Common code shared across all passes
+// Place shared constants, structs, and helper functions here.
+
+#define PI 3.14159265359
+
+vec2 rot(vec2 p, float a) {
+    float c = cos(a), s = sin(a);
+    return mat2(c, -s, s, c) * p;
+}
+''';
+      case PassType.image:
+        return '''void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = fragCoord / iResolution.xy;
+    vec3 col = 0.5 + 0.5 * cos(iTime + uv.xyx + vec3(0, 2, 4));
+    fragColor = vec4(col, 1.0);
+}
+''';
+      case PassType.bufferA:
+      case PassType.bufferB:
+      case PassType.bufferC:
+      case PassType.bufferD:
+        return '''void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec2 uv = fragCoord / iResolution.xy;
+    fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
+}
+''';
+    }
+  }
+
+  /// Adds a new pass of [type] if not already present, preserving logical tab order:
+  /// Common -> Buffer A -> Buffer B -> Buffer C -> Buffer D -> Image -> Sound.
+  ShaderPass? addPass(PassType type, {String? code}) {
+    if (hasPass(type)) return getPass(type);
+
+    final newPass = ShaderPass(
+      type: type,
+      name: type.displayName,
+      code: code ?? defaultCodeForPass(type),
+    );
+
+    passes.add(newPass);
+    _sortPasses();
+    return newPass;
+  }
+
+  /// Removes the pass of [type]. The Image pass cannot be removed.
+  bool removePass(PassType type) {
+    if (type == PassType.image) return false;
+    final idx = passes.indexWhere((p) => p.type == type);
+    if (idx != -1) {
+      final removed = passes.removeAt(idx);
+      removed.dispose();
+      return true;
+    }
+    return false;
+  }
+
+  void _sortPasses() {
+    int passOrder(PassType t) {
+      switch (t) {
+        case PassType.common:
+          return 0;
+        case PassType.bufferA:
+          return 1;
+        case PassType.bufferB:
+          return 2;
+        case PassType.bufferC:
+          return 3;
+        case PassType.bufferD:
+          return 4;
+        case PassType.image:
+          return 5;
+      }
+    }
+
+    passes.sort((a, b) => passOrder(a.type).compareTo(passOrder(b.type)));
+  }
+
   /// Deserializes a ShaderToy JSON string or object into a [ShaderToyProject].
   factory ShaderToyProject.fromJson(Map<String, dynamic> rootJson) {
     final shaderMap = rootJson.containsKey('Shader')
@@ -77,6 +162,11 @@ class ShaderToyProject {
       final passTypeStr = rawPass['type']?.toString().toLowerCase() ?? 'image';
       final code = rawPass['code']?.toString() ?? '';
 
+      if (passTypeStr == 'sound') {
+        // Sound passes are ignored/unsupported without GPU audio
+        continue;
+      }
+
       PassType type;
       switch (passTypeStr) {
         case 'buffer':
@@ -93,9 +183,6 @@ class ShaderToyProject {
           break;
         case 'common':
           type = PassType.common;
-          break;
-        case 'sound':
-          type = PassType.sound;
           break;
         case 'image':
         default:
@@ -328,8 +415,6 @@ class ShaderToyProject {
         passTypeStr = 'buffer';
       } else if (pass.type == PassType.common) {
         passTypeStr = 'common';
-      } else if (pass.type == PassType.sound) {
-        passTypeStr = 'sound';
       }
 
       renderpassList.add({

@@ -102,7 +102,7 @@ class ShaderToyController
   // Compilation
   // ===========================================================================
 
-  /// Compiles the active shader pass via `impellerc`.
+  /// Compiles the active shader pass via `impellerc` or evaluates the Sound pass.
   /// Invoked when clicking "Compile & Run Shader" or pressing Alt+Enter.
   /// If [sourceCode] is provided, it is compiled and, upon success, committed
   /// to the active pass.
@@ -116,12 +116,42 @@ class ShaderToyController
       return false;
     }
 
+    // 1. Common pass: update code and recompile visual passes
+    if (pass?.type == PassType.common) {
+      pass!.code = codeToCompile;
+      final img = _project.imagePass;
+      if (img != null) {
+        return compilePass(img);
+      }
+      return true;
+    }
+
+    // 2. Image and Buffer passes
+    return compilePass(pass, codeOverride: codeToCompile);
+  }
+
+  /// Compiles an individual visual pass with optional common code prepended.
+  Future<bool> compilePass(ShaderPass? pass, {String? codeOverride}) async {
+    final targetPass = pass ?? _project.imagePass;
+    final codeToCompile = codeOverride ?? targetPass?.code ?? '';
+    if (codeToCompile.trim().isEmpty) {
+      lastErrorNotifier.value = 'Shader code is empty';
+      notifyListeners();
+      return false;
+    }
+
     isCompilingNotifier.value = true;
     notifyListeners();
 
     try {
-      final result =
-          await ImpellerCompiler.compile(shadertoyGlsl: codeToCompile);
+      final commonCode = (targetPass?.type != PassType.common)
+          ? _project.commonPass?.code
+          : null;
+
+      final result = await ImpellerCompiler.compile(
+        shadertoyGlsl: codeToCompile,
+        commonGlsl: commonCode,
+      );
       if (!result.isSuccess) {
         lastErrorNotifier.value =
             result.errorMessage ?? 'Shader compilation failed';
@@ -132,9 +162,8 @@ class ShaderToyController
         return false;
       }
 
-      // If compilation succeeded, commit the code to the pass.
-      if (pass != null) {
-        pass.code = codeToCompile;
+      if (targetPass != null) {
+        targetPass.code = codeToCompile;
       }
 
       lastErrorNotifier.value = null;
@@ -220,6 +249,7 @@ class ShaderToyController
     _renderer.clearAudio();
     _renderer.gpuRenderer.clearPingPongBuffers();
     _bindAudioChannelListener();
+
     if (autoCompile) {
       await compile();
     }
@@ -423,7 +453,7 @@ class ShaderToyController
   }
 
   // ===========================================================================
-  // Tab / Pass Selection
+  // Tab / Pass Selection & Dynamic Management
   // ===========================================================================
 
   /// Sets the active pass tab (e.g. Image, Buffer A, Common).
@@ -434,17 +464,54 @@ class ShaderToyController
     }
   }
 
+  /// Adds a pass of [type] to the project.
+  Future<ShaderPass?> addPass(PassType type, {String? code}) async {
+    final newPass = _project.addPass(type, code: code);
+    if (newPass == null) return null;
+
+    final newIdx = _project.passes.indexOf(newPass);
+    if (newIdx != -1) {
+      activePassIndexNotifier.value = newIdx;
+    }
+
+    await compile();
+    notifyListeners();
+    return newPass;
+  }
+
+  /// Removes the pass of [type] from the project (Image pass cannot be removed).
+  Future<bool> removePass(PassType type) async {
+    if (type == PassType.image) return false;
+
+    final success = _project.removePass(type);
+    if (!success) return false;
+
+    final imgIdx = _project.passes.indexWhere((p) => p.type == PassType.image);
+    activePassIndexNotifier.value = imgIdx != -1 ? imgIdx : 0;
+
+    await compile();
+    notifyListeners();
+    return true;
+  }
+
   // ===========================================================================
   // Playback Controls
   // ===========================================================================
 
   /// Attaches a ticker if one was not provided in the constructor.
   void attachTicker(TickerProvider vsync) {
-    _ticker?.dispose();
+    if (_ticker != null) return;
     _ticker = vsync.createTicker(_onTick);
     if (isPlaying) {
       _startTicker();
     }
+  }
+
+  /// Detaches the ticker if it was attached.
+  void detachTicker() {
+    _stopTicker();
+    _ticker?.dispose();
+    _ticker = null;
   }
 
   void _startTicker() {
@@ -462,13 +529,24 @@ class ShaderToyController
   void play() {
     isPlayingNotifier.value = true;
     _lastTimestamp = 0.0;
+    _uniforms.timeDelta = 0.016;
     _startTicker();
+    final audio = _findActiveAudioChannel();
+    if (audio is SoLoudAudioChannel) {
+      audio.resume();
+    }
     notifyListeners();
   }
 
   void pause() {
     isPlayingNotifier.value = false;
     _stopTicker();
+    _uniforms.timeDelta = 0.0;
+    _uniforms.frameRate = 0.0;
+    final audio = _findActiveAudioChannel();
+    if (audio is SoLoudAudioChannel) {
+      audio.pause();
+    }
     notifyListeners();
   }
 
@@ -483,8 +561,10 @@ class ShaderToyController
   void rewind() {
     _uniforms.time = 0.0;
     _uniforms.frame = 0;
-    _uniforms.timeDelta = 0.016;
+    _uniforms.timeDelta = isPlaying ? 0.016 : 0.0;
     _lastTimestamp = 0.0;
+    _renderer.clearAudio();
+    _renderer.gpuRenderer.clearPingPongBuffers();
     renderSingleFrame();
     notifyListeners();
   }
@@ -536,6 +616,8 @@ class ShaderToyController
   }
 
   void _onTick(Duration elapsed) {
+    if (!isPlaying) return;
+
     final currentSec = elapsed.inMicroseconds / 1000000.0;
     if (_lastTimestamp == 0.0) {
       _lastTimestamp = currentSec;
@@ -584,7 +666,7 @@ class ShaderToyController
   }
 
   void _onAudioDataUpdated() {
-    if (!_isRendering && !_isDisposed) {
+    if (isPlaying && !_isRendering && !_isDisposed) {
       renderSingleFrame();
     }
   }

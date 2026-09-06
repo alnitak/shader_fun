@@ -43,6 +43,12 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
     }
   }
 
+  @override
+  void dispose() {
+    widget.controller.detachTicker();
+    super.dispose();
+  }
+
   String _formatTime(double sec) {
     final m = (sec ~/ 60).toString().padLeft(2, '0');
     final s = (sec % 60).floor().toString().padLeft(2, '0');
@@ -245,9 +251,13 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
                               ),
                             ),
                             child: Text(
-                              '${widget.controller.fps.toStringAsFixed(1)} fps',
-                              style: const TextStyle(
-                                color: Color(0xFF4ADE80),
+                              widget.controller.isPlaying
+                                  ? '${widget.controller.fps.toStringAsFixed(1)} fps'
+                                  : 'PAUSED',
+                              style: TextStyle(
+                                color: widget.controller.isPlaying
+                                    ? const Color(0xFF4ADE80)
+                                    : const Color(0xFFFBBF24),
                                 fontSize: 11,
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.bold,
