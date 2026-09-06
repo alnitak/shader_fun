@@ -217,16 +217,17 @@ class ShaderToyController
   }) async {
     _project = newProject;
     activePassIndexNotifier.value = 0;
+    _renderer.clearAudio();
+    _renderer.gpuRenderer.clearPingPongBuffers();
     _bindAudioChannelListener();
+    if (autoCompile) {
+      await compile();
+    }
     rewind();
     if (isPlaying) {
       _startTicker();
     }
-    if (autoCompile) {
-      await compile();
-    } else {
-      notifyListeners();
-    }
+    notifyListeners();
   }
 
   /// Loads project settings from a JSON string (supporting standard ShaderToy and concise JSON formats).
@@ -595,11 +596,6 @@ class ShaderToyController
         if (ch is AudioChannel) return ch;
       }
     }
-    for (final pass in _project.passes) {
-      for (final ch in pass.channels) {
-        if (ch is AudioChannel) return ch;
-      }
-    }
     return null;
   }
 
@@ -609,9 +605,13 @@ class ShaderToyController
     _isRendering = true;
     try {
       final audio = _findActiveAudioChannel();
+      if (audio == null) {
+        _renderer.clearAudio();
+      }
       final img = await _renderer.renderFrame(
         uniforms: _uniforms,
         passes: _project.passes,
+        activePass: activePass,
         activeAudioChannel: audio,
       );
       if (_isDisposed) {

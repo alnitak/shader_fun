@@ -168,8 +168,10 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 #define iMouse (ubo.iMouse)
 ''');
 
+    final declaredChannels = <int>[];
     for (int i = 0; i < 4; i++) {
       if (shaderUsesChannel(userGlsl, i)) {
+        declaredChannels.add(i);
         sb.writeln('layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;');
       }
     }
@@ -182,8 +184,23 @@ $userGlsl
 
 void main() {
     vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
-    mainImage(fragColor, fragCoord);
-}''');
+    mainImage(fragColor, fragCoord);''');
+
+    if (declaredChannels.isNotEmpty) {
+      // Force impellerc / SPIRV-Cross to retain all declared samplers in the
+      // target shader function signature (assigning valid ext_res_0 indices).
+      // If a channel is declared but not sampled in active user code (e.g. inside
+      // an inactive #if), impellerc would otherwise assign UINT32_MAX to its
+      // slot, causing Metal/driver SIGBUS crashes when bindTexture is called.
+      // iResolution.x is always >= 0.0 at runtime, so this branch is never taken.
+      sb.writeln('    if (iResolution.x < 0.0) {');
+      for (final ch in declaredChannels) {
+        sb.writeln('        fragColor += texture(iChannel$ch, vec2(0.0));');
+      }
+      sb.writeln('    }');
+    }
+
+    sb.writeln('}');
     return sb.toString();
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
 
 import '../channels/audio_texture_provider.dart';
+import '../channels/shader_channel.dart';
 import '../compiler/impeller_compiler.dart';
 import '../core/shader_pass.dart';
 import '../core/shadertoy_uniforms.dart';
@@ -45,11 +46,21 @@ class FlutterGpuRenderer {
   /// Cache of uploaded 2D image textures per channel index
   final Map<int, gpu.Texture> _textureChannels = {};
 
-  /// Ping-pong textures for buffer passes
-  final Map<int, List<gpu.Texture>> _bufferPingPong = {};
-
   bool get isGpuAvailable => _isGpuAvailable;
   bool get hasPipeline => _renderPipeline != null;
+
+  /// Clears audio texture reference so other shaders don't sample stale audio data.
+  void clearAudioTexture() {
+    _audioTexture = null;
+  }
+
+  void _clearPingPongBuffers() {}
+
+  void clearPingPongBuffers() {
+    _clearPingPongBuffers();
+  }
+
+  static const int _kDefaultTextureSize = 256;
 
   gpu.Texture? _getDefaultTexture() {
     if (!_isGpuAvailable) return null;
@@ -57,17 +68,20 @@ class FlutterGpuRenderer {
       if (_defaultTexture != null) return _defaultTexture;
       _defaultTexture = gpu.gpuContext.createTexture(
         gpu.StorageMode.hostVisible,
-        1,
-        1,
+        _kDefaultTextureSize,
+        _kDefaultTextureSize,
         format: gpu.PixelFormat.r8g8b8a8UNormInt,
         enableRenderTargetUsage: false,
         enableShaderReadUsage: true,
       );
-      final dummyBytes = Uint8List.fromList([0, 0, 0, 255]);
+      final dummyBytes = Uint8List(_kDefaultTextureSize * _kDefaultTextureSize * 4);
+      for (int i = 3; i < dummyBytes.length; i += 4) {
+        dummyBytes[i] = 255; // Opaque black
+      }
       _defaultTexture!.overwrite(ByteData.sublistView(dummyBytes));
       return _defaultTexture;
     } catch (e) {
-      debugPrint('Failed to create default 1x1 texture: $e');
+      debugPrint('Failed to create default ${_kDefaultTextureSize}x$_kDefaultTextureSize texture: $e');
       return null;
     }
   }
@@ -162,10 +176,6 @@ class FlutterGpuRenderer {
     _clearPingPongBuffers();
   }
 
-  void _clearPingPongBuffers() {
-    _bufferPingPong.clear();
-  }
-
   /// Uploads audio spectrum (FFT) and waveform data to a 512x2 GPU texture.
   gpu.Texture? uploadAudioTexture(AudioChannel audioChannel) {
     if (!_isGpuAvailable) return null;
@@ -226,6 +236,7 @@ class FlutterGpuRenderer {
   Future<ui.Image?> renderFrame({
     required ShaderToyUniforms uniforms,
     required List<ShaderPass> passes,
+    ShaderPass? activePass,
     AudioChannel? activeAudioChannel,
   }) async {
     if (!_isGpuAvailable) {
@@ -293,8 +304,9 @@ class FlutterGpuRenderer {
       uniformByteData.setFloat32(40, uniforms.mouse.z, Endian.host);
       uniformByteData.setFloat32(44, uniforms.mouse.w, Endian.host);
 
+      gpu.DeviceBuffer? uniformDeviceBuffer;
       try {
-        final uniformDeviceBuffer =
+        uniformDeviceBuffer =
             gpu.gpuContext.createDeviceBufferWithCopy(uniformByteData);
         final uniformSlot = _fragmentShader!.getUniformSlot('FrameInfo');
         renderPass.bindUniform(
@@ -309,46 +321,52 @@ class FlutterGpuRenderer {
         // FrameInfo uniform might not be referenced in this shader
       }
 
-      // 4. Update and bind audio texture
+      // 4. Update audio texture if an audio channel is active
       if (activeAudioChannel != null) {
         uploadAudioTexture(activeAudioChannel);
       }
 
-      // 5. Bind iChannel0..3 samplers (only for channels actually referenced in the shader)
-      final activePass = passes.firstWhere(
-        (p) => p.type == PassType.image && p.enabled,
-        orElse: () => passes.isNotEmpty
-            ? passes.first
-            : ShaderPass(type: PassType.image, name: 'Image', code: ''),
-      );
-      final codeForChannels = _activeCode ?? activePass.code;
+      // 5. Bind iChannel0..3 samplers (only for channels configured on the active pass and compiled into pipeline)
+      final currentPass = activePass ??
+          passes.firstWhere(
+            (p) => p.type == PassType.image && p.enabled,
+            orElse: () => passes.isNotEmpty
+                ? passes.first
+                : ShaderPass(type: PassType.image, name: 'Image', code: ''),
+          );
 
-      final fallbackTex = _getDefaultTexture();
-      for (int i = 0; i < 4; i++) {
-        if (!ImpellerCompiler.shaderUsesChannel(codeForChannels, i)) {
-          continue;
-        }
+      final codeForChannels = _activeCode;
+      if (codeForChannels != null && _fragmentShader != null) {
+        final fallbackTex = _getDefaultTexture();
 
-        final channelSlot = _fragmentShader!.getUniformSlot('iChannel$i');
-        gpu.Texture? texToBind;
-        if (i == 0 && _audioTexture != null) {
-          texToBind = _audioTexture;
-        } else if (_textureChannels.containsKey(i)) {
-          texToBind = _textureChannels[i];
-        } else {
-          texToBind = fallbackTex;
-        }
+        for (int i = 0; i < 4; i++) {
+          if (!ImpellerCompiler.shaderUsesChannel(codeForChannels, i)) {
+            continue;
+          }
 
-        if (texToBind != null) {
-          try {
-            renderPass.bindTexture(channelSlot, texToBind);
-          } catch (_) {
-            // Sampler slot might not be referenced in this shader
+          final channel = (i < currentPass.channels.length) ? currentPass.channels[i] : null;
+
+          gpu.Texture? texToBind;
+          if (channel is AudioChannel) {
+            texToBind = _audioTexture ?? fallbackTex;
+          } else if (channel is TextureChannel && _textureChannels.containsKey(i)) {
+            texToBind = _textureChannels[i];
+          } else {
+            texToBind = fallbackTex;
+          }
+
+          if (texToBind != null) {
+            try {
+              final channelSlot = _fragmentShader!.getUniformSlot('iChannel$i');
+              renderPass.bindTexture(channelSlot, texToBind);
+            } catch (_) {
+              // Sampler slot might not be referenced in this shader
+            }
           }
         }
       }
 
-      // 6. Draw full-screen quad (6 vertices)
+      // 6. Draw full-screen quad (6 vertices) to primary display surface
       renderPass.draw(6);
 
       // 7. Present frame and submit GPU command buffer

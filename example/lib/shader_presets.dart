@@ -230,10 +230,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Decay previous frame slightly
     prev *= 0.94;
     
-    // Add mouse brush trail
-    vec2 m = iMouse.xy / iResolution.xy;
-    float d = length((uv - m) * vec2(iResolution.x / iResolution.y, 1.0));
-    float brush = smoothstep(0.06, 0.01, d);
+    // Add mouse brush trail (only when clicked or moved)
+    float brush = 0.0;
+    if (iMouse.z > 0.0 || length(iMouse.xy) > 10.0) {
+        vec2 m = iMouse.xy / iResolution.xy;
+        float d = length((uv - m) * vec2(iResolution.x / iResolution.y, 1.0));
+        brush += smoothstep(0.06, 0.01, d);
+    }
     
     // Automatic orbit spark
     vec2 spark = vec2(0.5) + 0.35 * vec2(sin(iTime * 2.3), cos(iTime * 1.7));

@@ -46,16 +46,21 @@ class ShaderToyRenderer {
   Future<ui.Image?> renderFrame({
     required ShaderToyUniforms uniforms,
     required List<ShaderPass> passes,
+    ShaderPass? activePass,
     AudioChannel? activeAudioChannel,
   }) async {
     // 1. If Flutter GPU is supported on this device, execute on GPU
     if (_gpuRenderer.isGpuAvailable) {
       if (activeAudioChannel != null) {
         _gpuRenderer.uploadAudioTexture(activeAudioChannel);
+      } else {
+        _gpuRenderer.clearAudioTexture();
       }
       final gpuImage = await _gpuRenderer.renderFrame(
         uniforms: uniforms,
         passes: passes,
+        activePass: activePass,
+        activeAudioChannel: activeAudioChannel,
       );
       // Return the GPU rendered frame. If the shader pipeline is still compiling,
       // return null so the UI waits cleanly for the real shader rather than flashing
@@ -69,6 +74,11 @@ class ShaderToyRenderer {
       passes: passes,
       activeAudioChannel: activeAudioChannel,
     );
+  }
+
+  /// Clears active audio texture on the GPU renderer.
+  void clearAudio() {
+    _gpuRenderer.clearAudioTexture();
   }
 
   void dispose() {
