@@ -101,23 +101,29 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
     showDialog(
       context: context,
       builder: (context) => _LoadShaderDialog(
-        onLoadProject: (project) {
+        onLoadProject: (project) async {
           if (SoLoud.instance.isInitialized) {
             SoLoud.instance.disposeAllSources();
           }
-          _controller.setProject(project);
-          _controller.play();
+          await _controller.loadProject(project);
           _syncCodeWithActivePass();
-          setState(() {
-            _compileStatus = 'Loaded "${project.name}" (Running)';
-            _compileSuccess = true;
-          });
+          _controller.play();
+          if (mounted) {
+            setState(() {
+              _compileStatus = 'Loaded "${project.name}" (Running)';
+              _compileSuccess = true;
+            });
+          }
         },
       ),
     );
   }
 
   void _openSaveDialog() {
+    final cur = _controller.activePass;
+    if (cur != null) {
+      cur.code = _codeEditorController.text;
+    }
     showDialog(
       context: context,
       builder: (context) => _SaveShaderDialog(project: _controller.project),

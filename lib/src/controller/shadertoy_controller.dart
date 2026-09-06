@@ -238,17 +238,20 @@ class ShaderToyController
   }
 
   /// Sets the active project (backwards compatibility).
-  void setProject(ShaderToyProject newProject) {
-    loadProject(newProject);
-  }
+  Future<void> setProject(ShaderToyProject newProject) =>
+      loadProject(newProject);
 
   /// Loads a complete [ShaderToyProject] and optionally compiles.
   Future<void> loadProject(
     ShaderToyProject newProject, {
     bool autoCompile = true,
+    int? activePassIndex,
   }) async {
     _project = newProject;
-    activePassIndexNotifier.value = 0;
+    final defaultIdx =
+        _project.passes.indexWhere((p) => p.type == PassType.image);
+    activePassIndexNotifier.value =
+        activePassIndex ?? (defaultIdx >= 0 ? defaultIdx : 0);
     _renderer.clearAudio();
     _renderer.gpuRenderer.clearPingPongBuffers();
     _bindAudioChannelListener();
