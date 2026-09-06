@@ -185,6 +185,28 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     sb.writeln('layout(location = 0) out vec4 fragColor;');
     sb.writeln();
 
+    if (declaredChannels.isNotEmpty) {
+      // In Vulkan and Metal, render target textures have (0, 0) at the top-left,
+      // whereas Shadertoy and OpenGL use bottom-left conventions.
+      // Sampling offscreen buffer textures with hardware UVs would invert the Y
+      // axis on every pass/frame, causing alternating ping-pong flip flickering.
+      // These wrappers invert Y so that sampling is always consistent with Shadertoy.
+      sb.writeln('''
+vec4 st_texture(sampler2D s, vec2 uv) {
+    return texture(s, vec2(uv.x, 1.0 - uv.y));
+}
+vec4 st_textureLod(sampler2D s, vec2 uv, float lod) {
+    return textureLod(s, vec2(uv.x, 1.0 - uv.y), lod);
+}
+vec4 st_texelFetch(sampler2D s, ivec2 p, int lod) {
+    return texelFetch(s, ivec2(p.x, textureSize(s, lod).y - 1 - p.y), lod);
+}
+#define texture(s, uv) st_texture(s, uv)
+#define textureLod(s, uv, lod) st_textureLod(s, uv, lod)
+#define texelFetch(s, p, lod) st_texelFetch(s, p, lod)
+''');
+    }
+
     if (commonGlsl != null && commonGlsl.trim().isNotEmpty) {
       sb.writeln('// Common Tab source');
       sb.writeln(commonGlsl);

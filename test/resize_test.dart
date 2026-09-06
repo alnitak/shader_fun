@@ -162,6 +162,24 @@ void main() {
     }
     expect(controller.frame, greaterThan(fPaused));
   });
+
+  testWidgets('resizing controller updates resolution without resetting playback or crashing', (tester) async {
+    final project = ShaderToyProject.empty();
+    final controller = ShaderToyController(
+      initialProject: project,
+      initialResolution: const Size(640, 360),
+    );
+
+    expect(controller.resolution, equals(const Size(640, 360)));
+
+    controller.resize(const Size(960, 540));
+    expect(controller.resolution, equals(const Size(960, 540)));
+
+    controller.resize(const Size(1280, 720));
+    expect(controller.resolution, equals(const Size(1280, 720)));
+
+    controller.dispose();
+  });
 }
 
 class StudioTestWidget extends StatefulWidget {

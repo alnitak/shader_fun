@@ -319,13 +319,13 @@ class _ShaderImagePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (image == null) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..color = const Color(0xFF0F0F12),
-      );
-      return;
-    }
+    // Ensure opaque background is always drawn to prevent any bleed-through
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = const Color(0xFF0F0F12),
+    );
+
+    if (image == null) return;
 
     final src = Rect.fromLTWH(
       0,

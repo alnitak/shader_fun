@@ -113,17 +113,14 @@ class FlutterGpuRenderer {
         ..writeWidth = w
         ..writeHeight = h;
       _bufferPingPongs[type] = buffer;
-    } else {
-      // If writeTexture dimensions do not match the target render size,
-      // reallocate writeTexture at the new dimensions.
-      if (buffer.writeTexture == null ||
-          buffer.writeWidth != w ||
-          buffer.writeHeight != h) {
-        buffer.writeTexture = _createRenderTargetTexture(w, h);
-        buffer.writeWidth = w;
-        buffer.writeHeight = h;
-      }
-      // Ensure readTexture exists so sampling doesn't fall back to empty.
+    } else if (buffer.writeWidth != w || buffer.writeHeight != h) {
+      // Allocate a new writeTexture with the new dimensions.
+      // Retain readTexture (even with its old dimensions) so ping-pong buffers that
+      // accumulate state (such as Buffer A) can bilinearly resample their previous
+      // content into the new resolution on this frame without losing their data or centering.
+      buffer.writeTexture = _createRenderTargetTexture(w, h);
+      buffer.writeWidth = w;
+      buffer.writeHeight = h;
       if (buffer.readTexture == null) {
         buffer.readTexture = _createRenderTargetTexture(w, h);
         buffer.readWidth = w;
@@ -274,8 +271,15 @@ class FlutterGpuRenderer {
         enableShaderReadUsage: true,
       );
 
-      final byteData = ByteData.sublistView(audioChannel.pixelData);
-      _audioTexture!.overwrite(byteData);
+      final rawBytes = audioChannel.pixelData;
+      final rowBytes = kAudioTextureWidth * 4;
+      final flippedBytes = Uint8List(rawBytes.length);
+      // Row 0 in Metal gets waveform (raw Row 1), Row 1 gets FFT (raw Row 0)
+      // so sampling at y = 0.25 (OpenGL bottom row) samples FFT with st_texture.
+      flippedBytes.setRange(0, rowBytes, rawBytes, rowBytes);
+      flippedBytes.setRange(rowBytes, rowBytes * 2, rawBytes, 0);
+
+      _audioTexture!.overwrite(ByteData.sublistView(flippedBytes));
       return _audioTexture;
     } catch (e) {
       return null;
