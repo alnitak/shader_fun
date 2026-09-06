@@ -1,0 +1,290 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+/// Result of an `impellerc` shader compilation.
+class CompileResult {
+  const CompileResult.success(this.bundleBytes)
+      : isSuccess = true,
+        errorMessage = null;
+
+  const CompileResult.error(this.errorMessage)
+      : isSuccess = false,
+        bundleBytes = null;
+
+  final bool isSuccess;
+  final Uint8List? bundleBytes;
+  final String? errorMessage;
+}
+
+/// Compiler service that wraps Shadertoy GLSL code into modern Vulkan GLSL 4.60,
+/// generates full-screen quad vertex shader geometry, and invokes `impellerc`
+/// to produce Flutter GPU `.shaderbundle` binaries or extract compilation errors.
+class ImpellerCompiler {
+  static String? _cachedImpellercPath;
+
+  /// Locates the `impellerc` offline compiler binary from system PATH or Flutter SDK cache.
+  static String? findImpellerc() {
+    try {
+      if (_cachedImpellercPath != null &&
+          File(_cachedImpellercPath!).existsSync()) {
+        return _cachedImpellercPath;
+      }
+    } catch (_) {}
+
+    // 1. Check environment variables
+    try {
+      final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+      if (flutterRoot != null) {
+        final candidate = _findInFlutterRoot(flutterRoot);
+        if (candidate != null) {
+          _cachedImpellercPath = candidate;
+          return candidate;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Check system PATH via 'which' or 'where'
+    try {
+      final whichCmd = Platform.isWindows ? 'where' : 'which';
+      final result = Process.runSync(whichCmd, ['flutter']);
+      if (result.exitCode == 0) {
+        final flutterPath = result.stdout.toString().trim().split('\n').first;
+        // flutter is typically in <flutter_dir>/bin/flutter
+        final flutterDir = File(flutterPath).parent.parent.path;
+        final candidate = _findInFlutterRoot(flutterDir);
+        if (candidate != null) {
+          _cachedImpellercPath = candidate;
+          return candidate;
+        }
+      }
+    } catch (_) {}
+
+    // 3. Fallback common developer directories on macOS / Linux / Windows
+    final commonPaths = [
+      '/Volumes/NVME/dev/flutter',
+      Platform.environment['HOME'] != null
+          ? '${Platform.environment['HOME']}/development/flutter'
+          : null,
+      Platform.environment['HOME'] != null
+          ? '${Platform.environment['HOME']}/flutter'
+          : null,
+    ];
+
+    for (final dir in commonPaths) {
+      if (dir == null) continue;
+      try {
+        if (Directory(dir).existsSync()) {
+          final candidate = _findInFlutterRoot(dir);
+          if (candidate != null) {
+            _cachedImpellercPath = candidate;
+            return candidate;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  static String? _findInFlutterRoot(String flutterRoot) {
+    final exeName = Platform.isWindows ? 'impellerc.exe' : 'impellerc';
+
+    // 1. Check known host architecture subdirectories directly to avoid directory listing
+    final hostArchs = [
+      'darwin-arm64',
+      'darwin-x64',
+      'windows-x64',
+      'linux-x64',
+      'linux-arm64',
+    ];
+
+    for (final arch in hostArchs) {
+      try {
+        final candidateFile =
+            File('$flutterRoot/bin/cache/artifacts/engine/$arch/$exeName');
+        if (candidateFile.existsSync()) {
+          return candidateFile.path;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fallback to directory listing if allowed
+    try {
+      final engineArtifacts =
+          Directory('$flutterRoot/bin/cache/artifacts/engine');
+      if (engineArtifacts.existsSync()) {
+        final subdirs = engineArtifacts.listSync();
+        for (final entity in subdirs) {
+          if (entity is Directory) {
+            final file = File('${entity.path}/$exeName');
+            if (file.existsSync()) {
+              return file.path;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// The full-screen quad vertex shader source.
+  static const String quadVertexShader = '''#version 460 core
+layout(location = 0) in vec2 position;
+void main() {
+    gl_Position = vec4(position, 0.0, 1.0);
+}
+''';
+
+  static final RegExp _commentRegex =
+      RegExp(r'//.*$|/\*[\s\S]*?\*/', multiLine: true);
+
+  /// Returns true if [code] references `iChannel$channelIndex` outside of comments.
+  static bool shaderUsesChannel(String code, int channelIndex) {
+    final clean = code.replaceAll(_commentRegex, '');
+    return RegExp('\\biChannel$channelIndex\\b').hasMatch(clean);
+  }
+
+  /// Wraps user Shadertoy GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// samplers, macros, and standard main() entry point.
+  /// Uses `#line 1` so compiler error lines match the user's source lines.
+  static String wrapShadertoyGlsl(String userGlsl) {
+    final sb = StringBuffer();
+    sb.writeln('''#version 460 core
+
+layout(std140, set = 0, binding = 0) uniform FrameInfo {
+    vec3 iResolution;
+    float iTime;
+    float iTimeDelta;
+    int iFrame;
+    vec4 iMouse;
+} ubo;
+
+#define iResolution (ubo.iResolution)
+#define iTime (ubo.iTime)
+#define iTimeDelta (ubo.iTimeDelta)
+#define iFrame (ubo.iFrame)
+#define iMouse (ubo.iMouse)
+''');
+
+    for (int i = 0; i < 4; i++) {
+      if (shaderUsesChannel(userGlsl, i)) {
+        sb.writeln('layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;');
+      }
+    }
+
+    sb.writeln('''
+layout(location = 0) out vec4 fragColor;
+
+#line 1
+$userGlsl
+
+void main() {
+    vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+    mainImage(fragColor, fragCoord);
+}''');
+    return sb.toString();
+  }
+
+  /// Compiles a Shadertoy GLSL code string using `impellerc`.
+  /// Returns [CompileResult.success] with the compiled `.shaderbundle` bytes,
+  /// or [CompileResult.error] with the exact compiler diagnostics from `stderr`.
+  static Future<CompileResult> compile({
+    required String shadertoyGlsl,
+    String? customImpellercPath,
+  }) async {
+    final impellerc = customImpellercPath ?? findImpellerc();
+    if (impellerc == null) {
+      return const CompileResult.error(
+        'Could not locate "impellerc" compiler binary in Flutter SDK. '
+        'Please ensure Flutter is installed and on PATH.',
+      );
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp('shadertoy_compile_');
+    try {
+      final vertFile = File('${tempDir.path}/quad.vert');
+      final fragFile = File('${tempDir.path}/shadertoy.frag');
+      final bundleFile = File('${tempDir.path}/output.shaderbundle');
+
+      await vertFile.writeAsString(quadVertexShader);
+      await fragFile.writeAsString(wrapShadertoyGlsl(shadertoyGlsl));
+
+      final manifestJson = json.encode({
+        'QuadVertex': {
+          'type': 'vertex',
+          'file': vertFile.path,
+        },
+        'ShadertoyFragment': {
+          'type': 'fragment',
+          'file': fragFile.path,
+        },
+      });
+
+      // Target platform flag
+      final String platformFlag;
+      if (Platform.isMacOS) {
+        platformFlag = '--metal-desktop';
+      } else if (Platform.isIOS) {
+        platformFlag = '--metal-ios';
+      } else {
+        platformFlag = '--vulkan';
+      }
+
+      final result = await Process.run(
+        impellerc,
+        [
+          platformFlag,
+          '--shader-bundle=$manifestJson',
+          '--sl=${bundleFile.path}',
+          '--verbose',
+        ],
+        workingDirectory: tempDir.path,
+      );
+
+      if (result.exitCode != 0) {
+        final stderr = result.stderr.toString().trim();
+        final stdout = result.stdout.toString().trim();
+        final rawMsg = stderr.isNotEmpty ? stderr : stdout;
+
+        return CompileResult.error(_cleanCompilerError(rawMsg));
+      }
+
+      if (!await bundleFile.exists()) {
+        return const CompileResult.error(
+          'impellerc succeeded but output.shaderbundle was not produced.',
+        );
+      }
+
+      final bytes = await bundleFile.readAsBytes();
+      return CompileResult.success(bytes);
+    } catch (e) {
+      return CompileResult.error('Compilation exception: $e');
+    } finally {
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    }
+  }
+
+  /// Cleans and formats raw impellerc stderr for human-friendly UI display.
+  static String _cleanCompilerError(String raw) {
+    final lines = raw.split('\n');
+    final cleaned = <String>[];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      // Filter internal compilation notices that clutter UI
+      if (trimmed.startsWith('Compilation failed for bundled shader')) continue;
+      if (trimmed.contains('GLSL to SPIRV failed; Compilation error')) continue;
+      cleaned.add(trimmed);
+    }
+
+    if (cleaned.isEmpty) {
+      return raw.trim();
+    }
+    return cleaned.join('\n');
+  }
+}

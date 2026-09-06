@@ -10,8 +10,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_gpu:
+    sdk: flutter
   flutter_recorder: ^2.0.3
   flutter_soloud: ^5.0.2
+  listen: ^1.0.1
+  vector_math: ^2.1.4
 
 dev_dependencies:
   flutter_test:
