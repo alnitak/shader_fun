@@ -28,8 +28,16 @@ class ShaderToyRenderer {
   bool get isUsingGpu => _gpuRenderer.isGpuAvailable;
   FlutterGpuRenderer get gpuRenderer => _gpuRenderer;
 
-  Future<bool> loadShaderBundle(Uint8List bytes, {String? activeCode}) {
-    return _gpuRenderer.loadShaderBundle(bytes, activeCode: activeCode);
+  Future<bool> loadShaderBundle(
+    Uint8List bytes, {
+    PassType passType = PassType.image,
+    String? activeCode,
+  }) {
+    return _gpuRenderer.loadShaderBundle(
+      bytes,
+      passType: passType,
+      activeCode: activeCode,
+    );
   }
 
   void resize(int newWidth, int newHeight) {

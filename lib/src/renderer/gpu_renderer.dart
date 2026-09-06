@@ -31,6 +31,9 @@ class FlutterGpuRenderer {
   gpu.RenderPipeline? _renderPipeline;
   String? _activeCode;
 
+  final Map<PassType, _PassPipeline> _passPipelines = {};
+  final Map<PassType, _PingPongBuffer> _bufferPingPongs = {};
+
   gpu.ShaderLibrary? get shaderLibrary => _shaderLibrary;
   gpu.Shader? get vertexShader => _vertexShader;
   gpu.Shader? get fragmentShader => _fragmentShader;
@@ -47,17 +50,87 @@ class FlutterGpuRenderer {
   final Map<int, gpu.Texture> _textureChannels = {};
 
   bool get isGpuAvailable => _isGpuAvailable;
-  bool get hasPipeline => _renderPipeline != null;
+  bool get hasPipeline => _renderPipeline != null || _passPipelines.isNotEmpty;
+  bool hasPassPipeline(PassType type) => _passPipelines.containsKey(type);
 
   /// Clears audio texture reference so other shaders don't sample stale audio data.
   void clearAudioTexture() {
     _audioTexture = null;
   }
 
-  void _clearPingPongBuffers() {}
+  void _clearPingPongBuffers() {
+    for (final buffer in _bufferPingPongs.values) {
+      buffer.clear();
+    }
+    _bufferPingPongs.clear();
+  }
 
   void clearPingPongBuffers() {
     _clearPingPongBuffers();
+  }
+
+  gpu.Texture? _createRenderTargetTexture(int w, int h) {
+    if (!_isGpuAvailable) return null;
+    try {
+      final supportsFloat32 = gpu.gpuContext.supportsTextureFormat(
+        gpu.PixelFormat.r32g32b32a32Float,
+        renderTarget: true,
+        shaderRead: true,
+      );
+      final supportsFloat16 = gpu.gpuContext.supportsTextureFormat(
+        gpu.PixelFormat.r16g16b16a16Float,
+        renderTarget: true,
+        shaderRead: true,
+      );
+      final format = supportsFloat32
+          ? gpu.PixelFormat.r32g32b32a32Float
+          : (supportsFloat16
+              ? gpu.PixelFormat.r16g16b16a16Float
+              : gpu.PixelFormat.r8g8b8a8UNormInt);
+
+      return gpu.gpuContext.createTexture(
+        gpu.StorageMode.devicePrivate,
+        w,
+        h,
+        format: format,
+        enableRenderTargetUsage: true,
+        enableShaderReadUsage: true,
+      );
+    } catch (e) {
+      debugPrint('Failed to allocate offscreen render target texture: $e');
+      return null;
+    }
+  }
+
+  _PingPongBuffer _getOrCreatePingPong(PassType type, int w, int h) {
+    var buffer = _bufferPingPongs[type];
+    if (buffer == null) {
+      buffer = _PingPongBuffer()
+        ..readTexture = _createRenderTargetTexture(w, h)
+        ..readWidth = w
+        ..readHeight = h
+        ..writeTexture = _createRenderTargetTexture(w, h)
+        ..writeWidth = w
+        ..writeHeight = h;
+      _bufferPingPongs[type] = buffer;
+    } else {
+      // If writeTexture dimensions do not match the target render size,
+      // reallocate writeTexture at the new dimensions.
+      if (buffer.writeTexture == null ||
+          buffer.writeWidth != w ||
+          buffer.writeHeight != h) {
+        buffer.writeTexture = _createRenderTargetTexture(w, h);
+        buffer.writeWidth = w;
+        buffer.writeHeight = h;
+      }
+      // Ensure readTexture exists so sampling doesn't fall back to empty.
+      if (buffer.readTexture == null) {
+        buffer.readTexture = _createRenderTargetTexture(w, h);
+        buffer.readWidth = w;
+        buffer.readHeight = h;
+      }
+    }
+    return buffer;
   }
 
   static const int _kDefaultTextureSize = 256;
@@ -118,9 +191,10 @@ class FlutterGpuRenderer {
     }
   }
 
-  /// Loads a compiled `.shaderbundle` and builds the GPU render pipeline.
+  /// Loads a compiled `.shaderbundle` and builds the GPU render pipeline for [passType].
   Future<bool> loadShaderBundle(
     Uint8List bundleBytes, {
+    PassType passType = PassType.image,
     String? activeCode,
   }) async {
     if (!_isGpuAvailable) {
@@ -144,6 +218,14 @@ class FlutterGpuRenderer {
 
       final pipeline = gpu.gpuContext.createRenderPipeline(vert, frag);
 
+      _passPipelines[passType] = _PassPipeline(
+        pipeline: pipeline,
+        fragmentShader: frag,
+        vertexShader: vert,
+        code: activeCode,
+      );
+
+      // Fallback single-pass fields for backwards compatibility
       _shaderLibrary = lib;
       _vertexShader = vert;
       _fragmentShader = frag;
@@ -177,8 +259,6 @@ class FlutterGpuRenderer {
         }
       }
     }
-
-    _clearPingPongBuffers();
   }
 
   /// Uploads audio spectrum (FFT) and waveform data to a 512x2 GPU texture.
@@ -232,12 +312,85 @@ class FlutterGpuRenderer {
     _textureChannels.remove(channelIndex);
   }
 
-  /// Executes the Flutter GPU render pipeline on a full-screen quad plane:
-  /// 1. Acquires a presentation frame from [gpu.GpuImageSurface].
-  /// 2. Binds the render pipeline and quad vertex buffer.
-  /// 3. Packs and binds the std140 `FrameInfo` uniform buffer.
-  /// 4. Binds active `iChannel0..3` samplers (audio, 2D textures, buffers).
-  /// 5. Draws 6 vertices, presents the frame, and returns [ui.Image].
+  static PassType _bufferIndexToPassType(int index) {
+    switch (index) {
+      case 1:
+        return PassType.bufferB;
+      case 2:
+        return PassType.bufferC;
+      case 3:
+        return PassType.bufferD;
+      case 0:
+      default:
+        return PassType.bufferA;
+    }
+  }
+
+  void _bindPassChannels({
+    required gpu.RenderPass renderPass,
+    required gpu.Shader fragmentShader,
+    required String? codeForChannels,
+    required ShaderPass pass,
+    required Map<PassType, gpu.Texture> availableTextures,
+    required gpu.Texture fallbackTex,
+  }) {
+    if (codeForChannels == null) return;
+
+    for (int i = 0; i < 4; i++) {
+      if (!ImpellerCompiler.shaderUsesChannel(codeForChannels, i)) {
+        continue;
+      }
+
+      final channel = (i < pass.channels.length) ? pass.channels[i] : null;
+      gpu.Texture? texToBind;
+
+      if (channel is BufferChannel) {
+        final bufferType = _bufferIndexToPassType(channel.bufferIndex);
+        texToBind = availableTextures[bufferType] ?? fallbackTex;
+      } else if (channel is AudioChannel) {
+        texToBind = _audioTexture ?? fallbackTex;
+      } else if (channel is TextureChannel && _textureChannels.containsKey(i)) {
+        texToBind = _textureChannels[i];
+      } else {
+        texToBind = fallbackTex;
+      }
+
+      if (texToBind != null) {
+        try {
+          final channelSlot = fragmentShader.getUniformSlot('iChannel$i');
+          final minFilter = channel?.filter == ChannelFilter.nearest
+              ? gpu.MinMagFilter.nearest
+              : gpu.MinMagFilter.linear;
+          final magFilter = channel?.filter == ChannelFilter.nearest
+              ? gpu.MinMagFilter.nearest
+              : gpu.MinMagFilter.linear;
+          final mipFilter = channel?.filter == ChannelFilter.mipmap
+              ? gpu.MipFilter.linear
+              : gpu.MipFilter.nearest;
+          final addressMode = channel?.wrap == ChannelWrap.repeat
+              ? gpu.SamplerAddressMode.repeat
+              : gpu.SamplerAddressMode.clampToEdge;
+
+          final sampler = gpu.SamplerOptions(
+            minFilter: minFilter,
+            magFilter: magFilter,
+            mipFilter: mipFilter,
+            widthAddressMode: addressMode,
+            heightAddressMode: addressMode,
+          );
+
+          renderPass.bindTexture(channelSlot, texToBind, sampler: sampler);
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Executes the multi-pass GPU pipeline:
+  /// 1. Executes all enabled buffer passes (Buffer A -> Buffer B -> Buffer C -> Buffer D)
+  ///    into offscreen ping-pong render targets.
+  /// 2. Binds upstream and historical buffer textures to `iChannel0..3`.
+  /// 3. Executes the presentation pass (Image) to the display surface.
+  /// 4. Swaps ping-pong buffers for the next frame.
   Future<ui.Image?> renderFrame({
     required ShaderToyUniforms uniforms,
     required List<ShaderPass> passes,
@@ -254,7 +407,7 @@ class FlutterGpuRenderer {
     }
 
     if (!_isGpuAvailable ||
-        _renderPipeline == null ||
+        !hasPipeline ||
         _imageSurface == null ||
         _quadVertexBuffer == null) {
       return null;
@@ -262,48 +415,11 @@ class FlutterGpuRenderer {
 
     gpu.GpuImageSurfaceFrame? surfaceFrame;
     try {
-      surfaceFrame = _imageSurface!.acquireNextFrame();
-      final renderTarget = gpu.RenderTarget.singleColor(
-        gpu.ColorAttachment(texture: surfaceFrame.colorTexture),
-      );
-
-      final commandBuffer = gpu.gpuContext.createCommandBuffer();
-      final renderPass = commandBuffer.createRenderPass(renderTarget);
-
-      // Set explicit viewport matching surface dimensions
-      renderPass.setViewport(gpu.Viewport(
-        x: 0,
-        y: 0,
-        width: width,
-        height: height,
-      ));
-
-      // 1. Bind pipeline
-      renderPass.bindPipeline(_renderPipeline!);
-
-      // 2. Bind quad vertex buffer
-      final quadView = gpu.BufferView(
-        _quadVertexBuffer!,
-        offsetInBytes: 0,
-        lengthInBytes: _quadVertexBuffer!.sizeInBytes,
-      );
-      renderPass.bindVertexBuffer(quadView);
-
-      // 3. Pack std140 / MSL FrameInfo uniform buffer (80 bytes):
-      // Offset  0..11: iResolution (vec3: width, height, aspect)
-      // Offset 12..15: iTime (float)
-      // Offset 16..19: iTimeDelta (float)
-      // Offset 20..23: iFrameRate (float)
-      // Offset 24..27: iFrame (int32)
-      // Offset 28..31: padding (4 bytes for 16-byte alignment of vec4 iMouse)
-      // Offset 32..47: iMouse (vec4: x, y, z, w)
-      // Offset 48..63: iDate (vec4: year, month-1, day, secondsOfDay)
-      // Offset 64..67: iSampleRate (float)
-      // Offset 68..79: padding (12 bytes for 16-byte block alignment)
+      // 1. Pack std140 / MSL FrameInfo uniform buffer (80 bytes)
       final uniformByteData = ByteData(80);
       uniformByteData.setFloat32(0, targetWidth.toDouble(), Endian.host);
       uniformByteData.setFloat32(4, targetHeight.toDouble(), Endian.host);
-      uniformByteData.setFloat32(8, 1.0, Endian.host); // Shadertoy spec: z is pixel aspect ratio (1.0)
+      uniformByteData.setFloat32(8, 1.0, Endian.host); // Shadertoy spec: aspect ratio (1.0)
       uniformByteData.setFloat32(12, uniforms.time, Endian.host);
       uniformByteData.setFloat32(16, uniforms.timeDelta, Endian.host);
       uniformByteData.setFloat32(20, uniforms.frameRate, Endian.host);
@@ -323,13 +439,164 @@ class FlutterGpuRenderer {
       uniformByteData.setFloat32(60, secondsOfDay, Endian.host);
       uniformByteData.setFloat32(64, uniforms.sampleRate, Endian.host);
 
-
       gpu.DeviceBuffer? uniformDeviceBuffer;
       try {
         uniformDeviceBuffer =
             gpu.gpuContext.createDeviceBufferWithCopy(uniformByteData);
-        final uniformSlot = _fragmentShader!.getUniformSlot('FrameInfo');
-        renderPass.bindUniform(
+      } catch (e) {
+        debugPrint('Failed to allocate uniform device buffer: $e');
+        return null;
+      }
+
+      final quadView = gpu.BufferView(
+        _quadVertexBuffer!,
+        offsetInBytes: 0,
+        lengthInBytes: _quadVertexBuffer!.sizeInBytes,
+      );
+
+      final fallbackTex = _getDefaultTexture();
+      if (fallbackTex == null) return null;
+
+      // Update audio texture if active
+      if (activeAudioChannel != null) {
+        uploadAudioTexture(activeAudioChannel);
+      }
+
+      const bufferOrder = [
+        PassType.bufferA,
+        PassType.bufferB,
+        PassType.bufferC,
+        PassType.bufferD,
+      ];
+
+      final executedBufferPasses = <PassType>[];
+
+      // 2. Execute offscreen Buffer passes
+      for (final bpType in bufferOrder) {
+        final pass = passes.firstWhere(
+          (p) => p.type == bpType && p.enabled,
+          orElse: () => ShaderPass(type: bpType, name: bpType.displayName, code: ''),
+        );
+        if (!pass.enabled) continue;
+
+        final pipelineInfo = _passPipelines[bpType];
+        if (pipelineInfo == null) continue;
+
+        final pingPong = _getOrCreatePingPong(bpType, width, height);
+        if (pingPong.writeTexture == null) continue;
+
+        final renderTarget = gpu.RenderTarget.singleColor(
+          gpu.ColorAttachment(
+            texture: pingPong.writeTexture!,
+            loadAction: gpu.LoadAction.clear,
+          ),
+        );
+
+        final passCommandBuffer = gpu.gpuContext.createCommandBuffer();
+        final renderPass = passCommandBuffer.createRenderPass(renderTarget);
+        renderPass.setViewport(gpu.Viewport(
+          x: 0,
+          y: 0,
+          width: width,
+          height: height,
+        ));
+
+        renderPass.bindPipeline(pipelineInfo.pipeline);
+        renderPass.bindVertexBuffer(quadView);
+
+        try {
+          final uniformSlot = pipelineInfo.fragmentShader.getUniformSlot('FrameInfo');
+          renderPass.bindUniform(
+            uniformSlot,
+            gpu.BufferView(
+              uniformDeviceBuffer,
+              offsetInBytes: 0,
+              lengthInBytes: uniformByteData.lengthInBytes,
+            ),
+          );
+        } catch (_) {}
+
+        // Prepare textures available to this buffer pass
+        final availableTextures = <PassType, gpu.Texture>{};
+        for (final otherType in bufferOrder) {
+          final otherPingPong = _bufferPingPongs[otherType];
+          if (otherPingPong == null) continue;
+
+          if (otherType == bpType) {
+            // Self-reference: read from previous frame's read texture
+            if (otherPingPong.readTexture != null) {
+              availableTextures[otherType] = otherPingPong.readTexture!;
+            }
+          } else {
+            // If already executed this frame, sample writeTexture; otherwise readTexture
+            final hasExecuted = executedBufferPasses.contains(otherType);
+            final tex = hasExecuted
+                ? (otherPingPong.writeTexture ?? otherPingPong.readTexture)
+                : otherPingPong.readTexture;
+            if (tex != null) {
+              availableTextures[otherType] = tex;
+            }
+          }
+        }
+
+        _bindPassChannels(
+          renderPass: renderPass,
+          fragmentShader: pipelineInfo.fragmentShader,
+          codeForChannels: pipelineInfo.code ?? pass.code,
+          pass: pass,
+          availableTextures: availableTextures,
+          fallbackTex: fallbackTex,
+        );
+
+        renderPass.draw(6);
+        passCommandBuffer.submit();
+        executedBufferPasses.add(bpType);
+      }
+
+      // 3. Execute presentation pass (Image) to screen surface
+      surfaceFrame = _imageSurface!.acquireNextFrame();
+      final surfaceRenderTarget = gpu.RenderTarget.singleColor(
+        gpu.ColorAttachment(
+          texture: surfaceFrame.colorTexture,
+          loadAction: gpu.LoadAction.clear,
+        ),
+      );
+
+      final presentationPass = passes.firstWhere(
+        (p) => p.type == PassType.image && p.enabled,
+        orElse: () => activePass ?? (passes.isNotEmpty ? passes.first : ShaderPass(type: PassType.image, name: 'Image', code: '')),
+      );
+
+      final presentationPipeline = _passPipelines[presentationPass.type] ??
+          (hasPipeline
+              ? _PassPipeline(
+                  pipeline: _renderPipeline!,
+                  fragmentShader: _fragmentShader!,
+                  vertexShader: _vertexShader!,
+                  code: _activeCode,
+                )
+              : null);
+
+      if (presentationPipeline == null) {
+        surfaceFrame.discard();
+        return null;
+      }
+
+      final presentationCommandBuffer = gpu.gpuContext.createCommandBuffer();
+      final surfaceRenderPass = presentationCommandBuffer.createRenderPass(surfaceRenderTarget);
+      surfaceRenderPass.setViewport(gpu.Viewport(
+        x: 0,
+        y: 0,
+        width: width,
+        height: height,
+      ));
+
+      surfaceRenderPass.bindPipeline(presentationPipeline.pipeline);
+      surfaceRenderPass.bindVertexBuffer(quadView);
+
+      try {
+        final uniformSlot = presentationPipeline.fragmentShader.getUniformSlot('FrameInfo');
+        surfaceRenderPass.bindUniform(
           uniformSlot,
           gpu.BufferView(
             uniformDeviceBuffer,
@@ -337,61 +604,39 @@ class FlutterGpuRenderer {
             lengthInBytes: uniformByteData.lengthInBytes,
           ),
         );
-      } catch (e) {
-        // FrameInfo uniform might not be referenced in this shader
-      }
+      } catch (_) {}
 
-      // 4. Update audio texture if an audio channel is active
-      if (activeAudioChannel != null) {
-        uploadAudioTexture(activeAudioChannel);
-      }
-
-      // 5. Bind iChannel0..3 samplers (only for channels configured on the active pass and compiled into pipeline)
-      final currentPass = activePass ??
-          passes.firstWhere(
-            (p) => p.type == PassType.image && p.enabled,
-            orElse: () => passes.isNotEmpty
-                ? passes.first
-                : ShaderPass(type: PassType.image, name: 'Image', code: ''),
-          );
-
-      final codeForChannels = _activeCode;
-      if (codeForChannels != null && _fragmentShader != null) {
-        final fallbackTex = _getDefaultTexture();
-
-        for (int i = 0; i < 4; i++) {
-          if (!ImpellerCompiler.shaderUsesChannel(codeForChannels, i)) {
-            continue;
-          }
-
-          final channel = (i < currentPass.channels.length) ? currentPass.channels[i] : null;
-
-          gpu.Texture? texToBind;
-          if (channel is AudioChannel) {
-            texToBind = _audioTexture ?? fallbackTex;
-          } else if (channel is TextureChannel && _textureChannels.containsKey(i)) {
-            texToBind = _textureChannels[i];
-          } else {
-            texToBind = fallbackTex;
-          }
-
-          if (texToBind != null) {
-            try {
-              final channelSlot = _fragmentShader!.getUniformSlot('iChannel$i');
-              renderPass.bindTexture(channelSlot, texToBind);
-            } catch (_) {
-              // Sampler slot might not be referenced in this shader
-            }
+      // For presentation pass, all buffers have finished this frame, so bind their fresh writeTexture
+      final imageAvailableTextures = <PassType, gpu.Texture>{};
+      for (final bpType in bufferOrder) {
+        final pingPong = _bufferPingPongs[bpType];
+        if (pingPong != null) {
+          final tex = pingPong.writeTexture ?? pingPong.readTexture;
+          if (tex != null) {
+            imageAvailableTextures[bpType] = tex;
           }
         }
       }
 
-      // 6. Draw full-screen quad (6 vertices) to primary display surface
-      renderPass.draw(6);
+      _bindPassChannels(
+        renderPass: surfaceRenderPass,
+        fragmentShader: presentationPipeline.fragmentShader,
+        codeForChannels: presentationPipeline.code ?? presentationPass.code,
+        pass: presentationPass,
+        availableTextures: imageAvailableTextures,
+        fallbackTex: fallbackTex,
+      );
 
-      // 7. Present frame and submit GPU command buffer
-      surfaceFrame.present(commandBuffer);
-      commandBuffer.submit();
+      surfaceRenderPass.draw(6);
+
+      // 4. Swap ping-pong buffers for executed buffer passes
+      for (final bpType in executedBufferPasses) {
+        _bufferPingPongs[bpType]?.swap();
+      }
+
+      // 5. Present surface and submit presentation command buffer
+      surfaceFrame.present(presentationCommandBuffer);
+      presentationCommandBuffer.submit();
       surfaceFrame = null;
 
       return _imageSurface!.currentImage;
@@ -404,6 +649,7 @@ class FlutterGpuRenderer {
 
   void dispose() {
     _clearPingPongBuffers();
+    _passPipelines.clear();
     _textureChannels.clear();
     _audioTexture = null;
     _defaultTexture = null;
@@ -412,5 +658,51 @@ class FlutterGpuRenderer {
     _renderPipeline = null;
     _shaderLibrary = null;
     _imageSurface = null;
+  }
+}
+
+class _PassPipeline {
+  _PassPipeline({
+    required this.pipeline,
+    required this.fragmentShader,
+    required this.vertexShader,
+    this.code,
+  });
+
+  final gpu.RenderPipeline pipeline;
+  final gpu.Shader fragmentShader;
+  final gpu.Shader vertexShader;
+  final String? code;
+}
+
+class _PingPongBuffer {
+  gpu.Texture? readTexture;
+  gpu.Texture? writeTexture;
+  int readWidth = 0;
+  int readHeight = 0;
+  int writeWidth = 0;
+  int writeHeight = 0;
+
+  void swap() {
+    final tempTex = readTexture;
+    readTexture = writeTexture;
+    writeTexture = tempTex;
+
+    final tempW = readWidth;
+    readWidth = writeWidth;
+    writeWidth = tempW;
+
+    final tempH = readHeight;
+    readHeight = writeHeight;
+    writeHeight = tempH;
+  }
+
+  void clear() {
+    readTexture = null;
+    writeTexture = null;
+    readWidth = 0;
+    readHeight = 0;
+    writeWidth = 0;
+    writeHeight = 0;
   }
 }

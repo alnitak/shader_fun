@@ -334,7 +334,8 @@ class _ShaderImagePainter extends CustomPainter {
       image!.height.toDouble(),
     );
     final dst = Rect.fromLTWH(0, 0, size.width, size.height);
-    canvas.drawImageRect(image!, src, dst, Paint());
+    final paint = Paint()..filterQuality = FilterQuality.low;
+    canvas.drawImageRect(image!, src, dst, paint);
   }
 
   @override

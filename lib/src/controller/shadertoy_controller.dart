@@ -119,18 +119,66 @@ class ShaderToyController
       return false;
     }
 
-    // 1. Common pass: update code and recompile visual passes
+    // 1. Common pass: update code and recompile all visual passes
     if (pass?.type == PassType.common) {
       pass!.code = codeToCompile;
-      final img = _project.imagePass;
-      if (img != null) {
-        return compilePass(img);
-      }
-      return true;
+      return compileAllPasses();
     }
 
     // 2. Image and Buffer passes
     return compilePass(pass, codeOverride: codeToCompile);
+  }
+
+  /// Compiles all enabled visual passes in the project (Buffer A..D, Image).
+  Future<bool> compileAllPasses() async {
+    isCompilingNotifier.value = true;
+    notifyListeners();
+
+    try {
+      final commonCode = _project.commonPass?.code;
+      final visualPasses = _project.passes.where(
+        (p) => p.enabled && p.type != PassType.common,
+      );
+
+      for (final pass in visualPasses) {
+        if (pass.code.trim().isEmpty) continue;
+
+        final result = await ImpellerCompiler.compile(
+          shadertoyGlsl: pass.code,
+          commonGlsl: commonCode,
+        );
+        if (!result.isSuccess) {
+          lastErrorNotifier.value =
+              '${pass.name}: ${result.errorMessage ?? "Shader compilation failed"}';
+          notifyListeners();
+          flutter_foundation.debugPrint(
+            'Shader error in ${pass.name}: ${lastErrorNotifier.value}',
+          );
+          return false;
+        }
+
+        if (result.bundleBytes != null) {
+          await _renderer.loadShaderBundle(
+            result.bundleBytes!,
+            passType: pass.type,
+            activeCode: pass.code,
+          );
+        }
+      }
+
+      lastErrorNotifier.value = null;
+      await renderSingleFrame();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastErrorNotifier.value = 'Compilation exception: $e';
+      flutter_foundation.debugPrint('Compilation exception: $e');
+      notifyListeners();
+      return false;
+    } finally {
+      isCompilingNotifier.value = false;
+      notifyListeners();
+    }
   }
 
   /// Compiles an individual visual pass with optional common code prepended.
@@ -173,6 +221,7 @@ class ShaderToyController
       if (result.bundleBytes != null) {
         await _renderer.loadShaderBundle(
           result.bundleBytes!,
+          passType: targetPass?.type ?? PassType.image,
           activeCode: codeToCompile,
         );
       }
@@ -257,7 +306,7 @@ class ShaderToyController
     _bindAudioChannelListener();
 
     if (autoCompile) {
-      await compile();
+      await compileAllPasses();
     }
     rewind();
     if (isPlaying) {

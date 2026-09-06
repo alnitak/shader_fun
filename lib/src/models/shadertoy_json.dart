@@ -224,9 +224,25 @@ vec2 rot(vec2 p, float a) {
         ShaderChannel? channel;
         switch (ctype) {
           case 'buffer':
-            final bufferIdx = (rawInput['id'] is int)
-                ? (rawInput['id'] as int) % 4
-                : 0;
+            int bufferIdx = 0;
+            final rawId = rawInput['id'];
+            if (rawId is int) {
+              if (rawId >= 257 && rawId <= 260) {
+                bufferIdx = rawId - 257;
+              } else {
+                bufferIdx = rawId % 4;
+              }
+            }
+            final srcLower = (rawInput['src'] ?? rawInput['filepath'] ?? '').toString().toLowerCase();
+            if (srcLower.contains('buffer00') || srcLower.contains('buffera')) {
+              bufferIdx = 0;
+            } else if (srcLower.contains('buffer01') || srcLower.contains('bufferb')) {
+              bufferIdx = 1;
+            } else if (srcLower.contains('buffer02') || srcLower.contains('bufferc')) {
+              bufferIdx = 2;
+            } else if (srcLower.contains('buffer03') || srcLower.contains('bufferd')) {
+              bufferIdx = 3;
+            }
             channel = BufferChannel(
               bufferIndex: bufferIdx,
               filter: filter,
