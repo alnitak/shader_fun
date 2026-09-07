@@ -313,6 +313,18 @@ class ShaderToyController
       }
     } catch (_) {}
 
+    for (final pass in _project.passes) {
+      for (final ch in pass.channels) {
+        if (ch is MicAudioChannel) {
+          try {
+            await ch.stopListening();
+          } catch (_) {}
+        }
+      }
+    }
+
+    lastErrorNotifier.value = null;
+
     _project = newProject;
     final defaultIdx =
         _project.passes.indexWhere((p) => p.type == PassType.image);
@@ -320,6 +332,7 @@ class ShaderToyController
         activePassIndex ?? (defaultIdx >= 0 ? defaultIdx : 0);
     _renderer.clearAudio();
     _renderer.gpuRenderer.clearPingPongBuffers();
+    _renderer.gpuRenderer.clearTextureChannels();
 
     await _initProjectChannels();
 
@@ -673,10 +686,16 @@ class ShaderToyController
     }
   }
 
+  /// Rewinds/restarts playback to time 0, resetting frame count, iMouse, iDate,
+  /// iChannelTime, keyboard buffers, and ping-pong buffers to initial defaults.
   void rewind() {
     _uniforms.time = 0.0;
     _uniforms.frame = 0;
     _uniforms.timeDelta = isPlaying ? 0.016 : 0.0;
+    _uniforms.frameRate = 60.0;
+    _uniforms.mouse = const Offset4(0, 0, 0, 0);
+    _uniforms.date = DateTime.now();
+    _uniforms.channelTime = List<double>.filled(4, 0.0);
     _lastTimestamp = 0.0;
     _renderer.clearAudio();
     _keyboard.reset();
@@ -688,6 +707,9 @@ class ShaderToyController
     renderSingleFrame();
     notifyListeners();
   }
+
+  /// Alias for [rewind], restarting shader execution from the beginning with default uniforms.
+  void restart() => rewind();
 
   void resize(ui.Size newSize) {
     if (newSize.width <= 0 || newSize.height <= 0) return;

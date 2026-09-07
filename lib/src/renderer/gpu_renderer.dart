@@ -407,6 +407,12 @@ class FlutterGpuRenderer {
     _textureChannelResolutions.remove(channelIndex);
   }
 
+  /// Clears all bound texture channels and their cached resolutions.
+  void clearTextureChannels() {
+    _textureChannels.clear();
+    _textureChannelResolutions.clear();
+  }
+
   static PassType _bufferIndexToPassType(int index) {
     switch (index) {
       case 1:

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/shader_fun.dart';
+// ignore: avoid_relative_lib_imports
 import '../example/lib/studio/dialogs/channel_setup_dialog.dart';
 
 void main() {
@@ -143,6 +144,56 @@ void main() {
     expect(find.text('Wrap'), findsOneWidget);
     expect(find.text('VFlip'), findsNothing);
     expect(find.byType(Checkbox), findsNothing);
+
+    controller.dispose();
+  });
+
+  test('rewind and restart reset iMouse, time, frame, and channelTime to defaults', () {
+    final controller = ShaderToyController();
+
+    // Simulate mouse interaction
+    controller.handlePointerDown(const Offset(150, 200));
+    expect(controller.uniforms.mouse.x, equals(150));
+    expect(controller.uniforms.mouse.z, equals(150));
+
+    // Simulate playback state
+    controller.uniforms.time = 42.5;
+    controller.uniforms.frame = 1200;
+    controller.uniforms.channelTime[0] = 10.0;
+
+    // Call restart()
+    controller.restart();
+
+    // Verify all uniforms are cleanly reset to defaults
+    expect(controller.uniforms.mouse.x, equals(0.0));
+    expect(controller.uniforms.mouse.y, equals(0.0));
+    expect(controller.uniforms.mouse.z, equals(0.0));
+    expect(controller.uniforms.mouse.w, equals(0.0));
+    expect(controller.uniforms.time, equals(0.0));
+    expect(controller.uniforms.frame, equals(0));
+    expect(controller.uniforms.channelTime[0], equals(0.0));
+
+    controller.dispose();
+  });
+
+  test('loadProject resets iMouse and clears previous error state', () async {
+    final controller = ShaderToyController();
+
+    // Simulate mouse interaction
+    controller.handlePointerDown(const Offset(300, 100));
+    expect(controller.uniforms.mouse.x, equals(300));
+
+    // Load a new empty project
+    await controller.loadProject(ShaderToyProject.empty(), autoCompile: false);
+
+    // Verify mouse and state are reset to clean initial values
+    expect(controller.uniforms.mouse.x, equals(0.0));
+    expect(controller.uniforms.mouse.y, equals(0.0));
+    expect(controller.uniforms.mouse.z, equals(0.0));
+    expect(controller.uniforms.mouse.w, equals(0.0));
+    expect(controller.uniforms.time, equals(0.0));
+    expect(controller.uniforms.frame, equals(0));
+    expect(controller.hasError, isFalse);
 
     controller.dispose();
   });
