@@ -1,34 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/shader_fun.dart';
-// ignore: avoid_relative_lib_imports
-import '../example/lib/shader_presets.dart';
 
 void main() {
-  test('export presets to example/assets/examples', () {
-    final dir = Directory('example/assets/examples');
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
+  test('all example preset assets exist and parse into valid ShaderToyProject', () {
+    for (final filename in ShaderToyProject.exampleAssets) {
+      final file = File('example/assets/examples/$filename');
+      expect(file.existsSync(), isTrue, reason: 'File $filename should exist');
+      final jsonContent = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final project = ShaderToyProject.fromJson(jsonContent);
+      expect(project.name.isNotEmpty, isTrue);
+      expect(project.passes.isNotEmpty, isTrue);
     }
-
-    File('example/assets/examples/raymarching_primitives.json')
-        .writeAsStringSync(ShaderPresets.raymarchingPrimitives().toJsonString());
-
-    File('example/assets/examples/audio_reactive_tunnel.json')
-        .writeAsStringSync(ShaderPresets.audioReactiveWaves().toJsonString());
-
-    File('example/assets/examples/temporal_feedback.json')
-        .writeAsStringSync(ShaderPresets.multiPassFeedback().toJsonString());
-
-    File('example/assets/examples/cosine_palette_fractal.json')
-        .writeAsStringSync(ShaderPresets.cosinePaletteFractal().toJsonString());
-
-    expect(File('example/assets/examples/raymarching_primitives.json').existsSync(), isTrue);
-    expect(File('example/assets/examples/audio_reactive_tunnel.json').existsSync(), isTrue);
-    expect(File('example/assets/examples/temporal_feedback.json').existsSync(), isTrue);
-    expect(File('example/assets/examples/cosine_palette_fractal.json').existsSync(), isTrue);
-    expect(File('example/assets/examples/mouse_paint_eroded_mountains.json').existsSync(), isTrue);
   });
 
   test('ShaderToyProject.exampleAssets contains preset filenames and can load via loadFromAsset', () async {

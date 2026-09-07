@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shader_fun/shader_fun.dart';
 
-import 'shader_presets.dart';
 
 /// Complete ShaderToy Studio interface mimicking the official ShaderToy web experience.
 class ShaderToyStudio extends StatefulWidget {
@@ -37,8 +36,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   void initState() {
     super.initState();
     _controller = ShaderToyController(
-      initialProject:
-          widget.initialProject ?? ShaderPresets.raymarchingPrimitives(),
+      initialProject: widget.initialProject ?? ShaderToyProject.empty(),
       vsync: this,
       autoPlay: true,
     );
