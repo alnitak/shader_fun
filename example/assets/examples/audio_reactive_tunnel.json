@@ -1,0 +1,55 @@
+{
+  "Shader": {
+    "ver": "0.1",
+    "info": {
+      "id": "audio_tunnel",
+      "date": 1788776018,
+      "viewed": 0,
+      "name": "Audio Reactive Neon Tunnel",
+      "username": "ShaderToy Studio",
+      "description": "Audio visualizer reacting to music or live microphone in real-time via iChannel0.",
+      "url": "",
+      "likes": 0,
+      "published": 3,
+      "flags": 0,
+      "usePreview": 0,
+      "tags": [
+        "audio",
+        "music",
+        "visualizer",
+        "fft",
+        "spectrum"
+      ]
+    },
+    "renderpass": [
+      {
+        "inputs": [
+          {
+            "id": 257,
+            "src": "",
+            "ctype": "music",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            },
+            "published": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "// Audio Reactive Neon Tunnel (ShaderToy iChannel0 Audio)\n// Reads FFT frequency from row 0 and waveform from row 1\nvoid mainImage(out vec4 fragColor, in vec2 fragCoord) {\n    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / min(iResolution.y, iResolution.x);\n    \n    // Frequency spectrum magnitude at center\n    float fft = texture(iChannel0, vec2(0.1, 0.25)).r;\n    float wave = texture(iChannel0, vec2(uv.x * 0.5 + 0.5, 0.75)).r;\n    \n    float r = length(uv);\n    float a = atan(uv.y, uv.x);\n    \n    // Radial tunnel modulation driven by audio bass\n    float tunnel = sin(10.0 * r - iTime * 4.0 + fft * 3.0);\n    \n    // Oscilloscope line\n    float waveLine = 1.0 - smoothstep(0.0, 0.02 + fft * 0.03, abs(uv.y - (wave - 0.5) * 0.6));\n    \n    vec3 col = 0.5 + 0.5 * cos(iTime + uv.xyx + vec3(0, 2, 4));\n    col *= tunnel + 0.5;\n    col += vec3(0.0, 1.0, 1.0) * waveLine * 2.0;\n    \n    fragColor = vec4(col, 1.0);\n}\n",
+        "name": "Image",
+        "description": "",
+        "type": "image"
+      }
+    ]
+  }
+}

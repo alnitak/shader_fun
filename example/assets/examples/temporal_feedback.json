@@ -1,0 +1,82 @@
+{
+  "Shader": {
+    "ver": "0.1",
+    "info": {
+      "id": "temporal_feedback",
+      "date": 1788776018,
+      "viewed": 0,
+      "name": "Temporal Feedback Trails",
+      "username": "ShaderToy Multi-Pass",
+      "description": "Multi-pass shader with Buffer A temporal feedback loop and mouse trails.",
+      "url": "",
+      "likes": 0,
+      "published": 3,
+      "flags": 0,
+      "usePreview": 0,
+      "tags": [
+        "multipass",
+        "feedback",
+        "buffer",
+        "interactive"
+      ]
+    },
+    "renderpass": [
+      {
+        "inputs": [
+          {
+            "id": 257,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            },
+            "published": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "// Buffer A: Temporal feedback with mouse interaction\nvoid mainImage(out vec4 fragColor, in vec2 fragCoord) {\n    vec2 uv = fragCoord / iResolution.xy;\n    \n    // Fetch previous frame from self (iChannel0)\n    vec4 prev = texture(iChannel0, uv);\n    \n    // Decay previous frame slightly\n    prev *= 0.94;\n    \n    // Add mouse brush trail (only when clicked or moved)\n    float brush = 0.0;\n    if (iMouse.z > 0.0 || length(iMouse.xy) > 10.0) {\n        vec2 m = iMouse.xy / iResolution.xy;\n        float d = length((uv - m) * vec2(iResolution.x / iResolution.y, 1.0));\n        brush += smoothstep(0.06, 0.01, d);\n    }\n    \n    // Automatic orbit spark\n    vec2 spark = vec2(0.5) + 0.35 * vec2(sin(iTime * 2.3), cos(iTime * 1.7));\n    float sparkD = length((uv - spark) * vec2(iResolution.x / iResolution.y, 1.0));\n    brush += smoothstep(0.04, 0.005, sparkD);\n    \n    vec3 addColor = 0.5 + 0.5 * cos(iTime + vec3(0, 1, 2) * 2.0);\n    fragColor = vec4(prev.rgb + addColor * brush, 1.0);\n}\n",
+        "name": "Buffer A",
+        "description": "",
+        "type": "buffer"
+      },
+      {
+        "inputs": [
+          {
+            "id": 257,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            },
+            "published": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "// Final Image pass: display Buffer A with tone mapping & bloom\nvoid mainImage(out vec4 fragColor, in vec2 fragCoord) {\n    vec2 uv = fragCoord / iResolution.xy;\n    vec4 buf = texture(iChannel0, uv);\n    \n    // Tone mapping\n    vec3 col = buf.rgb / (buf.rgb + vec3(1.0));\n    fragColor = vec4(col, 1.0);\n}\n",
+        "name": "Image",
+        "description": "",
+        "type": "image"
+      }
+    ]
+  }
+}

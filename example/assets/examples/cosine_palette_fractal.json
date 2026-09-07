@@ -1,0 +1,39 @@
+{
+  "Shader": {
+    "ver": "0.1",
+    "info": {
+      "id": "cosine_palette",
+      "date": 1788776018,
+      "viewed": 0,
+      "name": "Cosine Palette Fractal",
+      "username": "Inigo Quilez",
+      "description": "Procedural mathematical fractal using IQ cosine palettes and domain repetition.",
+      "url": "",
+      "likes": 0,
+      "published": 3,
+      "flags": 0,
+      "usePreview": 0,
+      "tags": [
+        "fractal",
+        "math",
+        "palette",
+        "2d"
+      ]
+    },
+    "renderpass": [
+      {
+        "inputs": [],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "// Inigo Quilez Cosine Palette Fractal\nvec3 palette(float t) {\n    vec3 a = vec3(0.5, 0.5, 0.5);\n    vec3 b = vec3(0.5, 0.5, 0.5);\n    vec3 c = vec3(1.0, 1.0, 1.0);\n    vec3 d = vec3(0.263, 0.416, 0.557);\n    return a + b * cos(6.28318 * (c * t + d));\n}\n\nvoid mainImage(out vec4 fragColor, in vec2 fragCoord) {\n    vec2 uv = (fragCoord * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);\n    vec2 uv0 = uv;\n    vec3 finalColor = vec3(0.0);\n    \n    for (float i = 0.0; i < 4.0; i++) {\n        uv = fract(uv * 1.5) - 0.5;\n        float d = length(uv) * exp(-length(uv0));\n        vec3 col = palette(length(uv0) + i * 0.4 + iTime * 0.4);\n        d = sin(d * 8.0 + iTime) / 8.0;\n        d = abs(d);\n        d = pow(0.01 / d, 1.2);\n        finalColor += col * d;\n    }\n    \n    fragColor = vec4(finalColor, 1.0);\n}\n",
+        "name": "Image",
+        "description": "",
+        "type": "image"
+      }
+    ]
+  }
+}

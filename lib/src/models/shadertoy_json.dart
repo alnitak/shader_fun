@@ -1,4 +1,7 @@
+// ignore_for_file: prefer_initializing_formals
 import 'dart:convert';
+
+import 'package:flutter/services.dart';
 
 import '../channels/audio_texture_provider.dart';
 import '../channels/shader_channel.dart';
@@ -7,14 +10,20 @@ import '../core/shader_pass.dart';
 /// Represents a complete ShaderToy project containing metadata and passes.
 class ShaderToyProject {
   ShaderToyProject({
-    this.id = '',
-    this.name = 'New Shader',
-    this.author = 'Anonymous',
-    this.description = '',
-    this.url = '',
-    this.tags = const [],
+    String id = '',
+    String name = 'New Shader',
+    String author = 'Anonymous',
+    String description = '',
+    String url = '',
+    List<String> tags = const [],
     List<ShaderPass>? passes,
-  }) : passes = passes ?? [];
+  })  : _id = id,
+        _name = name,
+        _author = author,
+        _description = description,
+        _url = url,
+        _tags = tags,
+        passes = passes ?? [];
 
   /// Creates a default starter ShaderToy project with a single Image pass.
   factory ShaderToyProject.empty() {
@@ -43,13 +52,56 @@ class ShaderToyProject {
     );
   }
 
-  String id;
-  String name;
-  String author;
-  String description;
-  String url;
-  List<String> tags;
+  String? _id;
+  String get id => _id ?? '';
+  set id(String value) => _id = value;
+
+  String? _name;
+  String get name => _name ?? 'New Shader';
+  set name(String value) => _name = value;
+
+  String? _author;
+  String get author => _author ?? 'Anonymous';
+  set author(String value) => _author = value;
+
+  String? _description;
+  String get description => _description ?? '';
+  set description(String value) => _description = value;
+
+  String? _url;
+  String get url => _url ?? '';
+  set url(String value) => _url = value;
+
+  List<String>? _tags;
+  List<String> get tags => _tags ?? const [];
+  set tags(List<String> value) => _tags = value;
+
   List<ShaderPass> passes;
+
+  /// Built-in preset example asset filenames located in `assets/examples/`.
+  static const List<String> exampleAssets = [
+    'mouse_paint_eroded_mountains.json',
+    'raymarching_primitives.json',
+    'audio_reactive_tunnel.json',
+    'temporal_feedback.json',
+    'cosine_palette_fractal.json',
+  ];
+
+  /// Loads a [ShaderToyProject] from a Flutter asset using [rootBundle] or a provided [bundle].
+  ///
+  /// [assetPathOrName] can be a simple file name (e.g. `'raymarching_primitives.json'`)
+  /// or a full asset path (e.g. `'assets/examples/raymarching_primitives.json'`).
+  static Future<ShaderToyProject> loadFromAsset(
+    String assetPathOrName, {
+    AssetBundle? bundle,
+  }) async {
+    final path = assetPathOrName.startsWith('assets/')
+        ? assetPathOrName
+        : 'assets/examples/$assetPathOrName';
+    final effectiveBundle = bundle ?? rootBundle;
+    final jsonString = await effectiveBundle.loadString(path);
+    return ShaderToyProject.parseJsonString(jsonString);
+  }
 
   ShaderPass? getPass(PassType type) {
     for (final pass in passes) {

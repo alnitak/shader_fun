@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shader_fun/shader_fun.dart';
@@ -294,11 +297,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
                   ),
                   backgroundColor: const Color(0xFF202028),
                 ),
-                icon: const Icon(
-                  Icons.add,
-                  size: 16,
-                  color: Color(0xFFFFCC00),
-                ),
+                icon: const Icon(Icons.add, size: 16, color: Color(0xFFFFCC00)),
                 label: const Text('New', style: TextStyle(fontSize: 13)),
                 onPressed: _newShader,
               ),
@@ -1885,7 +1884,61 @@ class _LoadShaderDialog extends StatefulWidget {
 
 class _LoadShaderDialogState extends State<_LoadShaderDialog> {
   final TextEditingController _jsonInputController = TextEditingController();
+  final Map<String, ShaderToyProject> _loadedPresets = {};
+  String? _loadingAsset;
   String? _jsonError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPresetMetadata();
+  }
+
+  Future<void> _loadPresetMetadata() async {
+    for (final fileName in ShaderToyProject.exampleAssets) {
+      try {
+        final proj = await ShaderToyProject.loadFromAsset(fileName);
+        if (mounted) {
+          setState(() {
+            _loadedPresets[fileName] = proj;
+          });
+        }
+      } catch (_) {
+        // Fall back gracefully to filename-based display
+      }
+    }
+  }
+
+  Future<void> _choosePreset(String fileName) async {
+    setState(() {
+      _loadingAsset = fileName;
+      _jsonError = null;
+    });
+
+    try {
+      final project = _loadedPresets[fileName] ??
+          await ShaderToyProject.loadFromAsset(fileName);
+      if (mounted) {
+        widget.onLoadProject(project);
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingAsset = null;
+          _jsonError = 'Failed to load asset "$fileName": $e';
+        });
+      }
+    }
+  }
+
+  String _formatDisplayName(String fileName) {
+    final base = fileName.split('/').last.replaceAll('.json', '');
+    return base
+        .split('_')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+  }
 
   void _loadFromJsonString() {
     final text = _jsonInputController.text.trim();
@@ -1902,6 +1955,32 @@ class _LoadShaderDialogState extends State<_LoadShaderDialog> {
     }
   }
 
+  Future<void> _loadFromDisk() async {
+    try {
+      final files = await FilePicker.pickFiles(
+        dialogTitle: 'Select ShaderToy JSON',
+        type: FileType.custom,
+        allowedExtensions: ['json', 'txt'],
+      );
+      if (files.isEmpty) return;
+      final file = files.first;
+      final bytes = await file.readAsBytes();
+      final content = utf8.decode(bytes);
+      if (content.isEmpty) return;
+      final project = ShaderToyProject.parseJsonString(content);
+      if (mounted) {
+        widget.onLoadProject(project);
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _jsonError = 'Failed to load file: $e';
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _jsonInputController.dispose();
@@ -1910,8 +1989,6 @@ class _LoadShaderDialogState extends State<_LoadShaderDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final presets = ShaderPresets.all;
-
     return Dialog(
       backgroundColor: const Color(0xFF181822),
       shape: RoundedRectangleBorder(
@@ -1952,27 +2029,36 @@ class _LoadShaderDialogState extends State<_LoadShaderDialog> {
               ),
               const SizedBox(height: 12),
 
-              // Presets list
+              // Presets list from ShaderToyProject.exampleAssets
               SizedBox(
-                height: 150,
+                height: 160,
                 child: ListView.builder(
-                  itemCount: presets.length,
+                  itemCount: ShaderToyProject.exampleAssets.length,
                   itemBuilder: (context, i) {
-                    final p = presets[i];
+                    final fileName = ShaderToyProject.exampleAssets[i];
+                    final cached = _loadedPresets[fileName];
+                    final displayName = (cached?.name.isNotEmpty == true)
+                        ? cached!.name
+                        : _formatDisplayName(fileName);
+                    final description = (cached?.description.isNotEmpty == true)
+                        ? cached!.description
+                        : fileName;
+                    final isLoading = _loadingAsset == fileName;
+
                     return Card(
                       color: const Color(0xFF22222E),
                       margin: const EdgeInsets.only(bottom: 6),
                       child: ListTile(
                         dense: true,
                         title: Text(
-                          p.name,
+                          displayName,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         subtitle: Text(
-                          p.description,
+                          description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -1985,11 +2071,18 @@ class _LoadShaderDialogState extends State<_LoadShaderDialog> {
                             foregroundColor: const Color(0xFF00E5FF),
                             side: const BorderSide(color: Color(0xFF00E5FF)),
                           ),
-                          child: const Text('Load'),
-                          onPressed: () {
-                            widget.onLoadProject(p);
-                            Navigator.of(context).pop();
-                          },
+                          onPressed:
+                              isLoading ? null : () => _choosePreset(fileName),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFF00E5FF),
+                                  ),
+                                )
+                              : const Text('Load'),
                         ),
                       ),
                     );
@@ -2046,20 +2139,32 @@ class _LoadShaderDialogState extends State<_LoadShaderDialog> {
                 ),
 
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
-                    foregroundColor: Colors.black,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF383846)),
+                    ),
+                    icon: const Icon(Icons.file_open, size: 16),
+                    label: const Text('Load from disk'),
+                    onPressed: _loadFromDisk,
                   ),
-                  icon: const Icon(Icons.check),
-                  label: const Text(
-                    'Load from JSON',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF00E5FF),
+                      foregroundColor: Colors.black,
+                    ),
+                    icon: const Icon(Icons.check),
+                    label: const Text(
+                      'Load from JSON',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: _loadFromJsonString,
                   ),
-                  onPressed: _loadFromJsonString,
-                ),
+                ],
               ),
             ],
           ),
@@ -2070,14 +2175,147 @@ class _LoadShaderDialogState extends State<_LoadShaderDialog> {
 }
 
 /// Dialog for saving/exporting shaders to JSON format.
-class _SaveShaderDialog extends StatelessWidget {
+class _SaveShaderDialog extends StatefulWidget {
   const _SaveShaderDialog({required this.project});
 
   final ShaderToyProject project;
 
   @override
+  State<_SaveShaderDialog> createState() => _SaveShaderDialogState();
+}
+
+class _SaveShaderDialogState extends State<_SaveShaderDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _usernameController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _urlController;
+  late final TextEditingController _tagsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.project.name);
+    _usernameController = TextEditingController(text: widget.project.author);
+    _descriptionController = TextEditingController(
+      text: widget.project.description,
+    );
+    _urlController = TextEditingController(text: widget.project.url);
+    _tagsController = TextEditingController(
+      text: widget.project.tags.join(', '),
+    );
+
+    void listener() {
+      _syncProjectFields();
+      setState(() {});
+    }
+
+    _nameController.addListener(listener);
+    _usernameController.addListener(listener);
+    _descriptionController.addListener(listener);
+    _urlController.addListener(listener);
+    _tagsController.addListener(listener);
+  }
+
+  void _syncProjectFields() {
+    widget.project.name = _nameController.text.trim();
+    widget.project.author = _usernameController.text.trim();
+    widget.project.description = _descriptionController.text.trim();
+    widget.project.url = _urlController.text.trim();
+    final rawTags = _tagsController.text.split(',');
+    widget.project.tags = rawTags
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _usernameController.dispose();
+    _descriptionController.dispose();
+    _urlController.dispose();
+    _tagsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveAs() async {
+    _syncProjectFields();
+    final jsonString = widget.project.toJsonString();
+
+    String safeName = widget.project.name.trim();
+    if (safeName.isEmpty) safeName = 'shader';
+    safeName = safeName
+        .replaceAll(RegExp(r'[^\w\s-]'), '')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_');
+    final fileName = '$safeName.json';
+
+    try {
+      final outputUri = await FilePicker.saveFile(
+        dialogTitle: 'Save Shader JSON',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: Uint8List.fromList(utf8.encode(jsonString)),
+      );
+
+      if (outputUri != null) {
+        if (mounted) {
+          final displayName = outputUri.pathSegments.isNotEmpty
+              ? outputUri.pathSegments.last
+              : outputUri.toString();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Shader saved successfully to $displayName!'),
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save shader: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  InputDecoration _fieldDecoration(String label, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+      hintStyle: TextStyle(
+        color: Colors.white.withValues(alpha: 0.2),
+        fontSize: 12,
+      ),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      filled: true,
+      fillColor: const Color(0xFF101015),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(color: Color(0xFF282832)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(color: Color(0xFF282832)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(6),
+        borderSide: const BorderSide(color: Color(0xFFFF5500)),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final jsonString = project.toJsonString();
+    final jsonString = widget.project.toJsonString();
 
     return Dialog(
       backgroundColor: const Color(0xFF181822),
@@ -2086,7 +2324,7 @@ class _SaveShaderDialog extends StatelessWidget {
         side: const BorderSide(color: Color(0xFF323242)),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 520),
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -2096,15 +2334,17 @@ class _SaveShaderDialog extends StatelessWidget {
                 children: [
                   const Icon(Icons.save, color: Color(0xFFFF5500)),
                   const SizedBox(width: 8),
-                  Text(
-                    'Save Shader: "${project.name}" (JSON)',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      'Save Shader: "${widget.project.name}" (JSON)',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   IconButton(
                     iconSize: 18,
                     icon: const Icon(Icons.close, color: Colors.white54),
@@ -2114,13 +2354,85 @@ class _SaveShaderDialog extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Standard ShaderToy JSON export format with all passes and iChannel bindings:',
+                'Shader metadata and properties:',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 12),
 
+              // Info TextFields
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _nameController,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: _fieldDecoration('Name', hint: 'Shader name'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _usernameController,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: _fieldDecoration(
+                        'Username',
+                        hint: 'Author name',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _urlController,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: _fieldDecoration(
+                        'URL',
+                        hint: 'https://www.shadertoy.com/view/...',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _tagsController,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: _fieldDecoration(
+                        'Tags',
+                        hint: 'terrain, noise, raymarching',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 2,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: _fieldDecoration(
+                  'Description',
+                  hint: 'Shader description or notes',
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              const Text(
+                'JSON Preview:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+
               Expanded(
                 child: Container(
+                  width: double.infinity,
                   decoration: BoxDecoration(
                     color: const Color(0xFF101015),
                     borderRadius: BorderRadius.circular(6),
@@ -2166,12 +2478,12 @@ class _SaveShaderDialog extends StatelessWidget {
                       backgroundColor: const Color(0xFFFF5500),
                       foregroundColor: Colors.white,
                     ),
-                    icon: const Icon(Icons.check, size: 16),
+                    icon: const Icon(Icons.save_as, size: 16),
                     label: const Text(
-                      'Done',
+                      'Save as',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: _saveAs,
                   ),
                 ],
               ),

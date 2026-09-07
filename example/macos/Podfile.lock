@@ -1,4 +1,7 @@
 PODS:
+  - file_picker_darwin (1.0.0):
+    - Flutter
+    - FlutterMacOS
   - flutter_recorder (0.0.1):
     - FlutterMacOS
   - flutter_soloud (0.0.1):
@@ -6,11 +9,14 @@ PODS:
   - FlutterMacOS (1.0.0)
 
 DEPENDENCIES:
+  - file_picker_darwin (from `Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin`)
   - flutter_recorder (from `Flutter/ephemeral/.symlinks/plugins/flutter_recorder/macos`)
   - flutter_soloud (from `Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
 
 EXTERNAL SOURCES:
+  file_picker_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/file_picker_darwin/darwin
   flutter_recorder:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_recorder/macos
   flutter_soloud:
@@ -19,6 +25,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral
 
 SPEC CHECKSUMS:
+  file_picker_darwin: 4c2b9a50ea44cb3b071381ea0cf48591bdd80251
   flutter_recorder: ed261037ea05c0509e83e4df807bdcee1314c1ba
   flutter_soloud: fd7e85d03f0511c834c4cfd32c8888cf92712152
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
