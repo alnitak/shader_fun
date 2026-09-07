@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -103,21 +104,28 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   });
 
   group('AudioChannel Texture Generator', () {
-    test('generates 512x2 pixel buffer conforming to ShaderToy spec', () {
+    test('generates audio texture pixel buffer conforming to spec', () {
       final channel = SoLoudAudioChannel();
-      expect(channel.resolution.width, 512.0);
-      expect(channel.resolution.height, 2.0);
-      expect(channel.pixelData.length, 512 * 2 * 4);
+      expect(channel.resolution.width, kAudioTextureWidth.toDouble());
+      expect(channel.resolution.height, kAudioTextureHeight.toDouble());
+      expect(
+        channel.pixelData.length,
+        kAudioTextureWidth * kAudioTextureHeight * 4,
+      );
 
-      // Generate synthetic wave
-      channel.generateSyntheticWave(1.0);
+      // Update audio data with test FFT and Wave buffers
+      final testFft = Float32List(kAudioTextureWidth);
+      testFft[0] = 0.8;
+      final testWave = Float32List(kAudioTextureWidth);
+      testWave[0] = 0.5; // [-1.0, 1.0] -> normalized to 0.75
+      channel.updateAudioData(newFft: testFft, newWave: testWave);
 
       // Row 0: FFT magnitude in R, G, B channels
-      expect(channel.pixelData[0], greaterThanOrEqualTo(0));
+      expect(channel.pixelData[0], greaterThan(0));
       expect(channel.pixelData[3], 255); // Alpha is 255
 
       // Row 1: Waveform amplitude
-      final row1Offset = 512 * 4;
+      final row1Offset = kAudioTextureWidth * 4;
       expect(channel.pixelData[row1Offset], greaterThan(0));
       expect(channel.pixelData[row1Offset + 3], 255);
     });

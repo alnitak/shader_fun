@@ -795,9 +795,6 @@ class ShaderToyController
         if (audioChannel is SoLoudAudioChannel) {
           audioChannel.updatePlaybackTime(dt);
         }
-        if (!audioChannel.isPlaying) {
-          audioChannel.generateSyntheticWave(_uniforms.time);
-        }
       }
 
       if (!_isRendering) {

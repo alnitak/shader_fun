@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
@@ -10,10 +9,10 @@ import 'package:listen/listen.dart' as listen;
 
 import 'shader_channel.dart';
 
-/// ShaderToy standard audio texture size: 512 columns x 2 rows.
-/// Row 0 (y = 0 / 0.25): FFT frequency spectrum (512 bins, 0.0 to 1.0)
-/// Row 1 (y = 1 / 0.75): Waveform amplitude (512 samples, 0.0 to 1.0)
-const int kAudioTextureWidth = 512;
+/// ShaderToy standard audio texture size: 1024 columns x 2 rows.
+/// Row 0 (y = 0 / 0.25): FFT frequency spectrum (1024 bins, 0.0 to 1.0)
+/// Row 1 (y = 1 / 0.75): Waveform amplitude (1024 samples, 0.0 to 1.0)
+const int kAudioTextureWidth = 1024;
 const int kAudioTextureHeight = 2;
 
 /// Abstract base class for ShaderToy audio channels.
@@ -30,8 +29,9 @@ abstract class AudioChannel extends ShaderChannel with listen.ChangeNotifier {
 
   final Float32List _fftData = Float32List(kAudioTextureWidth);
   final Float32List _waveData = Float32List(kAudioTextureWidth);
-  final Uint8List _pixelData =
-      Uint8List(kAudioTextureWidth * kAudioTextureHeight * 4);
+  final Uint8List _pixelData = Uint8List(
+    kAudioTextureWidth * kAudioTextureHeight * 4,
+  );
 
   ui.Image? _cachedTextureImage;
   bool _textureDirty = true;
@@ -127,32 +127,7 @@ abstract class AudioChannel extends ShaderChannel with listen.ChangeNotifier {
     }
   }
 
-  /// Generates a synthetic audio wave for demo/testing purposes.
-  void generateSyntheticWave(double time) {
-    if (isDisposed) return;
-    for (int x = 0; x < kAudioTextureWidth; x++) {
-      final normX = x / kAudioTextureWidth;
-      // Simulated frequency peaks (bass, mid, high)
-      final bass = math.exp(-normX * 8.0) * (0.6 + 0.4 * math.sin(time * 6.0));
-      final mid = math.exp(-math.pow(normX - 0.3, 2) * 50.0) *
-          (0.4 + 0.3 * math.cos(time * 12.0));
-      final high = math.exp(-math.pow(normX - 0.7, 2) * 80.0) *
-          (0.2 + 0.2 * math.sin(time * 20.0));
-      _fftData[x] = (bass + mid + high).clamp(0.0, 1.0);
-
-      // Simulated audio waveform
-      final wave = 0.5 +
-          0.25 * math.sin(normX * 30.0 + time * 8.0) +
-          0.15 * math.cos(normX * 70.0 - time * 14.0);
-      _waveData[x] = wave.clamp(0.0, 1.0);
-    }
-    _updatePixelBytes();
-    if (!isDisposed) {
-      notifyListeners();
-    }
-  }
-
-  /// Converts the 512x2 pixel buffer to a ui.Image for sampling.
+  /// Converts the 1024x2 pixel buffer to a ui.Image for sampling.
   Future<ui.Image> toUiImage() async {
     if (_cachedTextureImage != null && !_textureDirty) {
       return _cachedTextureImage!;
@@ -236,19 +211,19 @@ class SoLoudAudioChannel extends AudioChannel {
 
       _vizSubscription?.cancel();
       _vizSubscription = soloud.audioVisualizationEvents.listen((data) {
-        final newFft = data.fftData ?? (data.fft.isNotEmpty ? data.fft.first : null);
-        final newWave = data.waveData ?? (data.wave.isNotEmpty ? data.wave.first : null);
-        updateAudioData(
-          newFft: newFft,
-          newWave: newWave,
-        );
+        final newFft =
+            data.fftData ?? (data.fft.isNotEmpty ? data.fft.first : null);
+        final newWave =
+            data.waveData ?? (data.wave.isNotEmpty ? data.wave.first : null);
+        updateAudioData(newFft: newFft, newWave: newWave);
       });
 
       final targetPath = src ?? assetPath ?? this.src;
       if (targetPath != null && targetPath.isNotEmpty) {
         await soloud.disposeAllSources();
 
-        if (targetPath.startsWith('http://') || targetPath.startsWith('https://')) {
+        if (targetPath.startsWith('http://') ||
+            targetPath.startsWith('https://')) {
           _audioSource = await soloud.loadUrl(targetPath);
         } else if (targetPath.startsWith('file://') ||
             targetPath.startsWith('/') ||
@@ -387,8 +362,10 @@ class MicAudioChannel extends AudioChannel {
       _vizSubscription?.cancel();
       _vizSubscription = recorder.audioVisualizationEvents.listen(
         (data) {
-          final rawFft = data.fftData ?? (data.fft.isNotEmpty ? data.fft.first : null);
-          final rawWave = data.waveData ?? (data.wave.isNotEmpty ? data.wave.first : null);
+          final rawFft =
+              data.fftData ?? (data.fft.isNotEmpty ? data.fft.first : null);
+          final rawWave =
+              data.waveData ?? (data.wave.isNotEmpty ? data.wave.first : null);
 
           Float32List? boostedFft;
           if (rawFft != null) {
@@ -416,7 +393,9 @@ class MicAudioChannel extends AudioChannel {
         },
       );
       _isRecording = true;
-      debugPrint('[MicAudioChannel] Live microphone capture started successfully');
+      debugPrint(
+        '[MicAudioChannel] Live microphone capture started successfully',
+      );
     } catch (e, st) {
       debugPrint('[MicAudioChannel] startListening failed: $e\n$st');
       _isRecording = false;
