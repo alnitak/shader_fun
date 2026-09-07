@@ -113,5 +113,32 @@ void main() {
 
       controller.dispose();
     });
+
+    test('parses and serializes url in Shader.info', () {
+      final json = {
+        'Shader': {
+          'ver': '0.1',
+          'info': {
+            'id': 'sf23W1',
+            'name': 'Mouse-Paint Eroded Mountains',
+            'url': 'https://www.shadertoy.com/view/sf23W1',
+          },
+          'renderpass': [
+            {
+              'name': 'Image',
+              'type': 'image',
+              'code': 'void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }',
+            }
+          ],
+        }
+      };
+
+      final project = ShaderToyProject.fromJson(json);
+      expect(project.url, 'https://www.shadertoy.com/view/sf23W1');
+
+      final serialized = project.toJson();
+      final info = (serialized['Shader'] as Map)['info'] as Map;
+      expect(info['url'], 'https://www.shadertoy.com/view/sf23W1');
+    });
   });
 }

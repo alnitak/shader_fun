@@ -8,6 +8,7 @@
       "name": "Mouse-Paint Eroded Mountains",
       "username": "runevision",
       "description": "Interactive real-time terrain erosion filter based on stacked faded gullies with mouse painting.",
+      "url": "https://www.shadertoy.com/view/sf23W1",
       "likes": 0,
       "published": 3,
       "flags": 0,

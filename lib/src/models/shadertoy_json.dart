@@ -11,6 +11,7 @@ class ShaderToyProject {
     this.name = 'New Shader',
     this.author = 'Anonymous',
     this.description = '',
+    this.url = '',
     this.tags = const [],
     List<ShaderPass>? passes,
   }) : passes = passes ?? [];
@@ -20,6 +21,7 @@ class ShaderToyProject {
     return ShaderToyProject(
       id: 'new',
       name: 'New Shader',
+      url: '',
       passes: [
         ShaderPass(
           type: PassType.image,
@@ -45,6 +47,7 @@ class ShaderToyProject {
   String name;
   String author;
   String description;
+  String url;
   List<String> tags;
   List<ShaderPass> passes;
 
@@ -160,6 +163,7 @@ vec2 rot(vec2 p, float a) {
     final name = info['name']?.toString() ?? 'Untitled Shader';
     final username = info['username']?.toString() ?? 'Anonymous';
     final description = info['description']?.toString() ?? '';
+    final url = info['url']?.toString() ?? '';
     final rawTags = info['tags'];
     final tags = rawTags is List
         ? rawTags.map((t) => t.toString()).toList()
@@ -317,6 +321,7 @@ vec2 rot(vec2 p, float a) {
       name: name,
       author: username,
       description: description,
+      url: url,
       tags: tags,
       passes: passes,
     );
@@ -381,8 +386,11 @@ vec2 rot(vec2 p, float a) {
       });
     }
 
+    final url = jsonMap['url']?.toString() ?? '';
+
     return ShaderToyProject(
       name: name,
+      url: url,
       passes: passes,
     );
   }
@@ -477,6 +485,7 @@ vec2 rot(vec2 p, float a) {
           'name': name,
           'username': author,
           'description': description,
+          'url': url,
           'likes': 0,
           'published': 3,
           'flags': 0,
