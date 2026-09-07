@@ -149,6 +149,22 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
     }
   }
 
+  Future<void> _newShader() async {
+    if (SoLoud.instance.isInitialized) {
+      SoLoud.instance.disposeAllSources();
+    }
+    final project = ShaderToyProject.empty();
+    await _controller.loadProject(project);
+    _syncCodeWithActivePass();
+    _controller.play();
+    if (mounted) {
+      setState(() {
+        _compileStatus = 'Created new shader (Running)';
+        _compileSuccess = true;
+      });
+    }
+  }
+
   void _openLoadDialog() {
     showDialog(
       context: context,
@@ -260,6 +276,31 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
                     fontSize: 13,
                   ),
                 ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // New button
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF383846)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  backgroundColor: const Color(0xFF202028),
+                ),
+                icon: const Icon(
+                  Icons.add,
+                  size: 16,
+                  color: Color(0xFFFFCC00),
+                ),
+                label: const Text('New', style: TextStyle(fontSize: 13)),
+                onPressed: _newShader,
               ),
 
               const SizedBox(width: 8),
