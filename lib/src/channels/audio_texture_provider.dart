@@ -258,7 +258,13 @@ class SoLoudAudioChannel extends AudioChannel {
               : targetPath;
           _audioSource = await soloud.loadFile(clean);
         } else {
-          _audioSource = await soloud.loadAsset(targetPath);
+          var assetToLoad = targetPath;
+          if (!assetToLoad.startsWith('assets/') &&
+              !assetToLoad.startsWith('packages/') &&
+              !assetToLoad.contains('/')) {
+            assetToLoad = 'assets/audio/$assetToLoad';
+          }
+          _audioSource = await soloud.loadAsset(assetToLoad);
         }
 
         _soundHandle = soloud.play(_audioSource!, looping: true);
@@ -284,15 +290,30 @@ class SoLoudAudioChannel extends AudioChannel {
 
   Future<void> pause() async {
     if (_soundHandle != null && _isPlaying) {
-      sl.SoLoud.instance.pauseSwitch(_soundHandle!);
+      try {
+        sl.SoLoud.instance.setPause(_soundHandle!, true);
+      } catch (_) {}
       _isPlaying = false;
     }
   }
 
   Future<void> resume() async {
     if (_soundHandle != null && !_isPlaying) {
-      sl.SoLoud.instance.pauseSwitch(_soundHandle!);
+      try {
+        sl.SoLoud.instance.setPause(_soundHandle!, false);
+      } catch (_) {}
       _isPlaying = true;
+    } else if (_soundHandle == null && src != null && src!.isNotEmpty) {
+      await initAudio(src: src);
+    }
+  }
+
+  Future<void> seek(Duration position) async {
+    if (_soundHandle != null) {
+      try {
+        sl.SoLoud.instance.seek(_soundHandle!, position);
+      } catch (_) {}
+      _playbackTime = position.inMilliseconds / 1000.0;
     }
   }
 

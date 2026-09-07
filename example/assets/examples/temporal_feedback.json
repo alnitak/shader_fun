@@ -1,18 +1,11 @@
 {
   "Shader": {
-    "ver": "0.1",
     "info": {
       "id": "temporal_feedback",
-      "date": 1788776086,
-      "viewed": 0,
       "name": "Temporal Feedback Trails",
       "username": "ShaderToy Multi-Pass",
       "description": "Multi-pass shader with Buffer A temporal feedback loop and mouse trails.",
       "url": "",
-      "likes": 0,
-      "published": 3,
-      "flags": 0,
-      "usePreview": 0,
       "tags": [
         "multipass",
         "feedback",
@@ -34,8 +27,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           }
         ],
         "outputs": [
@@ -62,8 +54,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           }
         ],
         "outputs": [

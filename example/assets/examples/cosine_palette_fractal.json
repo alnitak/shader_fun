@@ -1,18 +1,11 @@
 {
   "Shader": {
-    "ver": "0.1",
     "info": {
       "id": "cosine_palette",
-      "date": 1788776086,
-      "viewed": 0,
       "name": "Cosine Palette Fractal",
       "username": "Inigo Quilez",
       "description": "Procedural mathematical fractal using IQ cosine palettes and domain repetition.",
       "url": "",
-      "likes": 0,
-      "published": 3,
-      "flags": 0,
-      "usePreview": 0,
       "tags": [
         "fractal",
         "math",

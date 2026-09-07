@@ -504,7 +504,6 @@ vec2 rot(vec2 p, float a) {
             'srgb': 'false',
             'internal': 'byte',
           },
-          'published': 1,
         });
       }
 
@@ -529,19 +528,12 @@ vec2 rot(vec2 p, float a) {
 
     return {
       'Shader': {
-        'ver': '0.1',
         'info': {
           'id': id,
-          'date': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          'viewed': 0,
           'name': name,
           'username': author,
           'description': description,
           'url': url,
-          'likes': 0,
-          'published': 3,
-          'flags': 0,
-          'usePreview': 0,
           'tags': tags,
         },
         'renderpass': renderpassList,

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' as flutter_foundation;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_soloud/flutter_soloud.dart' as sl;
 import 'package:listen/listen.dart' as listen;
 
 import '../channels/audio_texture_provider.dart';
@@ -50,6 +51,7 @@ class ShaderToyController
       }
     }
     _bindAudioChannelListener();
+    _initProjectChannels();
 
     // Perform initial compilation in background
     compile();
@@ -299,6 +301,12 @@ class ShaderToyController
     bool autoCompile = true,
     int? activePassIndex,
   }) async {
+    try {
+      if (sl.SoLoud.instance.isInitialized) {
+        await sl.SoLoud.instance.disposeAllSources();
+      }
+    } catch (_) {}
+
     _project = newProject;
     final defaultIdx =
         _project.passes.indexWhere((p) => p.type == PassType.image);
@@ -306,7 +314,8 @@ class ShaderToyController
         activePassIndex ?? (defaultIdx >= 0 ? defaultIdx : 0);
     _renderer.clearAudio();
     _renderer.gpuRenderer.clearPingPongBuffers();
-    _bindAudioChannelListener();
+
+    await _initProjectChannels();
 
     if (autoCompile) {
       await compileAllPasses();
@@ -505,6 +514,34 @@ class ShaderToyController
   void setChannel(int channelIndex, ShaderChannel? channel) {
     if (activePass != null) {
       activePass!.setChannel(channelIndex, channel);
+      if (channel is SoLoudAudioChannel &&
+          channel.src != null &&
+          channel.src!.isNotEmpty) {
+        channel.initAudio(src: channel.src).then((_) {
+          if (!isPlaying) {
+            channel.pause();
+          }
+        });
+      } else if (channel is MicAudioChannel) {
+        channel.startListening();
+      } else if (channel is TextureChannel) {
+        channel.loadImage().then((img) async {
+          if (img != null) {
+            final byteData =
+                await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+            if (byteData != null) {
+              _renderer.gpuRenderer.uploadTextureChannel(
+                channelIndex,
+                byteData.buffer.asUint8List(),
+                img.width,
+                img.height,
+              );
+            }
+          }
+        });
+      } else if (channel == null) {
+        _renderer.gpuRenderer.removeTextureChannel(channelIndex);
+      }
       _bindAudioChannelListener();
       notifyListeners();
     }
@@ -518,6 +555,7 @@ class ShaderToyController
   void setActivePass(int index) {
     if (index >= 0 && index < _project.passes.length) {
       activePassIndexNotifier.value = index;
+      _bindAudioChannelListener();
       notifyListeners();
     }
   }
@@ -661,6 +699,10 @@ class ShaderToyController
     _renderer.clearAudio();
     _keyboard.reset();
     _renderer.gpuRenderer.clearPingPongBuffers();
+    final audio = _findActiveAudioChannel();
+    if (audio is SoLoudAudioChannel) {
+      audio.seek(Duration.zero);
+    }
     renderSingleFrame();
     notifyListeners();
   }
@@ -771,6 +813,55 @@ class ShaderToyController
       _boundAudioChannel = audio;
       _boundAudioChannel?.addListener(_onAudioDataUpdated);
     }
+  }
+
+  Future<void> _initProjectChannels() async {
+    for (final pass in _project.passes) {
+      for (int i = 0; i < pass.channels.length; i++) {
+        final ch = pass.channels[i];
+        if (ch is SoLoudAudioChannel) {
+          if (ch.src != null && ch.src!.isNotEmpty) {
+            try {
+              await ch.initAudio(src: ch.src);
+              if (!isPlaying) {
+                await ch.pause();
+              }
+            } catch (e) {
+              flutter_foundation.debugPrint(
+                'Failed to init SoLoudAudioChannel: $e',
+              );
+            }
+          }
+        } else if (ch is MicAudioChannel) {
+          try {
+            await ch.startListening();
+          } catch (e) {
+            flutter_foundation.debugPrint('Failed to start MicAudioChannel: $e');
+          }
+        } else if (ch is TextureChannel) {
+          try {
+            final img = await ch.loadImage();
+            if (img != null) {
+              final byteData =
+                  await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+              if (byteData != null) {
+                _renderer.gpuRenderer.uploadTextureChannel(
+                  i,
+                  byteData.buffer.asUint8List(),
+                  img.width,
+                  img.height,
+                );
+              }
+            }
+          } catch (e) {
+            flutter_foundation.debugPrint(
+              'Failed to load TextureChannel image: $e',
+            );
+          }
+        }
+      }
+    }
+    _bindAudioChannelListener();
   }
 
   void _onAudioDataUpdated() {

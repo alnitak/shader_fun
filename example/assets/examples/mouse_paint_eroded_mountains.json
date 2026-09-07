@@ -1,18 +1,11 @@
 {
   "Shader": {
-    "ver": "0.1",
     "info": {
       "id": "sf23W1",
-      "date": 1788722262,
-      "viewed": 0,
       "name": "Mouse-Paint Eroded Mountains",
       "username": "runevision",
       "description": "Interactive real-time terrain erosion filter based on stacked faded gullies with mouse painting.",
       "url": "https://www.shadertoy.com/view/sf23W1",
-      "likes": 0,
-      "published": 3,
-      "flags": 0,
-      "usePreview": 0,
       "tags": [
         "terrain",
         "erosion",
@@ -48,8 +41,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           },
           {
             "id": 33,
@@ -62,8 +54,7 @@
               "vflip": "true",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           }
         ],
         "outputs": [
@@ -90,8 +81,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           },
           {
             "id": 33,
@@ -104,8 +94,7 @@
               "vflip": "true",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           }
         ],
         "outputs": [
@@ -145,8 +134,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           },
           {
             "id": 259,
@@ -159,8 +147,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           }
         ],
         "outputs": [

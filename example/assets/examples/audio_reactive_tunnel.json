@@ -1,18 +1,11 @@
 {
   "Shader": {
-    "ver": "0.1",
     "info": {
       "id": "audio_tunnel",
-      "date": 1788776086,
-      "viewed": 0,
       "name": "Audio Reactive Neon Tunnel",
       "username": "ShaderToy Studio",
       "description": "Audio visualizer reacting to music or live microphone in real-time via iChannel0.",
       "url": "",
-      "likes": 0,
-      "published": 3,
-      "flags": 0,
-      "usePreview": 0,
       "tags": [
         "audio",
         "music",
@@ -26,7 +19,7 @@
         "inputs": [
           {
             "id": 257,
-            "src": "",
+            "src": "assets/audio/electro_nebulae.mp3",
             "ctype": "music",
             "channel": 0,
             "sampler": {
@@ -35,8 +28,7 @@
               "vflip": "false",
               "srgb": "false",
               "internal": "byte"
-            },
-            "published": 1
+            }
           }
         ],
         "outputs": [
