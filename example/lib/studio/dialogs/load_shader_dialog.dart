@@ -1,11 +1,29 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_fun/shader_fun.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// Dialog for loading shaders from presets, disk, or raw JSON.
+/// Metadata wrapper for a ShaderToy JSON file discovered in the folder.
+class _JsonFileInfo {
+  _JsonFileInfo({
+    required this.file,
+    required this.fileName,
+    this.project,
+    this.errorMessage,
+  });
+
+  final File file;
+  final String fileName;
+  final ShaderToyProject? project;
+  final String? errorMessage;
+}
+
+/// Dialog for loading shaders from the last used folder, disk, or raw JSON.
 ///
 /// Responsive standard Dialog that utilizes the maximum available height.
 class LoadShaderDialog extends StatefulWidget {
@@ -22,43 +40,175 @@ class LoadShaderDialog extends StatefulWidget {
 
 class _LoadShaderDialogState extends State<LoadShaderDialog>
     with SingleTickerProviderStateMixin {
+  static const String _kLastJsonFolderKey = 'last_json_folder_path';
+
   late final TabController _tabController;
   final TextEditingController _jsonInputController = TextEditingController();
-  final Map<String, ShaderToyProject> _loadedPresets = {};
-  String? _loadingAsset;
-  String? _jsonError;
+
+  String? _currentFolderPath;
+  List<_JsonFileInfo> _folderFiles = [];
+  bool _isLoadingFolder = false;
+  String? _loadingFile;
+  String? _generalError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadPresetMetadata();
+    _initAndLoadFolder();
   }
 
-  Future<void> _loadPresetMetadata() async {
-    for (final fileName in ShaderToyProject.exampleAssets) {
-      try {
-        final proj = await ShaderToyProject.loadFromAsset(fileName);
+  Future<void> _initAndLoadFolder() async {
+    setState(() {
+      _isLoadingFolder = true;
+      _generalError = null;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? folder = prefs.getString(_kLastJsonFolderKey);
+
+      // If no folder stored yet or not existing, try common fallback paths
+      if (!kIsWeb) {
+        if (folder == null || !Directory(folder).existsSync()) {
+          if (Directory('shaders').existsSync()) {
+            folder = Directory('shaders').absolute.path;
+          } else if (Directory('example/shaders').existsSync()) {
+            folder = Directory('example/shaders').absolute.path;
+          }
+        }
+      }
+
+      if (folder != null) {
+        await _scanFolder(folder);
+      } else {
         if (mounted) {
           setState(() {
-            _loadedPresets[fileName] = proj;
+            _isLoadingFolder = false;
           });
         }
-      } catch (_) {
-        // Fall back gracefully to filename-based display
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingFolder = false;
+          _generalError = 'Failed to read last folder setting: $e';
+        });
       }
     }
   }
 
-  Future<void> _choosePreset(String fileName) async {
+  Future<void> _scanFolder(String folderPath) async {
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() {
+          _currentFolderPath = folderPath;
+          _folderFiles = [];
+          _isLoadingFolder = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingFolder = true;
+        _currentFolderPath = folderPath;
+        _generalError = null;
+      });
+    }
+
+    final dir = Directory(folderPath);
+    if (!dir.existsSync()) {
+      if (mounted) {
+        setState(() {
+          _folderFiles = [];
+          _isLoadingFolder = false;
+          _generalError = 'Folder does not exist: $folderPath';
+        });
+      }
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLastJsonFolderKey, folderPath);
+
+      final entities = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.toLowerCase().endsWith('.json'))
+          .toList();
+
+      entities.sort((a, b) {
+        final nameA = a.uri.pathSegments.last.toLowerCase();
+        final nameB = b.uri.pathSegments.last.toLowerCase();
+        return nameA.compareTo(nameB);
+      });
+
+      final List<_JsonFileInfo> filesInfo = [];
+      for (final file in entities) {
+        final fileName = file.uri.pathSegments.last;
+        try {
+          final content = await file.readAsString();
+          final project = ShaderToyProject.parseJsonString(content);
+          filesInfo.add(_JsonFileInfo(
+            file: file,
+            fileName: fileName,
+            project: project,
+          ));
+        } catch (e) {
+          filesInfo.add(_JsonFileInfo(
+            file: file,
+            fileName: fileName,
+            errorMessage: e.toString(),
+          ));
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _folderFiles = filesInfo;
+          _isLoadingFolder = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingFolder = false;
+          _generalError = 'Error scanning folder "$folderPath": $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _chooseFolder() async {
+    try {
+      final selectedDir = await FilePicker.getDirectoryPath(
+        dialogTitle: 'Select Folder with Shader JSON files',
+        initialDirectory: _currentFolderPath,
+      );
+      if (selectedDir != null && selectedDir.isNotEmpty) {
+        await _scanFolder(selectedDir);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _generalError = 'Failed to choose folder: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _loadFile(_JsonFileInfo item) async {
     setState(() {
-      _loadingAsset = fileName;
-      _jsonError = null;
+      _loadingFile = item.fileName;
+      _generalError = null;
     });
 
     try {
-      final project = _loadedPresets[fileName] ??
-          await ShaderToyProject.loadFromAsset(fileName);
+      final project = item.project ??
+          ShaderToyProject.parseJsonString(await item.file.readAsString());
       if (mounted) {
         widget.onLoadProject(project);
         Navigator.of(context).pop();
@@ -66,19 +216,47 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _loadingAsset = null;
-          _jsonError = 'Failed to load asset "$fileName": $e';
+          _loadingFile = null;
+          _generalError = 'Failed to load "${item.fileName}": $e';
         });
       }
     }
   }
 
-  String _formatDisplayName(String fileName) {
-    final base = fileName.split('/').last.replaceAll('.json', '');
-    return base
-        .split('_')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
-        .join(' ');
+  Future<void> _loadFromDisk() async {
+    try {
+      final files = await FilePicker.pickFiles(
+        dialogTitle: 'Select ShaderToy JSON',
+        type: FileType.custom,
+        allowedExtensions: ['json', 'txt'],
+        initialDirectory: _currentFolderPath,
+      );
+      if (files.isEmpty) return;
+      final file = files.first;
+      final path = file.path;
+
+      if (path != null && !kIsWeb) {
+        final ioFile = File(path);
+        final parentPath = ioFile.parent.path;
+        await _scanFolder(parentPath);
+      }
+
+      final bytes = await file.readAsBytes();
+      final content = utf8.decode(bytes);
+
+      if (content.isEmpty) return;
+      final project = ShaderToyProject.parseJsonString(content);
+      if (mounted) {
+        widget.onLoadProject(project);
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _generalError = 'Failed to load file: $e';
+        });
+      }
+    }
   }
 
   void _loadFromJsonString() {
@@ -91,35 +269,17 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
       Navigator.of(context).pop();
     } catch (e) {
       setState(() {
-        _jsonError = 'Invalid JSON: $e';
+        _generalError = 'Invalid JSON: $e';
       });
     }
   }
 
-  Future<void> _loadFromDisk() async {
-    try {
-      final files = await FilePicker.pickFiles(
-        dialogTitle: 'Select ShaderToy JSON',
-        type: FileType.custom,
-        allowedExtensions: ['json', 'txt'],
-      );
-      if (files.isEmpty) return;
-      final file = files.first;
-      final bytes = await file.readAsBytes();
-      final content = utf8.decode(bytes);
-      if (content.isEmpty) return;
-      final project = ShaderToyProject.parseJsonString(content);
-      if (mounted) {
-        widget.onLoadProject(project);
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _jsonError = 'Failed to load file: $e';
-        });
-      }
-    }
+  String _formatDisplayName(String fileName) {
+    final base = fileName.replaceAll('.json', '');
+    return base
+        .split('_')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
   }
 
   @override
@@ -201,7 +361,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white54,
                 tabs: const [
-                  Tab(icon: Icon(Icons.auto_awesome, size: 16), text: 'Presets'),
+                  Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Folder Files'),
                   Tab(icon: Icon(Icons.code, size: 16), text: 'Paste JSON'),
                 ],
               ),
@@ -212,14 +372,14 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildPresetsTab(),
+                    _buildFolderFilesTab(),
                     _buildPasteJsonTab(),
                   ],
                 ),
               ),
 
               // Error display
-              if (_jsonError != null) ...[
+              if (_generalError != null) ...[
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -241,7 +401,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _jsonError!,
+                          _generalError!,
                           style: const TextStyle(
                             color: Color(0xFFF87171),
                             fontSize: 12,
@@ -260,125 +420,299 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     );
   }
 
-  Widget _buildPresetsTab() {
-    return ListView.builder(
-      itemCount: ShaderToyProject.exampleAssets.length,
-      itemBuilder: (context, index) {
-        final fileName = ShaderToyProject.exampleAssets[index];
-        final proj = _loadedPresets[fileName];
-        final title = proj?.name.isNotEmpty == true
-            ? proj!.name
-            : _formatDisplayName(fileName);
-        final desc = proj?.description.isNotEmpty == true
-            ? proj!.description
-            : 'Example preset loaded from $fileName';
-        final passCount = proj?.passes.length ?? 1;
-        final isSelected = _loadingAsset == fileName;
-
-        return Card(
-          color: const Color(0xFF20202A),
-          shape: RoundedRectangleBorder(
+  Widget _buildFolderFilesTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Folder Bar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF101016),
             borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: Color(0xFF2E2E3C)),
+            border: Border.all(color: const Color(0xFF282836)),
           ),
-          margin: const EdgeInsets.only(bottom: 10),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 6,
-            ),
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+          child: Row(
+            children: [
+              const Icon(Icons.folder, color: Color(0xFF00E5FF), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Tooltip(
+                  message: _currentFolderPath ?? 'No folder selected',
+                  child: Text(
+                    _currentFolderPath ?? 'No folder selected',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _currentFolderPath != null
+                          ? Colors.white70
+                          : Colors.white30,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ),
               ),
-              child: const Icon(
-                Icons.auto_awesome,
-                color: Color(0xFF00E5FF),
-                size: 20,
-              ),
-            ),
-            title: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 2),
-                Text(
-                  desc,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+              const SizedBox(width: 8),
+              if (_currentFolderPath != null)
+                IconButton(
+                  tooltip: 'Refresh folder',
+                  iconSize: 16,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  icon: const Icon(Icons.refresh, color: Colors.white54),
+                  onPressed: _isLoadingFolder
+                      ? null
+                      : () => _scanFolder(_currentFolderPath!),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2E2E3E),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text(
-                        '$passCount pass${passCount > 1 ? 'es' : ''}',
-                        style: const TextStyle(
-                          color: Color(0xFF00E5FF),
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF00E5FF),
+                  side: const BorderSide(color: Color(0xFF00E5FF)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                icon: const Icon(Icons.drive_file_move_outlined, size: 14),
+                label: const Text('Change Folder', style: TextStyle(fontSize: 11)),
+                onPressed: _chooseFolder,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Files List / Loading / Empty state
+        Expanded(
+          child: _isLoadingFolder
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF00E5FF),
+                  ),
+                )
+              : _folderFiles.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.folder_open_outlined,
+                              size: 48,
+                              color: Colors.white24,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No Shader JSON files found',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Choose a folder containing ShaderToy .json files or load a file from disk.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00E5FF),
+                                    foregroundColor: Colors.black,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.folder_open, size: 16),
+                                  label: const Text(
+                                    'Choose Folder',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  onPressed: _chooseFolder,
+                                ),
+                                const SizedBox(width: 12),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF38BDF8),
+                                    side: const BorderSide(color: Color(0xFF38BDF8)),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.file_upload_outlined, size: 16),
+                                  label: const Text('Load from disk'),
+                                  onPressed: _loadFromDisk,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      fileName,
-                      style: const TextStyle(
-                        color: Colors.white24,
-                        fontSize: 10,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-              ),
-              onPressed: isSelected ? null : () => _choosePreset(fileName),
-              child: isSelected
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.black,
-                      ),
                     )
-                  : const Text(
-                      'Load',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                  : ListView.builder(
+                      itemCount: _folderFiles.length,
+                      itemBuilder: (context, index) {
+                        final item = _folderFiles[index];
+                        final isInvalid = item.errorMessage != null;
+                        final proj = item.project;
+                        final title = proj != null && proj.name.isNotEmpty
+                            ? proj.name
+                            : _formatDisplayName(item.fileName);
+                        final desc = isInvalid
+                            ? 'Invalid ShaderToy JSON file'
+                            : proj?.description.isNotEmpty == true
+                                ? proj!.description
+                                : 'Shader project in ${item.fileName}';
+                        final passCount = proj?.passes.length ?? 0;
+                        final isSelected = _loadingFile == item.fileName;
+
+                        return Card(
+                          color: const Color(0xFF20202A),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(
+                              color: isInvalid
+                                  ? const Color(0xFF7F1D1D)
+                                  : const Color(0xFF2E2E3C),
+                            ),
+                          ),
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isInvalid
+                                    ? const Color(0xFFF87171).withValues(alpha: 0.12)
+                                    : const Color(0xFF00E5FF).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isInvalid
+                                      ? const Color(0xFFF87171).withValues(alpha: 0.3)
+                                      : const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Icon(
+                                isInvalid
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.auto_awesome,
+                                color: isInvalid
+                                    ? const Color(0xFFF87171)
+                                    : const Color(0xFF00E5FF),
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              title,
+                              style: TextStyle(
+                                color: isInvalid
+                                    ? const Color(0xFFF87171)
+                                    : Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 2),
+                                Text(
+                                  desc,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: isInvalid
+                                        ? const Color(0xFFFCA5A5)
+                                        : Colors.white54,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    if (!isInvalid) ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF2E2E3E),
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                        child: Text(
+                                          '$passCount pass${passCount > 1 ? 'es' : ''}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF00E5FF),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    Expanded(
+                                      child: Text(
+                                        item.fileName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white24,
+                                          fontSize: 10,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            trailing: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: isInvalid
+                                    ? const Color(0xFF383848)
+                                    : const Color(0xFF00E5FF),
+                                foregroundColor:
+                                    isInvalid ? Colors.white38 : Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                              ),
+                              onPressed: (isSelected || isInvalid)
+                                  ? null
+                                  : () => _loadFile(item),
+                              child: isSelected
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.black,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Load',
+                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-            ),
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 
