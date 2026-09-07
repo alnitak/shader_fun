@@ -51,6 +51,7 @@ class FlutterGpuRenderer {
 
   /// Cache of uploaded 2D image textures per channel index
   final Map<int, gpu.Texture> _textureChannels = {};
+  final Map<int, ui.Size> _textureChannelResolutions = {};
 
   bool get isGpuAvailable => _isGpuAvailable;
   bool get hasPipeline => _renderPipeline != null || _passPipelines.isNotEmpty;
@@ -334,6 +335,8 @@ class FlutterGpuRenderer {
       );
       texture.overwrite(ByteData.sublistView(rgbaBytes));
       _textureChannels[channelIndex] = texture;
+      _textureChannelResolutions[channelIndex] =
+          ui.Size(texWidth.toDouble(), texHeight.toDouble());
       return texture;
     } catch (e) {
       debugPrint('Failed to upload texture channel $channelIndex: $e');
@@ -343,6 +346,7 @@ class FlutterGpuRenderer {
 
   void removeTextureChannel(int channelIndex) {
     _textureChannels.remove(channelIndex);
+    _textureChannelResolutions.remove(channelIndex);
   }
 
   static PassType _bufferIndexToPassType(int index) {
@@ -428,6 +432,96 @@ class FlutterGpuRenderer {
     }
   }
 
+  ui.Size _getPassChannelResolution(
+    ShaderPass pass,
+    int channelIndex,
+    double targetWidth,
+    double targetHeight,
+    ShaderToyUniforms uniforms,
+  ) {
+    if (channelIndex < pass.channels.length &&
+        pass.channels[channelIndex] != null) {
+      final ch = pass.channels[channelIndex]!;
+      if (ch is BufferChannel) {
+        return ui.Size(targetWidth, targetHeight);
+      } else if (ch is TextureChannel) {
+        if (_textureChannelResolutions.containsKey(channelIndex)) {
+          return _textureChannelResolutions[channelIndex]!;
+        }
+        return ch.resolution;
+      } else if (ch is AudioChannel) {
+        return const ui.Size(
+            kAudioTextureWidth + 0.0, kAudioTextureHeight + 0.0);
+      } else if (ch is KeyboardChannel) {
+        return const ui.Size(256.0, 3.0);
+      } else {
+        return ch.resolution;
+      }
+    }
+    if (_textureChannelResolutions.containsKey(channelIndex)) {
+      return _textureChannelResolutions[channelIndex]!;
+    }
+    if (channelIndex < uniforms.channelResolution.length) {
+      return uniforms.channelResolution[channelIndex];
+    }
+    return const ui.Size(0, 0);
+  }
+
+  ByteData _packUniformByteData({
+    required ShaderToyUniforms uniforms,
+    required double targetWidth,
+    required double targetHeight,
+    required ShaderPass pass,
+  }) {
+    final uniformByteData = ByteData(144);
+    uniformByteData.setFloat32(0, targetWidth, Endian.host);
+    uniformByteData.setFloat32(4, targetHeight, Endian.host);
+    uniformByteData.setFloat32(8, 1.0, Endian.host); // aspect ratio
+    uniformByteData.setFloat32(12, uniforms.time, Endian.host);
+    uniformByteData.setFloat32(16, uniforms.timeDelta, Endian.host);
+    uniformByteData.setFloat32(20, uniforms.frameRate, Endian.host);
+    uniformByteData.setInt32(24, uniforms.frame, Endian.host);
+    uniformByteData.setInt32(28, 0, Endian.host);
+    uniformByteData.setFloat32(32, uniforms.mouse.x, Endian.host);
+    uniformByteData.setFloat32(36, uniforms.mouse.y, Endian.host);
+    uniformByteData.setFloat32(40, uniforms.mouse.z, Endian.host);
+    uniformByteData.setFloat32(44, uniforms.mouse.w, Endian.host);
+    final secondsOfDay = uniforms.date.hour * 3600.0 +
+        uniforms.date.minute * 60.0 +
+        uniforms.date.second.toDouble() +
+        uniforms.date.millisecond / 1000.0;
+    uniformByteData.setFloat32(48, uniforms.date.year.toDouble(), Endian.host);
+    uniformByteData.setFloat32(
+        52, (uniforms.date.month - 1).toDouble(), Endian.host);
+    uniformByteData.setFloat32(56, uniforms.date.day.toDouble(), Endian.host);
+    uniformByteData.setFloat32(60, secondsOfDay, Endian.host);
+    uniformByteData.setFloat32(64, uniforms.sampleRate, Endian.host);
+
+    // 68..79: std140 padding before vec3 array
+
+    // 80..143: vec3 iChannelResolution[4] with 16-byte std140 stride
+    for (int i = 0; i < 4; i++) {
+      final res = _getPassChannelResolution(
+        pass,
+        i,
+        targetWidth,
+        targetHeight,
+        uniforms,
+      );
+      final offset = 80 + i * 16;
+      uniformByteData.setFloat32(offset, res.width, Endian.host);
+      uniformByteData.setFloat32(offset + 4, res.height, Endian.host);
+      uniformByteData.setFloat32(
+        offset + 8,
+        res.height > 0 ? (res.width / res.height) : 1.0,
+        Endian.host,
+      );
+      uniformByteData.setFloat32(offset + 12, 0.0, Endian.host);
+    }
+
+    return uniformByteData;
+  }
+
   /// Executes the multi-pass GPU pipeline:
   /// 1. Executes all enabled buffer passes (Buffer A -> Buffer B -> Buffer C -> Buffer D)
   ///    into offscreen ping-pong render targets.
@@ -458,37 +552,19 @@ class FlutterGpuRenderer {
 
     gpu.GpuImageSurfaceFrame? surfaceFrame;
     try {
-      // 1. Pack std140 / MSL FrameInfo uniform buffer (80 bytes)
-      final uniformByteData = ByteData(80);
-      uniformByteData.setFloat32(0, targetWidth.toDouble(), Endian.host);
-      uniformByteData.setFloat32(4, targetHeight.toDouble(), Endian.host);
-      uniformByteData.setFloat32(8, 1.0, Endian.host); // Shadertoy spec: aspect ratio (1.0)
-      uniformByteData.setFloat32(12, uniforms.time, Endian.host);
-      uniformByteData.setFloat32(16, uniforms.timeDelta, Endian.host);
-      uniformByteData.setFloat32(20, uniforms.frameRate, Endian.host);
-      uniformByteData.setInt32(24, uniforms.frame, Endian.host);
-      uniformByteData.setInt32(28, 0, Endian.host);
-      uniformByteData.setFloat32(32, uniforms.mouse.x, Endian.host);
-      uniformByteData.setFloat32(36, uniforms.mouse.y, Endian.host);
-      uniformByteData.setFloat32(40, uniforms.mouse.z, Endian.host);
-      uniformByteData.setFloat32(44, uniforms.mouse.w, Endian.host);
-      final secondsOfDay = uniforms.date.hour * 3600.0 +
-          uniforms.date.minute * 60.0 +
-          uniforms.date.second.toDouble() +
-          uniforms.date.millisecond / 1000.0;
-      uniformByteData.setFloat32(48, uniforms.date.year.toDouble(), Endian.host);
-      uniformByteData.setFloat32(52, (uniforms.date.month - 1).toDouble(), Endian.host);
-      uniformByteData.setFloat32(56, uniforms.date.day.toDouble(), Endian.host);
-      uniformByteData.setFloat32(60, secondsOfDay, Endian.host);
-      uniformByteData.setFloat32(64, uniforms.sampleRate, Endian.host);
-
-      gpu.DeviceBuffer? uniformDeviceBuffer;
-      try {
-        uniformDeviceBuffer =
-            gpu.gpuContext.createDeviceBufferWithCopy(uniformByteData);
-      } catch (e) {
-        debugPrint('Failed to allocate uniform device buffer: $e');
-        return null;
+      gpu.DeviceBuffer? createPassUniformBuffer(ShaderPass pass) {
+        final byteData = _packUniformByteData(
+          uniforms: uniforms,
+          targetWidth: targetWidth.toDouble(),
+          targetHeight: targetHeight.toDouble(),
+          pass: pass,
+        );
+        try {
+          return gpu.gpuContext.createDeviceBufferWithCopy(byteData);
+        } catch (e) {
+          debugPrint('Failed to allocate uniform device buffer for ${pass.name}: $e');
+          return null;
+        }
       }
 
       final quadView = gpu.BufferView(
@@ -553,15 +629,18 @@ class FlutterGpuRenderer {
         renderPass.bindVertexBuffer(quadView);
 
         try {
-          final uniformSlot = pipelineInfo.fragmentShader.getUniformSlot('FrameInfo');
-          renderPass.bindUniform(
-            uniformSlot,
-            gpu.BufferView(
-              uniformDeviceBuffer,
-              offsetInBytes: 0,
-              lengthInBytes: uniformByteData.lengthInBytes,
-            ),
-          );
+          final passUniformDeviceBuffer = createPassUniformBuffer(pass);
+          if (passUniformDeviceBuffer != null) {
+            final uniformSlot = pipelineInfo.fragmentShader.getUniformSlot('FrameInfo');
+            renderPass.bindUniform(
+              uniformSlot,
+              gpu.BufferView(
+                passUniformDeviceBuffer,
+                offsetInBytes: 0,
+                lengthInBytes: 144,
+              ),
+            );
+          }
         } catch (_) {}
 
         // Prepare textures available to this buffer pass
@@ -644,15 +723,18 @@ class FlutterGpuRenderer {
       surfaceRenderPass.bindVertexBuffer(quadView);
 
       try {
-        final uniformSlot = presentationPipeline.fragmentShader.getUniformSlot('FrameInfo');
-        surfaceRenderPass.bindUniform(
-          uniformSlot,
-          gpu.BufferView(
-            uniformDeviceBuffer,
-            offsetInBytes: 0,
-            lengthInBytes: uniformByteData.lengthInBytes,
-          ),
-        );
+        final presentationUniformDeviceBuffer = createPassUniformBuffer(presentationPass);
+        if (presentationUniformDeviceBuffer != null) {
+          final uniformSlot = presentationPipeline.fragmentShader.getUniformSlot('FrameInfo');
+          surfaceRenderPass.bindUniform(
+            uniformSlot,
+            gpu.BufferView(
+              presentationUniformDeviceBuffer,
+              offsetInBytes: 0,
+              lengthInBytes: 144,
+            ),
+          );
+        }
       } catch (_) {}
 
       // For presentation pass, all buffers have finished this frame, so bind their fresh writeTexture

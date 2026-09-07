@@ -166,6 +166,7 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     vec4 iMouse;
     vec4 iDate;
     float iSampleRate;
+    vec3 iChannelResolution[4];
 };
 ''');
 
@@ -195,15 +196,18 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 vec4 st_texture(sampler2D s, vec2 uv) {
     return texture(s, vec2(uv.x, 1.0 - uv.y));
 }
+vec4 st_texture(sampler2D s, vec2 uv, float bias) {
+    return texture(s, vec2(uv.x, 1.0 - uv.y), bias);
+}
 vec4 st_textureLod(sampler2D s, vec2 uv, float lod) {
     return textureLod(s, vec2(uv.x, 1.0 - uv.y), lod);
 }
 vec4 st_texelFetch(sampler2D s, ivec2 p, int lod) {
     return texelFetch(s, ivec2(p.x, textureSize(s, lod).y - 1 - p.y), lod);
 }
-#define texture(s, uv) st_texture(s, uv)
-#define textureLod(s, uv, lod) st_textureLod(s, uv, lod)
-#define texelFetch(s, p, lod) st_texelFetch(s, p, lod)
+#define texture st_texture
+#define textureLod st_textureLod
+#define texelFetch st_texelFetch
 ''');
     }
 
