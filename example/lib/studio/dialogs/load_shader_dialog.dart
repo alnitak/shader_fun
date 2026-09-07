@@ -609,6 +609,11 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                                 ? proj!.description
                                 : 'Shader project in ${item.fileName}';
                         final passCount = proj?.passes.length ?? 0;
+                        final usesAudio = proj?.usesAudio ?? false;
+                        final usesTextures = proj?.usesTextures ?? false;
+                        final usesMouse = proj?.usesMouse ?? false;
+                        final usesMic = proj?.usesMic ?? false;
+                        final usesKeys = proj?.usesKeys ?? false;
                         final isSelected = _loadingFile == item.fileName;
 
                         return Card(
@@ -680,25 +685,36 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                                 Row(
                                   children: [
                                     if (!isInvalid) ...[
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF2E2E3E),
-                                          borderRadius: BorderRadius.circular(3),
-                                        ),
-                                        child: Text(
-                                          '$passCount pass${passCount > 1 ? 'es' : ''}',
-                                          style: const TextStyle(
-                                            color: Color(0xFF00E5FF),
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                      _buildFeatureBadge(
+                                        '$passCount pass${passCount > 1 ? 'es' : ''}',
+                                        const Color(0xFF00E5FF),
                                       ),
-                                      const SizedBox(width: 6),
+                                      if (usesAudio)
+                                        _buildFeatureBadge(
+                                          'audio',
+                                          const Color(0xFFFFB300),
+                                        ),
+                                      if (usesTextures)
+                                        _buildFeatureBadge(
+                                          'texture',
+                                          const Color(0xFF40C4FF),
+                                        ),
+                                      if (usesMouse)
+                                        _buildFeatureBadge(
+                                          'mouse',
+                                          const Color(0xFFB388FF),
+                                        ),
+                                      if (usesMic)
+                                        _buildFeatureBadge(
+                                          'mic',
+                                          const Color(0xFFFF5252),
+                                        ),
+                                      if (usesKeys)
+                                        _buildFeatureBadge(
+                                          'keys',
+                                          const Color(0xFF69F0AE),
+                                        ),
+                                      const SizedBox(width: 4),
                                     ],
                                     Expanded(
                                       child: Text(
@@ -748,6 +764,32 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                     ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFeatureBadge(String label, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 5,
+        vertical: 1,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(
+          color: color.withValues(alpha: 0.35),
+          width: 0.8,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 

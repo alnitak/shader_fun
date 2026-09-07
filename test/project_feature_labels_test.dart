@@ -1,0 +1,103 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shader_fun/src/channels/audio_texture_provider.dart';
+import 'package:shader_fun/src/channels/shader_channel.dart';
+import 'package:shader_fun/src/core/shader_pass.dart';
+import 'package:shader_fun/src/models/shadertoy_json.dart';
+
+void main() {
+  group('ShaderToyProject Feature Detection Labels', () {
+    test('detects mouse usage when iMouse is referenced in GLSL code', () {
+      final projectWithMouse = ShaderToyProject(
+        passes: [
+          ShaderPass(
+            name: 'Image',
+            type: PassType.image,
+            code: 'void mainImage(out vec4 c, in vec2 f) { vec2 m = iMouse.xy; }',
+          ),
+        ],
+      );
+      expect(projectWithMouse.usesMouse, isTrue);
+
+      final projectWithoutMouse = ShaderToyProject(
+        passes: [
+          ShaderPass(
+            name: 'Image',
+            type: PassType.image,
+            code: 'void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }',
+          ),
+        ],
+      );
+      expect(projectWithoutMouse.usesMouse, isFalse);
+    });
+
+    test('detects audio usage when SoLoudAudioChannel is present', () {
+      final passWithAudioChannel = ShaderPass(name: 'Image', type: PassType.image, code: '');
+      passWithAudioChannel.setChannel(0, SoLoudAudioChannel());
+      final projectWithAudio = ShaderToyProject(passes: [passWithAudioChannel]);
+      expect(projectWithAudio.usesAudio, isTrue);
+      expect(projectWithAudio.usesMic, isFalse);
+    });
+
+    test('detects microphone usage when MicAudioChannel is present', () {
+      final passWithMic = ShaderPass(name: 'Image', type: PassType.image, code: '');
+      passWithMic.setChannel(0, MicAudioChannel());
+      final projectWithMic = ShaderToyProject(passes: [passWithMic]);
+      expect(projectWithMic.usesMic, isTrue);
+      expect(projectWithMic.usesAudio, isFalse);
+    });
+
+    test('detects keyboard keys usage when KeyboardChannel is present', () {
+      final passWithKeys = ShaderPass(name: 'Image', type: PassType.image, code: '');
+      passWithKeys.setChannel(0, KeyboardChannel());
+      final projectWithKeys = ShaderToyProject(passes: [passWithKeys]);
+      expect(projectWithKeys.usesKeys, isTrue);
+    });
+
+    test('detects texture usage when TextureChannel or CubeMapChannel is present', () {
+      final passWithTexture = ShaderPass(name: 'Image', type: PassType.image, code: '');
+      passWithTexture.setChannel(0, TextureChannel(src: 'texture.png'));
+      final projectWithTexture = ShaderToyProject(passes: [passWithTexture]);
+      expect(projectWithTexture.usesTextures, isTrue);
+
+      final passWithCube = ShaderPass(name: 'Image', type: PassType.image, code: '');
+      passWithCube.setChannel(0, CubeMapChannel(assetPaths: ['cube.png']));
+      final projectWithCube = ShaderToyProject(passes: [passWithCube]);
+      expect(projectWithCube.usesTextures, isTrue);
+
+      final passWithoutTexture = ShaderPass(name: 'Image', type: PassType.image, code: '');
+      final projectWithoutTexture = ShaderToyProject(passes: [passWithoutTexture]);
+      expect(projectWithoutTexture.usesTextures, isFalse);
+    });
+
+    test('parses features correctly from JSON structure', () {
+      const jsonStr = '''
+      {
+        "Shader": {
+          "info": { "name": "Feature Test" },
+          "renderpass": [
+            {
+              "name": "Image",
+              "type": "image",
+              "code": "void mainImage(out vec4 c, in vec2 f) { vec2 m = iMouse.xy; }",
+              "inputs": [
+                { "channel": 0, "ctype": "keyboard" },
+                { "channel": 1, "ctype": "music", "src": "song.mp3" },
+                { "channel": 2, "ctype": "mic" },
+                { "channel": 3, "ctype": "texture", "src": "test.png" }
+              ],
+              "outputs": []
+            }
+          ]
+        }
+      }
+      ''';
+
+      final project = ShaderToyProject.parseJsonString(jsonStr);
+      expect(project.usesMouse, isTrue);
+      expect(project.usesAudio, isTrue);
+      expect(project.usesMic, isTrue);
+      expect(project.usesKeys, isTrue);
+      expect(project.usesTextures, isTrue);
+    });
+  });
+}

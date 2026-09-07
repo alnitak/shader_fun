@@ -115,6 +115,42 @@ class ShaderToyProject {
 
   bool hasPass(PassType type) => getPass(type) != null;
 
+  /// Whether any pass references `iMouse` in its shader code.
+  bool get usesMouse {
+    final mouseRegex = RegExp(r'\biMouse\b');
+    return passes.any((p) => mouseRegex.hasMatch(p.code));
+  }
+
+  /// Whether the project uses audio (audio/music channel, excluding mic).
+  bool get usesAudio {
+    return passes.any(
+      (p) => p.channels.any(
+        (c) =>
+            c is SoLoudAudioChannel ||
+            (c is AudioChannel && c is! MicAudioChannel),
+      ),
+    );
+  }
+
+  /// Whether any pass uses a microphone audio channel.
+  bool get usesMic {
+    return passes.any((p) => p.channels.any((c) => c is MicAudioChannel));
+  }
+
+  /// Whether any pass uses a keyboard input channel.
+  bool get usesKeys {
+    return passes.any((p) => p.channels.any((c) => c is KeyboardChannel));
+  }
+
+  /// Whether any pass uses 2D image textures or cubemap channels.
+  bool get usesTextures {
+    return passes.any(
+      (p) => p.channels.any(
+        (c) => c is TextureChannel || c is CubeMapChannel,
+      ),
+    );
+  }
+
   /// Default starter GLSL template for each pass type.
   static String defaultCodeForPass(PassType type) {
     switch (type) {
