@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
+import 'raw_image_decoder.dart';
 
 /// Filtering mode for an iChannel sampler.
 enum ChannelFilter {
@@ -82,6 +84,12 @@ class TextureChannel extends ShaderChannel {
   ui.Size _resolution;
   ui.Image? cachedImage;
 
+  /// Un-premultiplied raw 32-bit RGBA pixel bytes (stride = imageWidth * 4).
+  /// Preserves exact noise and mathematical data across all 4 channels.
+  Uint8List? rawRgbaBytes;
+  int? imageWidth;
+  int? imageHeight;
+
   @override
   ChannelType get type => ChannelType.texture;
 
@@ -124,13 +132,52 @@ class TextureChannel extends ShaderChannel {
             rawBytes = await file.readAsBytes();
           }
         } else {
-          // Flutter Asset bundle
-          final data = await rootBundle.load(path);
-          rawBytes = data.buffer.asUint8List();
+          // Flutter Asset bundle with filesystem fallback
+          try {
+            final data = await rootBundle.load(path);
+            rawBytes = data.buffer.asUint8List();
+          } catch (_) {
+            final candidates = [
+              path,
+              'example/$path',
+              '../example/$path',
+              'assets/$path',
+            ];
+            for (final cand in candidates) {
+              final f = File(cand);
+              if (f.existsSync()) {
+                rawBytes = f.readAsBytesSync();
+                break;
+              }
+            }
+          }
         }
       }
 
       if (rawBytes != null && rawBytes.isNotEmpty) {
+        final decoded = await RawImageDecoder.decode(rawBytes);
+        if (decoded != null) {
+          rawRgbaBytes = decoded.rgbaBytes;
+          imageWidth = decoded.width;
+          imageHeight = decoded.height;
+          _resolution = ui.Size(
+            decoded.width.toDouble(),
+            decoded.height.toDouble(),
+          );
+          try {
+            final completer = Completer<ui.Image>();
+            ui.decodeImageFromPixels(
+              decoded.rgbaBytes,
+              decoded.width,
+              decoded.height,
+              ui.PixelFormat.rgba8888,
+              completer.complete,
+            );
+            cachedImage = await completer.future;
+            return cachedImage;
+          } catch (_) {}
+        }
+
         final codec = await ui.instantiateImageCodec(rawBytes);
         final frame = await codec.getNextFrame();
         cachedImage = frame.image;
@@ -138,6 +185,8 @@ class TextureChannel extends ShaderChannel {
           frame.image.width.toDouble(),
           frame.image.height.toDouble(),
         );
+        imageWidth ??= frame.image.width;
+        imageHeight ??= frame.image.height;
         return cachedImage;
       }
     } catch (_) {}

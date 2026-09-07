@@ -435,18 +435,7 @@ class ShaderToyController
           : null,
     );
 
-    final img = await channel.loadImage();
-    if (img != null) {
-      final byteData = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (byteData != null) {
-        _renderer.gpuRenderer.uploadTextureChannel(
-          channelIndex,
-          byteData.buffer.asUint8List(),
-          img.width,
-          img.height,
-        );
-      }
-    }
+    await _uploadTextureChannel(channelIndex, channel);
 
     targetPass.setChannel(channelIndex, channel);
     notifyListeners();
@@ -531,20 +520,7 @@ class ShaderToyController
       } else if (channel is MicAudioChannel) {
         channel.startListening();
       } else if (channel is TextureChannel) {
-        channel.loadImage().then((img) async {
-          if (img != null) {
-            final byteData =
-                await img.toByteData(format: ui.ImageByteFormat.rawRgba);
-            if (byteData != null) {
-              _renderer.gpuRenderer.uploadTextureChannel(
-                channelIndex,
-                byteData.buffer.asUint8List(),
-                img.width,
-                img.height,
-              );
-            }
-          }
-        });
+        _uploadTextureChannel(channelIndex, channel);
       } else if (channel == null) {
         _renderer.gpuRenderer.removeTextureChannel(channelIndex);
       }
@@ -843,19 +819,7 @@ class ShaderToyController
           }
         } else if (ch is TextureChannel) {
           try {
-            final img = await ch.loadImage();
-            if (img != null) {
-              final byteData =
-                  await img.toByteData(format: ui.ImageByteFormat.rawRgba);
-              if (byteData != null) {
-                _renderer.gpuRenderer.uploadTextureChannel(
-                  i,
-                  byteData.buffer.asUint8List(),
-                  img.width,
-                  img.height,
-                );
-              }
-            }
+            await _uploadTextureChannel(i, ch);
           } catch (e) {
             flutter_foundation.debugPrint(
               'Failed to load TextureChannel image: $e',
@@ -865,6 +829,34 @@ class ShaderToyController
       }
     }
     _bindAudioChannelListener();
+  }
+
+  Future<void> _uploadTextureChannel(
+    int channelIndex,
+    TextureChannel channel,
+  ) async {
+    final img = await channel.loadImage();
+    final rawRgba = channel.rawRgbaBytes;
+    if (rawRgba != null &&
+        channel.imageWidth != null &&
+        channel.imageHeight != null) {
+      _renderer.gpuRenderer.uploadTextureChannel(
+        channelIndex,
+        rawRgba,
+        channel.imageWidth!,
+        channel.imageHeight!,
+      );
+    } else if (img != null) {
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData != null) {
+        _renderer.gpuRenderer.uploadTextureChannel(
+          channelIndex,
+          byteData.buffer.asUint8List(),
+          img.width,
+          img.height,
+        );
+      }
+    }
   }
 
   void _onAudioDataUpdated() {

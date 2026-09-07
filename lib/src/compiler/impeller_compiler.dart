@@ -211,6 +211,21 @@ vec4 st_texelFetch(sampler2D s, ivec2 p, int lod) {
 ''');
     }
 
+    sb.writeln('''
+// Metal Shading Language translates pow(x, y) to powr(x, y), which produces
+// undefined results / NaNs if x < 0. In GLSL on OpenGL/Vulkan, hardware drivers
+// often clamp or handle negative bases gracefully. st_pow clamps the base to >= 0.0
+// to avoid Metal NaN poisoning across procedural distance and lighting functions.
+float st_pow(float x, float y) { return pow(max(0.0, x), y); }
+vec2 st_pow(vec2 x, vec2 y) { return pow(max(vec2(0.0), x), y); }
+vec3 st_pow(vec3 x, vec3 y) { return pow(max(vec3(0.0), x), y); }
+vec4 st_pow(vec4 x, vec4 y) { return pow(max(vec4(0.0), x), y); }
+vec2 st_pow(vec2 x, float y) { return pow(max(vec2(0.0), x), vec2(y)); }
+vec3 st_pow(vec3 x, float y) { return pow(max(vec3(0.0), x), vec3(y)); }
+vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
+#define pow st_pow
+''');
+
     if (commonGlsl != null && commonGlsl.trim().isNotEmpty) {
       sb.writeln('// Common Tab source');
       sb.writeln(commonGlsl);
