@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 /// Dialog for editing shader metadata and exporting/saving to JSON.
@@ -97,6 +100,21 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
       );
 
       if (outputUri != null) {
+        if (!kIsWeb) {
+          try {
+            final filePath = outputUri.hasScheme && outputUri.isScheme('file')
+                ? outputUri.toFilePath()
+                : outputUri.path;
+            final file = File(filePath);
+            await file.writeAsString(jsonString);
+            final parentFolder = file.parent.absolute.path;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('last_json_folder_path', parentFolder);
+          } catch (_) {
+            // Ignore if direct filesystem write fails
+          }
+        }
+
         if (mounted) {
           final displayName = outputUri.pathSegments.isNotEmpty
               ? outputUri.pathSegments.last

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -50,11 +51,20 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
   bool _isLoadingFolder = false;
   String? _loadingFile;
   String? _generalError;
+  StreamSubscription<FileSystemEvent>? _dirWatcherSubscription;
+  AppLifecycleListener? _lifecycleListener;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () {
+        if (mounted && _currentFolderPath != null) {
+          _scanFolder(_currentFolderPath!);
+        }
+      },
+    );
     _initAndLoadFolder();
   }
 
@@ -66,15 +76,23 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
       String? folder = prefs.getString(_kLastJsonFolderKey);
 
       // If no folder stored yet or not existing, try common fallback paths
       if (!kIsWeb) {
         if (folder == null || !Directory(folder).existsSync()) {
-          if (Directory('shaders').existsSync()) {
-            folder = Directory('shaders').absolute.path;
-          } else if (Directory('example/shaders').existsSync()) {
-            folder = Directory('example/shaders').absolute.path;
+          final candidates = [
+            'example/shaders',
+            'shaders',
+            '../example/shaders',
+          ];
+          for (final candidate in candidates) {
+            final d = Directory(candidate);
+            if (d.existsSync()) {
+              folder = d.absolute.path;
+              break;
+            }
           }
         }
       }
@@ -95,6 +113,18 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
           _generalError = 'Failed to read last folder setting: $e';
         });
       }
+    }
+  }
+
+  void _setupDirWatcher(Directory dir) {
+    _dirWatcherSubscription?.cancel();
+    try {
+      _dirWatcherSubscription = dir.watch().listen((event) {
+        if (!mounted) return;
+        _scanFolder(dir.path);
+      });
+    } catch (_) {
+      // Directory watching might not be supported on all virtual file systems.
     }
   }
 
@@ -130,14 +160,17 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
       return;
     }
 
+    _setupDirWatcher(dir);
+
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kLastJsonFolderKey, folderPath);
 
       final entities = dir
-          .listSync()
-          .whereType<File>()
+          .listSync(followLinks: true)
+          .where((f) => f is File || f is Link)
           .where((f) => f.path.toLowerCase().endsWith('.json'))
+          .map((f) => File(f.path))
           .toList();
 
       entities.sort((a, b) {
@@ -284,6 +317,8 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
 
   @override
   void dispose() {
+    _dirWatcherSubscription?.cancel();
+    _lifecycleListener?.dispose();
     _tabController.dispose();
     _jsonInputController.dispose();
     super.dispose();

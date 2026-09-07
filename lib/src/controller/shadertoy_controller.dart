@@ -163,10 +163,13 @@ class ShaderToyController
         }
 
         if (result.bundleBytes != null) {
+          final fullCode = (commonCode != null && commonCode.isNotEmpty)
+              ? '$commonCode\n${pass.code}'
+              : pass.code;
           await _renderer.loadShaderBundle(
             result.bundleBytes!,
             passType: pass.type,
-            activeCode: pass.code,
+            activeCode: fullCode,
           );
         }
       }
@@ -224,10 +227,13 @@ class ShaderToyController
 
       lastErrorNotifier.value = null;
       if (result.bundleBytes != null) {
+        final fullCode = (commonCode != null && commonCode.isNotEmpty)
+            ? '$commonCode\n$codeToCompile'
+            : codeToCompile;
         await _renderer.loadShaderBundle(
           result.bundleBytes!,
           passType: targetPass?.type ?? PassType.image,
-          activeCode: codeToCompile,
+          activeCode: fullCode,
         );
       }
 

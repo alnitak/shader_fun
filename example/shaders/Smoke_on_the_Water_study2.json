@@ -1,0 +1,186 @@
+{
+  "Shader": {
+    "info": {
+      "id": "new",
+      "name": "Smoke on the Water study2",
+      "username": "yyf1994",
+      "description": "A single pass fluid sim implementation of the GPU Pro 2 book chapter, \"Simple and Fast Fluids\". This was great fun writing and playing around with. Got to learn a lot by writing this.",
+      "url": "https://www.shadertoy.com/view/tXlcWf",
+      "tags": [
+        "simulation",
+        "fluid",
+        "curl",
+        "smoke",
+        "advection",
+        "physics",
+        "pixelated",
+        "navierstokes",
+        "fluidsim",
+        "vorticity"
+      ]
+    },
+    "renderpass": [
+      {
+        "inputs": [],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "/**\n\n Fluid solver based on the paper \"Simple and Fast Fluids\" from the\n GPU Pro 2 book [1].\n\n [1] Martin Guay, Fabrice Colin, Richard Egli. Simple and Fast Fluids. GPU Pro, A.K. Peters, Ltd.,\n 2011, GPU Pro, pp.433-444. ffinria-00596050f\n\n*/\n\n#define dt .15\n// lower value for vorticity threshold means higher viscosity\n// and vice versa (max .3). Setting it to 0. disables it.\n#define vorticityThreshold .25\n#define velocityThreshold 24.\n// higher this threshold, lower the viscosity (max .8)\n#define viscosityThreshold .64\n\nvec4 fluidSolver(sampler2D velocityField, vec2 uv, vec2 stepSize, vec4 mouse, vec4 prevMouse)\n{\n    float k = .2, s = k / dt;\n    \n    vec4 fluidData = textureLod(velocityField, uv, 0.);\n    vec4 fr = textureLod(velocityField, uv + vec2(stepSize.x, 0.), 0.);\n    vec4 fl = textureLod(velocityField, uv - vec2(stepSize.x, 0.), 0.);\n    vec4 ft = textureLod(velocityField, uv + vec2(0., stepSize.y), 0.);\n    vec4 fd = textureLod(velocityField, uv - vec2(0., stepSize.y), 0.);\n    \n    vec3 ddx = (fr - fl).xyz * .5;\n    vec3 ddy = (ft - fd).xyz * .5;\n    float divergence = ddx.x + ddy.y;\n    vec2 densityDiff = vec2(ddx.z, ddy.z);\n    \n    // Solving for density\n    fluidData.z -= dt*dot(vec3(densityDiff, divergence), fluidData.xyz);\n    \n    // Solving for velocity\n    vec2 laplacian = fr.xy + fl.xy + ft.xy + fd.xy - 4.*fluidData.xy;\n    vec2 viscosityForce = viscosityThreshold * laplacian;\n    \n    // Semi-lagrangian advection\n    vec2 densityInvariance = s * densityDiff;\n    vec2 uvHistory = uv - dt * fluidData.xy * stepSize;\n    fluidData.xyw = textureLod(velocityField, uvHistory, 0.).xyw;\n    \n    // Calc external force from mouse input\n    vec2 extForce = vec2(0.);\n    \n    if (mouse.z > 1. && prevMouse.z > 1.)\n    {\n        vec2 dragDir = clamp((mouse.xy - prevMouse.xy) * stepSize * 600., -10., 10.);\n        vec2 p = uv - mouse.xy*stepSize;\n        // extForce.xy += .0008 / (dot(p, p) + 1e-5) * (.5 - uv);\n        extForce.xy += .001/(dot(p, p)) * dragDir;\n    }\n    \n    fluidData.xy += dt*(viscosityForce - densityInvariance + extForce);\n    \n    // velocity decay\n    fluidData.xy = max(vec2(0.), abs(fluidData.xy) - 5e-6)*sign(fluidData.xy);\n    \n    // Vorticity confinement\n\tfluidData.w = (fd.x - ft.x + fr.y - fl.y); // curl stored in the w channel\n    vec2 vorticity = vec2(abs(ft.w) - abs(fd.w), abs(fl.w) - abs(fr.w));\n    vorticity *= vorticityThreshold / (length(vorticity) + 1e-5) * fluidData.w;\n    fluidData.xy += vorticity;\n\n    // Boundary conditions\n    fluidData.y *= smoothstep(.5,.48,abs(uv.y - .5));\n    fluidData.x *= smoothstep(.5,.49,abs(uv.x - .5));\n    \n    // density stability\n    fluidData = clamp(fluidData, vec4(vec2(-velocityThreshold), 0.5 , -vorticityThreshold), vec4(vec2(velocityThreshold), 3.0 , vorticityThreshold));\n    \n    return fluidData;\n}",
+        "name": "Common",
+        "description": "",
+        "type": "common"
+      },
+      {
+        "inputs": [
+          {
+            "id": 259,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "/**\n\n Buffers A, B & C run the same solver and write the results over\n each other every frame. It somewhat enhances the sim running it\n thrice per frame.\n\n*/\n\nvoid mainImage( out vec4 fragColor, in vec2 fragCoord )\n{\n    vec2 uv = fragCoord / iResolution.xy;\n    vec2 stepSize = 1./iResolution.xy;\n    vec4 prevMouse = textureLod(iChannel0, vec2(0.), 0.);\n    vec4 col = fluidSolver(iChannel0, uv, stepSize, iMouse, prevMouse);\n    \n    if (fragCoord.y < 1.)\n    {\n\t\tcol = iMouse;\n    }\n    \n    fragColor = col;\n}",
+        "name": "Buffer A",
+        "description": "",
+        "type": "buffer"
+      },
+      {
+        "inputs": [
+          {
+            "id": 257,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "/**\n\n Buffers A, B & C run the same solver and write the results over\n each other every frame. It somewhat enhances the sim running it\n thrice per frame.\n\n*/\n\nvoid mainImage( out vec4 fragColor, in vec2 fragCoord )\n{\n    vec2 uv = fragCoord / iResolution.xy;\n    vec2 stepSize = 1./iResolution.xy;\n    vec4 prevMouse = textureLod(iChannel0, vec2(0.), 0.);\n    vec4 col = fluidSolver(iChannel0, uv, stepSize, iMouse, prevMouse);\n    \n    if (fragCoord.y < 1.)\n    {\n\t\tcol = iMouse;\n    }\n    \n    fragColor = col;\n}",
+        "name": "Buffer B",
+        "description": "",
+        "type": "buffer"
+      },
+      {
+        "inputs": [
+          {
+            "id": 258,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "/**\n\n Buffers A, B & C run the same solver and write the results over\n each other every frame. It somewhat enhances the sim running it\n thrice per frame.\n\n*/\n\nvoid mainImage( out vec4 fragColor, in vec2 fragCoord )\n{\n    vec2 uv = fragCoord / iResolution.xy;\n    vec2 stepSize = 1./iResolution.xy;\n    vec4 prevMouse = textureLod(iChannel0, vec2(0.), 0.);\n    vec4 col = fluidSolver(iChannel0, uv, stepSize, iMouse, prevMouse);\n    \n    if (fragCoord.y < 1.)\n    {\n\t\tcol = iMouse;\n    }\n    \n    fragColor = col;\n}",
+        "name": "Buffer C",
+        "description": "",
+        "type": "buffer"
+      },
+      {
+        "inputs": [
+          {
+            "id": 259,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            }
+          },
+          {
+            "id": 260,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 1,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "/**\n\n This buffer uses the result from the prev fluid solver buffers and draws\n nicely colored circles on it to visualize the fluid sim velocity field.\n\n*/\n\n// iq's integer hash function\nfloat hash1( uint n ) \n{\n\tn = (n << 13U) ^ n;\n    n = n * (n * n * 15731U + 789221U) + 1376312589U;\n    return float( n & uvec3(0x7fffffffU))/float(0x7fffffff);\n}\n\n// Today's hsv to rgb conversion brought to you by The Book of Shaders.\n// https://thebookofshaders.com/06/\nvec3 hsv2rgb( in vec3 c ){\n    vec3 rgb = clamp(abs(mod(c.x * 6. + vec3(0., 4., 2.),\n                             6.) - 3.) - 1., 0., 1.);\n    rgb = rgb * rgb * (3. - 2. * rgb);\n    return c.z * mix(vec3(1.), rgb, c.y);\n}\n\nvoid mainImage( out vec4 fragColor, in vec2 fragCoord )\n{\n    vec2 uv = fragCoord/iResolution.xy;\n    vec2 stepSize = 1./iResolution.xy;\n    vec4 vel = textureLod(iChannel0, uv, 0.);\n    vec4 col = textureLod(iChannel1, uv - dt * vel.xy * stepSize * 3., 0.);\n    vec2 mo = iMouse.xy / iResolution.xy;\n    vec4 prevMouse = texelFetch(iChannel1, ivec2(0, 0), 0).xyzw;\n    \n    // Draw ink splat\n    if (iMouse.z > 1. && prevMouse.z > 1.)\n    {\n        float hue = hash1(uint(iMouse.z + iResolution.x*abs(iMouse.w) + iTime));\n        vec4 rgb = vec4(hsv2rgb(vec3(hue, 1., 1.)), 1.);\n        float bloom = smoothstep(-.5, .5, (length(mo - prevMouse.xy / iResolution.xy)));\n    \tcol += bloom * 8e-4/pow(length(uv - mo.xy), 1.6) * rgb;\n    }\n    \n    // color decay\n    col = clamp(col, 0., 5.);\n    col = max(col - (col * 8e-3), 0.);\n    \n    if (fragCoord.y < 1. && fragCoord.x < 1.)\n    {\n\t\tcol = iMouse;   \n    }\n    \n    fragColor = col;\n}",
+        "name": "Buffer D",
+        "description": "",
+        "type": "buffer"
+      },
+      {
+        "inputs": [
+          {
+            "id": 260,
+            "src": "",
+            "ctype": "buffer",
+            "channel": 0,
+            "sampler": {
+              "filter": "linear",
+              "wrap": "clamp",
+              "vflip": "false",
+              "srgb": "false",
+              "internal": "byte"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "id": 37,
+            "channel": 0
+          }
+        ],
+        "code": "// Fork of \"Smoke on the Water study\" by yyf1994. https://shadertoy.com/view/wXsyWf\n// 2025-10-13 01:06:53\n\n// Fork of \"Smoke on the Water\" by piyushslayer. https://shadertoy.com/view/Wd33Wn\n// 2025-10-13 00:52:51\n\n/**\n\n A simple fluid simulation implementation based on the chapter\n \"Simple and Fast Fluids\" in GPU Pro 2 book. The main solver resides\n in the common tab. Buffers A, B & C blit each other to enhance the simulation.\n Finally, Buffer D draws colors onto the velocity field and this tab\n performs some interesting post effects like pixelization and color inversion.\n\n Drag around the cursor to see the magic happen. Works surprisingly well in\n fullscreen mode as well.\n\n*/\n\n// Uncomment this for a pixelated effect and play around with the\n// two parameters to change the look.\n// #define PIXELATED\n#define PIXEL_SIZE 9.\n#define BORDER_THICKNESS .51\n\n// Uncomment this to invert the colors\n// #define INVERT_COLORS\n\nvoid mainImage( out vec4 fragColor, in vec2 fragCoord )\n{\n    vec2 uv = fragCoord / iResolution.xy;\n#ifdef PIXELATED\n    vec2 dxy = PIXEL_SIZE / iResolution.xy;\n    uv = dxy * floor(uv / dxy) + 1. / iResolution.xy;\n    vec4 col = textureLod(iChannel0, uv, 0.);\n    vec2 fr = PIXEL_SIZE * (fract(fragCoord/PIXEL_SIZE) - .5);\n    col *= step(max(fr.x, fr.y) + BORDER_THICKNESS - PIXEL_SIZE / 2., 0.);    \n#else\n\tvec4 col = textureLod(iChannel0, uv, 0.);\n#endif\n    \n    // Bottom row contain previous mouse data so don't display that.\n   \tif (fragCoord.y < 1. \n#ifdef PIXELATED \n            * PIXEL_SIZE \n#endif\n       )\n    {\n        col = vec4(0.);\n    }    \n    \n#ifndef INVERT_COLORS\n    fragColor = vec4(sqrt(col.xyz), 1.);\n#else\n    fragColor = vec4(sqrt(1. - col.xyz), 1.);\n#endif\n}",
+        "name": "Image",
+        "description": "",
+        "type": "image"
+      }
+    ]
+  }
+}

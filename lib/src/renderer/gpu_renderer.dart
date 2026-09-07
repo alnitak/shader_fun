@@ -366,11 +366,19 @@ class FlutterGpuRenderer {
     required ShaderPass pass,
     required Map<PassType, gpu.Texture> availableTextures,
     required gpu.Texture fallbackTex,
+    String? commonCode,
   }) {
-    if (codeForChannels == null) return;
+    final effectiveCode = (commonCode != null && commonCode.isNotEmpty)
+        ? '$commonCode\n${codeForChannels ?? pass.code}'
+        : (codeForChannels ?? pass.code);
 
     for (int i = 0; i < 4; i++) {
-      if (!ImpellerCompiler.shaderUsesChannel(codeForChannels, i)) {
+      final hasConfiguredChannel =
+          i < pass.channels.length && pass.channels[i] != null;
+      final codeUsesChannel =
+          ImpellerCompiler.shaderUsesChannel(effectiveCode, i);
+
+      if (!hasConfiguredChannel && !codeUsesChannel) {
         continue;
       }
 
@@ -497,6 +505,11 @@ class FlutterGpuRenderer {
         uploadAudioTexture(activeAudioChannel);
       }
 
+      final commonCode = passes
+          .cast<ShaderPass?>()
+          .firstWhere((p) => p?.type == PassType.common, orElse: () => null)
+          ?.code;
+
       const bufferOrder = [
         PassType.bufferA,
         PassType.bufferB,
@@ -581,6 +594,7 @@ class FlutterGpuRenderer {
           pass: pass,
           availableTextures: availableTextures,
           fallbackTex: fallbackTex,
+          commonCode: commonCode,
         );
 
         renderPass.draw(6);
@@ -660,6 +674,7 @@ class FlutterGpuRenderer {
         pass: presentationPass,
         availableTextures: imageAvailableTextures,
         fallbackTex: fallbackTex,
+        commonCode: commonCode,
       );
 
       surfaceRenderPass.draw(6);
