@@ -316,7 +316,8 @@ class FlutterGpuRenderer {
     }
   }
 
-  /// Uploads raw RGBA pixel data as a 2D GPU texture for a specific channel.
+  /// Uploads raw RGBA pixel data as a 2D GPU texture for a specific channel,
+  /// generating a complete mipmap pyramid for textureLod and trilinear filtering.
   gpu.Texture? uploadTextureChannel(
     int channelIndex,
     Uint8List rgbaBytes,
@@ -325,6 +326,7 @@ class FlutterGpuRenderer {
   ) {
     if (!_isGpuAvailable || texWidth <= 0 || texHeight <= 0) return null;
     try {
+      final maxMipLevels = gpu.Texture.fullMipCount(texWidth, texHeight);
       final texture = gpu.gpuContext.createTexture(
         gpu.StorageMode.hostVisible,
         texWidth,
@@ -332,8 +334,26 @@ class FlutterGpuRenderer {
         format: gpu.PixelFormat.r8g8b8a8UNormInt,
         enableRenderTargetUsage: false,
         enableShaderReadUsage: true,
+        mipLevelCount: maxMipLevels,
       );
-      texture.overwrite(ByteData.sublistView(rgbaBytes));
+      texture.overwrite(ByteData.sublistView(rgbaBytes), mipLevel: 0);
+
+      // Generate and upload mipmap pyramid for textureLod and trilinear filtering
+      var currentBytes = rgbaBytes;
+      var currentW = texWidth;
+      var currentH = texHeight;
+
+      for (int level = 1; level < maxMipLevels; level++) {
+        final nextW = texture.getMipLevelWidth(level);
+        final nextH = texture.getMipLevelHeight(level);
+        final nextBytes =
+            _downsampleRgba(currentBytes, currentW, currentH, nextW, nextH);
+        texture.overwrite(ByteData.sublistView(nextBytes), mipLevel: level);
+        currentBytes = nextBytes;
+        currentW = nextW;
+        currentH = nextH;
+      }
+
       _textureChannels[channelIndex] = texture;
       _textureChannelResolutions[channelIndex] =
           ui.Size(texWidth.toDouble(), texHeight.toDouble());
@@ -342,6 +362,44 @@ class FlutterGpuRenderer {
       debugPrint('Failed to upload texture channel $channelIndex: $e');
       return null;
     }
+  }
+
+  /// Fast 2x2 box-filter downsampling for RGBA mipmap generation.
+  static Uint8List _downsampleRgba(
+    Uint8List src,
+    int srcW,
+    int srcH,
+    int dstW,
+    int dstH,
+  ) {
+    final dst = Uint8List(dstW * dstH * 4);
+    for (int y = 0; y < dstH; y++) {
+      final srcY0 = y * 2;
+      final srcY1 = (srcY0 + 1 < srcH) ? srcY0 + 1 : srcY0;
+      final row0Offset = srcY0 * srcW * 4;
+      final row1Offset = srcY1 * srcW * 4;
+      final dstRowOffset = y * dstW * 4;
+
+      for (int x = 0; x < dstW; x++) {
+        final srcX0 = x * 2;
+        final srcX1 = (srcX0 + 1 < srcW) ? srcX0 + 1 : srcX0;
+
+        final p00 = row0Offset + (srcX0 * 4);
+        final p10 = row0Offset + (srcX1 * 4);
+        final p01 = row1Offset + (srcX0 * 4);
+        final p11 = row1Offset + (srcX1 * 4);
+
+        final dstOffset = dstRowOffset + (x * 4);
+        dst[dstOffset] = (src[p00] + src[p10] + src[p01] + src[p11] + 2) >> 2;
+        dst[dstOffset + 1] =
+            (src[p00 + 1] + src[p10 + 1] + src[p01 + 1] + src[p11 + 1] + 2) >> 2;
+        dst[dstOffset + 2] =
+            (src[p00 + 2] + src[p10 + 2] + src[p01 + 2] + src[p11 + 2] + 2) >> 2;
+        dst[dstOffset + 3] =
+            (src[p00 + 3] + src[p10 + 3] + src[p01 + 3] + src[p11 + 3] + 2) >> 2;
+      }
+    }
+    return dst;
   }
 
   void removeTextureChannel(int channelIndex) {
@@ -411,9 +469,9 @@ class FlutterGpuRenderer {
           final magFilter = channel?.filter == ChannelFilter.nearest
               ? gpu.MinMagFilter.nearest
               : gpu.MinMagFilter.linear;
-          final mipFilter = channel?.filter == ChannelFilter.mipmap
-              ? gpu.MipFilter.linear
-              : gpu.MipFilter.nearest;
+          final mipFilter = channel?.filter == ChannelFilter.nearest
+              ? gpu.MipFilter.nearest
+              : gpu.MipFilter.linear;
           final addressMode = channel?.wrap == ChannelWrap.repeat
               ? gpu.SamplerAddressMode.repeat
               : gpu.SamplerAddressMode.clampToEdge;

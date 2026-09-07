@@ -9,12 +9,14 @@ class ChannelSlotTile extends StatelessWidget {
     required this.channel,
     required this.onTap,
     required this.onClear,
+    this.onSettings,
   });
 
   final int slotIndex;
   final ShaderChannel? channel;
   final VoidCallback onTap;
   final VoidCallback onClear;
+  final VoidCallback? onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -126,14 +128,31 @@ class ChannelSlotTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (hasChannel)
-              GestureDetector(
-                onTap: onClear,
-                child: const Padding(
-                  padding: EdgeInsets.only(left: 4),
-                  child: Icon(Icons.close, size: 14, color: Colors.white38),
+            if (hasChannel) ...[
+              if (onSettings != null)
+                Tooltip(
+                  message: 'iChannel$slotIndex Setup',
+                  child: InkWell(
+                    onTap: onSettings,
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.settings, size: 15, color: Colors.white70),
+                    ),
+                  ),
+                ),
+              Tooltip(
+                message: 'Clear Channel',
+                child: InkWell(
+                  onTap: onClear,
+                  borderRadius: BorderRadius.circular(4),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 15, color: Colors.white38),
+                  ),
                 ),
               ),
+            ],
           ],
         ),
       ),

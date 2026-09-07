@@ -54,6 +54,9 @@ void main() {
     expect(res.isSuccess, isTrue, reason: res.errorMessage);
 
     final renderer = FlutterGpuRenderer(width: 320, height: 180);
+    if (!renderer.isGpuAvailable) {
+      return;
+    }
     final loaded = await renderer.loadShaderBundle(res.bundleBytes!, passType: PassType.image, activeCode: testCode);
     expect(loaded, isTrue);
 

@@ -831,32 +831,71 @@ class ShaderToyController
     _bindAudioChannelListener();
   }
 
+  /// Updates sampler filter, wrap, or vflip settings of [channelIndex] in the active pass.
+  Future<void> updateChannelSettings(
+    int channelIndex, {
+    ChannelFilter? filter,
+    ChannelWrap? wrap,
+    bool? vflip,
+  }) async {
+    final ch = activePass?.getChannel(channelIndex);
+    if (ch == null) return;
+
+    bool needsReupload = false;
+    if (filter != null) ch.filter = filter;
+    if (wrap != null) ch.wrap = wrap;
+    if (vflip != null && ch is TextureChannel && ch.vflip != vflip) {
+      ch.vflip = vflip;
+      needsReupload = true;
+    }
+
+    if (needsReupload && ch is TextureChannel) {
+      await _uploadTextureChannel(channelIndex, ch);
+    }
+
+    renderSingleFrame();
+    notifyListeners();
+  }
+
   Future<void> _uploadTextureChannel(
     int channelIndex,
     TextureChannel channel,
   ) async {
     final img = await channel.loadImage();
-    final rawRgba = channel.rawRgbaBytes;
-    if (rawRgba != null &&
-        channel.imageWidth != null &&
-        channel.imageHeight != null) {
-      _renderer.gpuRenderer.uploadTextureChannel(
-        channelIndex,
-        rawRgba,
-        channel.imageWidth!,
-        channel.imageHeight!,
-      );
-    } else if (img != null) {
+    var rawRgba = channel.rawRgbaBytes;
+    int? w = channel.imageWidth;
+    int? h = channel.imageHeight;
+
+    if (rawRgba == null && img != null) {
       final byteData = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
       if (byteData != null) {
-        _renderer.gpuRenderer.uploadTextureChannel(
-          channelIndex,
-          byteData.buffer.asUint8List(),
-          img.width,
-          img.height,
-        );
+        rawRgba = byteData.buffer.asUint8List();
+        w = img.width;
+        h = img.height;
       }
     }
+
+    if (rawRgba != null && w != null && h != null) {
+      final bytesToUpload = channel.vflip ? flipY(rawRgba, w, h) : rawRgba;
+      _renderer.gpuRenderer.uploadTextureChannel(
+        channelIndex,
+        bytesToUpload,
+        w,
+        h,
+      );
+    }
+  }
+
+  /// Inverts the vertical rows of a 32-bit RGBA pixel buffer.
+  static Uint8List flipY(Uint8List src, int width, int height) {
+    final dst = Uint8List(src.length);
+    final rowBytes = width * 4;
+    for (int y = 0; y < height; y++) {
+      final srcOffset = y * rowBytes;
+      final dstOffset = (height - 1 - y) * rowBytes;
+      dst.setRange(dstOffset, dstOffset + rowBytes, src, srcOffset);
+    }
+    return dst;
   }
 
   void _onAudioDataUpdated() {

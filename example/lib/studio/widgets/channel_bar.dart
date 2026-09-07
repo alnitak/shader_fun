@@ -10,11 +10,13 @@ class ChannelBar extends StatelessWidget {
     required this.pass,
     required this.onOpenChannelPicker,
     required this.onChannelCleared,
+    this.onOpenChannelSettings,
   });
 
   final ShaderPass? pass;
   final ValueChanged<int> onOpenChannelPicker;
   final ValueChanged<int> onChannelCleared;
+  final ValueChanged<int>? onOpenChannelSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +37,9 @@ class ChannelBar extends StatelessWidget {
                 slotIndex: index,
                 channel: ch,
                 onTap: () => onOpenChannelPicker(index),
+                onSettings: onOpenChannelSettings != null
+                    ? () => onOpenChannelSettings!(index)
+                    : null,
                 onClear: () async {
                   final oldCh = pass?.getChannel(index);
                   if (oldCh is SoLoudAudioChannel &&

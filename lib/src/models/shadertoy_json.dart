@@ -309,15 +309,16 @@ vec2 rot(vec2 p, float a) {
         final src = rawInput['src']?.toString() ?? '';
         final sampler = rawInput['sampler'] as Map<String, dynamic>? ?? {};
 
-        final filterStr = sampler['filter']?.toString().toLowerCase() ?? 'linear';
+        final defaultFilterStr = ctype == 'keyboard' ? 'nearest' : 'mipmap';
+        final filterStr = sampler['filter']?.toString().toLowerCase() ?? defaultFilterStr;
         final wrapStr = sampler['wrap']?.toString().toLowerCase() ?? 'clamp';
         final vflipStr = sampler['vflip']?.toString().toLowerCase() ?? 'true';
 
         final filter = filterStr == 'nearest'
             ? ChannelFilter.nearest
-            : filterStr == 'mipmap'
-                ? ChannelFilter.mipmap
-                : ChannelFilter.linear;
+            : filterStr == 'linear'
+                ? ChannelFilter.linear
+                : ChannelFilter.mipmap;
 
         final wrap = wrapStr == 'repeat'
             ? ChannelWrap.repeat

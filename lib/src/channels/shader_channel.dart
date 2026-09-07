@@ -31,7 +31,7 @@ enum ChannelType {
 /// Configuration and state for an iChannel input slot (0..3).
 abstract class ShaderChannel {
   ShaderChannel({
-    this.filter = ChannelFilter.linear,
+    this.filter = ChannelFilter.mipmap,
     this.wrap = ChannelWrap.repeat,
     this.vflip = true,
   });
@@ -66,7 +66,7 @@ class TextureChannel extends ShaderChannel {
     String? assetPath,
     this.imageBytes,
     this.name = 'Texture',
-    super.filter = ChannelFilter.linear,
+    super.filter = ChannelFilter.mipmap,
     super.wrap = ChannelWrap.repeat,
     super.vflip = true,
     ui.Size? initialResolution,

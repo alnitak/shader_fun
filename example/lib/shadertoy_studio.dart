@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 import 'studio/dialogs/channel_picker_modal.dart';
+import 'studio/dialogs/channel_setup_dialog.dart';
 import 'studio/dialogs/load_shader_dialog.dart';
 import 'studio/dialogs/save_shader_dialog.dart';
 import 'studio/widgets/channel_bar.dart';
@@ -12,6 +13,7 @@ import 'studio/widgets/studio_app_bar.dart';
 import 'studio/widgets/studio_code_editor.dart';
 
 export 'studio/dialogs/channel_picker_modal.dart';
+export 'studio/dialogs/channel_setup_dialog.dart';
 export 'studio/dialogs/load_shader_dialog.dart';
 export 'studio/dialogs/save_shader_dialog.dart';
 export 'studio/models/channel_assets.dart';
@@ -233,6 +235,21 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
     );
   }
 
+  void _openChannelSettings(int slotIndex) {
+    final pass = _controller.activePass;
+    final channel = pass?.getChannel(slotIndex);
+    if (channel == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => ChannelSetupDialog(
+        slotIndex: slotIndex,
+        channel: channel,
+        controller: _controller,
+      ),
+    );
+  }
+
   Widget _buildEditorSection(ShaderPass? pass) {
     return CallbackShortcuts(
       bindings: {
@@ -310,6 +327,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
           ChannelBar(
             pass: pass,
             onOpenChannelPicker: _openChannelPicker,
+            onOpenChannelSettings: _openChannelSettings,
             onChannelCleared: (slotIndex) {
               _controller.setChannel(slotIndex, null);
               _controller.renderSingleFrame();
