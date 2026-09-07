@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:shader_fun/shader_fun.dart';
 
@@ -24,6 +25,8 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   String _selectedTextureCategory = 'All';
+  bool _isLoading = false;
+  String? _loadingMessage;
 
   @override
   void initState() {
@@ -47,8 +50,10 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
-        child: Column(
+        child: Stack(
           children: [
+            Column(
+              children: [
             // Modal Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -110,85 +115,171 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
             ),
           ],
         ),
-      ),
-    );
+        if (_isLoading)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: Color(0xFF00E5FF),
+                    ),
+                    if (_loadingMessage != null) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        _loadingMessage!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  ),
+);
   }
 
   Widget _buildAudioTab() {
     final tracks = ChannelAssets.allAudioTracks;
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: tracks.length,
-      itemBuilder: (itemCtx, i) {
-        final track = tracks[i];
-        return Card(
-          color: const Color(0xFF22222E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: const BorderSide(color: Color(0xFF2E2E3A)),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0xFF2A2A38))),
           ),
-          margin: const EdgeInsets.only(bottom: 10),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 4,
-            ),
-            leading: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+          child: Row(
+            children: [
+              const Text(
+                'Preset Tracks',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              child: const Icon(
-                Icons.music_note,
-                color: Color(0xFF00E5FF),
-                size: 20,
+              const Spacer(),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF38BDF8),
+                  side: const BorderSide(color: Color(0xFF38BDF8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.folder_open, size: 15),
+                label: const Text('Load File', style: TextStyle(fontSize: 12)),
+                onPressed: _pickAudioFromFile,
               ),
-            ),
-            title: Text(
-              track.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF00E5FF),
+                  side: const BorderSide(color: Color(0xFF00E5FF)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.link, size: 15),
+                label: const Text('Load URL', style: TextStyle(fontSize: 12)),
+                onPressed: _loadAudioFromUrl,
               ),
-            ),
-            subtitle: Text(
-              '${track.genre} • 512x2 FFT & Waveform',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-            trailing: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-              ),
-              child: const Text(
-                'Select',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onPressed: () async {
-                if (SoLoud.instance.isInitialized) {
-                  await SoLoud.instance.disposeAllSources();
-                }
-                final channel = SoLoudAudioChannel(
-                  audioName: track.title,
-                  audioPath: track.assetPath,
-                );
-                await channel.initAudio();
-                widget.onSelectChannel(channel);
-                if (mounted) {
-                  Navigator.of(context).pop();
-                }
-              },
-            ),
+            ],
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: tracks.length,
+            itemBuilder: (itemCtx, i) {
+              final track = tracks[i];
+              return Card(
+                color: const Color(0xFF22222E),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: Color(0xFF2E2E3A)),
+                ),
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.music_note,
+                      color: Color(0xFF00E5FF),
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    track.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${track.genre} • 512x2 FFT & Waveform',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  trailing: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF00E5FF),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    child: const Text(
+                      'Select',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () async {
+                      if (SoLoud.instance.isInitialized) {
+                        await SoLoud.instance.disposeAllSources();
+                      }
+                      final channel = SoLoudAudioChannel(
+                        audioName: track.title,
+                        audioPath: track.assetPath,
+                      );
+                      await channel.initAudio();
+                      widget.onSelectChannel(channel);
+                      if (mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -474,42 +565,78 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: Color(0xFF2A2A38))),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: categories.map((cat) {
-                final isSelected = _selectedTextureCategory == cat;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (_) {
-                      setState(() {
-                        _selectedTextureCategory = cat;
-                      });
-                    },
-                    backgroundColor: const Color(0xFF22222E),
-                    selectedColor:
-                        const Color(0xFF38BDF8).withValues(alpha: 0.25),
-                    checkmarkColor: const Color(0xFF38BDF8),
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? const Color(0xFF38BDF8)
-                          : Colors.white70,
-                      fontSize: 12,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    side: BorderSide(
-                      color: isSelected
-                          ? const Color(0xFF38BDF8)
-                          : const Color(0xFF323242),
-                    ),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: categories.map((cat) {
+                      final isSelected = _selectedTextureCategory == cat;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: FilterChip(
+                          label: Text(cat),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedTextureCategory = cat;
+                            });
+                          },
+                          backgroundColor: const Color(0xFF22222E),
+                          selectedColor:
+                              const Color(0xFF38BDF8).withValues(alpha: 0.25),
+                          checkmarkColor: const Color(0xFF38BDF8),
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? const Color(0xFF38BDF8)
+                                : Colors.white70,
+                            fontSize: 12,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          side: BorderSide(
+                            color: isSelected
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF323242),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF38BDF8),
+                  side: const BorderSide(color: Color(0xFF38BDF8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.folder_open, size: 15),
+                label: const Text('Load File', style: TextStyle(fontSize: 12)),
+                onPressed: _pickTextureFromFile,
+              ),
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF00E5FF),
+                  side: const BorderSide(color: Color(0xFF00E5FF)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.link, size: 15),
+                label: const Text('Load URL', style: TextStyle(fontSize: 12)),
+                onPressed: _loadTextureFromUrl,
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -612,5 +739,295 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
         ),
       ],
     );
+  }
+
+  Future<String?> _showUrlInputDialog({
+    required String title,
+    required String hintText,
+    required IconData icon,
+  }) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E28),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: const BorderSide(color: Color(0xFF2E2E3C)),
+          ),
+          title: Row(
+            children: [
+              Icon(icon, size: 20, color: const Color(0xFF00E5FF)),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 440,
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: hintText,
+                hintStyle: const TextStyle(
+                  color: Colors.white30,
+                  fontSize: 13,
+                ),
+                filled: true,
+                fillColor: const Color(0xFF14141C),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: Color(0xFF2E2E3C)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: Color(0xFF2E2E3C)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                ),
+              ),
+              onSubmitted: (val) {
+                final trimmed = val.trim();
+                if (trimmed.isNotEmpty) {
+                  Navigator.of(dialogCtx).pop(trimmed);
+                }
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () {
+                final trimmed = controller.text.trim();
+                if (trimmed.isNotEmpty) {
+                  Navigator.of(dialogCtx).pop(trimmed);
+                }
+              },
+              child: const Text(
+                'Load',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _pickTextureFromFile() async {
+    try {
+      final files = await FilePicker.pickFiles(
+        dialogTitle: 'Select Image Texture',
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
+      );
+      if (files.isEmpty) return;
+      final file = files.first;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return;
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = true;
+        _loadingMessage = 'Loading ${file.name}...';
+      });
+
+      final channel = TextureChannel(
+        name: file.name,
+        src: file.path,
+        imageBytes: bytes,
+      );
+      final img = await channel.loadImage();
+      if (img == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to decode image from ${file.name}'),
+            ),
+          );
+        }
+        return;
+      }
+
+      widget.onSelectChannel(channel);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking texture: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadTextureFromUrl() async {
+    final url = await _showUrlInputDialog(
+      title: 'Load Texture from URL',
+      hintText: 'https://example.com/texture.png',
+      icon: Icons.image,
+    );
+    if (url == null || url.isEmpty || !mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = 'Downloading texture...';
+    });
+
+    try {
+      final uri = Uri.tryParse(url);
+      final fileName = uri != null && uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.last
+          : 'Web Texture';
+
+      final channel = TextureChannel(
+        name: fileName,
+        src: url,
+      );
+      final img = await channel.loadImage();
+      if (img == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to load or decode image from URL'),
+            ),
+          );
+        }
+        return;
+      }
+
+      widget.onSelectChannel(channel);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading texture from URL: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAudioFromFile() async {
+    try {
+      final files = await FilePicker.pickFiles(
+        dialogTitle: 'Select Audio File',
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'wav', 'ogg', 'flac'],
+      );
+      if (files.isEmpty) return;
+      final file = files.first;
+      final path = file.path;
+      if (path == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not access audio file path')),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isLoading = true;
+        _loadingMessage = 'Loading ${file.name}...';
+      });
+
+      if (SoLoud.instance.isInitialized) {
+        await SoLoud.instance.disposeAllSources();
+      }
+
+      final channel = SoLoudAudioChannel(
+        audioName: file.name,
+        src: path,
+      );
+      await channel.initAudio();
+
+      widget.onSelectChannel(channel);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading audio file: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadAudioFromUrl() async {
+    final url = await _showUrlInputDialog(
+      title: 'Load Audio from URL',
+      hintText: 'https://example.com/audio.mp3',
+      icon: Icons.music_note,
+    );
+    if (url == null || url.isEmpty || !mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = 'Connecting audio stream...';
+    });
+
+    try {
+      final uri = Uri.tryParse(url);
+      final audioName = uri != null && uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.last
+          : 'Web Audio';
+
+      if (SoLoud.instance.isInitialized) {
+        await SoLoud.instance.disposeAllSources();
+      }
+
+      final channel = SoLoudAudioChannel(
+        audioName: audioName,
+        src: url,
+      );
+      await channel.initAudio();
+
+      widget.onSelectChannel(channel);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading audio from URL: $e')),
+        );
+      }
+    }
   }
 }
