@@ -602,10 +602,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
                 // Compile button
                 IconButton(
                   iconSize: 18,
-                  icon: const Icon(
-                    Icons.bolt,
-                    color: Color(0xFF00E5FF),
-                  ),
+                  icon: const Icon(Icons.bolt, color: Color(0xFF00E5FF)),
                   tooltip: 'Compile & Run Shader (Alt + Enter)',
                   onPressed: _compileShader,
                 ),
@@ -805,9 +802,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
       width: gutterWidth,
       decoration: const BoxDecoration(
         color: Color(0xFF14141A),
-        border: Border(
-          right: BorderSide(color: Color(0xFF22222A), width: 1),
-        ),
+        border: Border(right: BorderSide(color: Color(0xFF22222A), width: 1)),
       ),
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: ScrollConfiguration(
@@ -948,6 +943,10 @@ class _ChannelSlotTile extends StatelessWidget {
       icon = Icons.view_in_ar;
       label = 'CubeMap';
       accentColor = const Color(0xFFA855F7);
+    } else if (channel is KeyboardChannel) {
+      icon = Icons.keyboard;
+      label = 'Keyboard';
+      accentColor = const Color(0xFFE11D48);
     } else if (channel is TextureChannel) {
       icon = Icons.image;
       label = (channel as TextureChannel).name;
@@ -1234,7 +1233,7 @@ class _ChannelPickerModalState extends State<_ChannelPickerModal>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -1297,6 +1296,7 @@ class _ChannelPickerModalState extends State<_ChannelPickerModal>
                 ),
                 Tab(icon: Icon(Icons.mic, size: 16), text: 'Mic (Recorder)'),
                 Tab(icon: Icon(Icons.layers, size: 16), text: 'Buffers'),
+                Tab(icon: Icon(Icons.keyboard, size: 16), text: 'Keyboard'),
               ],
             ),
 
@@ -1316,6 +1316,9 @@ class _ChannelPickerModalState extends State<_ChannelPickerModal>
 
                   // Tab 4: Buffers
                   _buildBuffersTab(),
+
+                  // Tab 5: Keyboard
+                  _buildKeyboardTab(),
                 ],
               ),
             ),
@@ -1509,6 +1512,155 @@ class _ChannelPickerModalState extends State<_ChannelPickerModal>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildKeyboardTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                color: const Color(0xFF1E1E28),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: Color(0xFF2E2E3C)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Shadertoy-style keyboard preview tile
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF3A3A4C)),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.keyboard,
+                              size: 44,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              width: 14,
+                              height: 2,
+                              color: Colors.white54,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Keyboard',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF282836),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                '256 x 3  •  1 ch, int8',
+                                style: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 12,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF14141C),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF262634)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Texture Specifications',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '• Row 0 (y = 0): Key down / held state (1.0 if pressed, 0.0 if up)\n'
+                      '• Row 1 (y = 1): Key press trigger (1.0 for single frame upon press)\n'
+                      '• Row 2 (y = 2): Key toggle state (toggled on/off on each press)\n'
+                      '• Columns (x = 0..255): JavaScript keyCodes (Backspace=8, Enter=13, Shift=16, Space=32, Left=37, Up=38, Right=39, Down=40, etc.)',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFE11D48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text(
+                    'Select Keyboard',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  onPressed: () {
+                    final channel = KeyboardChannel();
+                    widget.onSelectChannel(channel);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

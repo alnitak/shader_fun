@@ -43,6 +43,9 @@ class FlutterGpuRenderer {
   /// Cache of uploaded audio texture (512x2 RGBA)
   gpu.Texture? _audioTexture;
 
+  /// Cache of uploaded keyboard texture (256x3 RGBA)
+  gpu.Texture? _keyboardTexture;
+
   /// Default 1x1 fallback texture to satisfy samplers when no channel texture is bound.
   gpu.Texture? _defaultTexture;
 
@@ -56,6 +59,11 @@ class FlutterGpuRenderer {
   /// Clears audio texture reference so other shaders don't sample stale audio data.
   void clearAudioTexture() {
     _audioTexture = null;
+  }
+
+  /// Clears keyboard texture reference.
+  void clearKeyboardTexture() {
+    _keyboardTexture = null;
   }
 
   void _clearPingPongBuffers() {
@@ -286,6 +294,27 @@ class FlutterGpuRenderer {
     }
   }
 
+  /// Uploads keyboard state to a 256x3 GPU texture.
+  gpu.Texture? uploadKeyboardTexture(Uint8List keyboardBytes) {
+    if (!_isGpuAvailable) return null;
+    try {
+      _keyboardTexture ??= gpu.gpuContext.createTexture(
+        gpu.StorageMode.hostVisible,
+        256,
+        3,
+        format: gpu.PixelFormat.r8g8b8a8UNormInt,
+        enableRenderTargetUsage: false,
+        enableShaderReadUsage: true,
+      );
+
+      _keyboardTexture!.overwrite(ByteData.sublistView(keyboardBytes));
+      return _keyboardTexture;
+    } catch (e) {
+      debugPrint('Failed to upload keyboard texture: $e');
+      return null;
+    }
+  }
+
   /// Uploads raw RGBA pixel data as a 2D GPU texture for a specific channel.
   gpu.Texture? uploadTextureChannel(
     int channelIndex,
@@ -353,6 +382,8 @@ class FlutterGpuRenderer {
         texToBind = availableTextures[bufferType] ?? fallbackTex;
       } else if (channel is AudioChannel) {
         texToBind = _audioTexture ?? fallbackTex;
+      } else if (channel is KeyboardChannel) {
+        texToBind = _keyboardTexture ?? fallbackTex;
       } else if (channel is TextureChannel && _textureChannels.containsKey(i)) {
         texToBind = _textureChannels[i];
       } else {
@@ -656,6 +687,7 @@ class FlutterGpuRenderer {
     _passPipelines.clear();
     _textureChannels.clear();
     _audioTexture = null;
+    _keyboardTexture = null;
     _defaultTexture = null;
     _activeCode = null;
     _quadVertexBuffer = null;

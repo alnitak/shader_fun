@@ -193,3 +193,18 @@ class CubeMapChannel extends ShaderChannel {
   @override
   ui.Size get resolution => const ui.Size(512, 512);
 }
+
+/// Keyboard channel providing 256x3 keyboard state texture (row 0: down, row 1: click, row 2: toggle).
+class KeyboardChannel extends ShaderChannel {
+  KeyboardChannel({
+    super.filter = ChannelFilter.nearest,
+    super.wrap = ChannelWrap.clamp,
+    super.vflip = false,
+  });
+
+  @override
+  ChannelType get type => ChannelType.keyboard;
+
+  @override
+  ui.Size get resolution => const ui.Size(256, 3);
+}

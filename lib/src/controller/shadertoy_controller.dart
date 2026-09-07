@@ -1,14 +1,15 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' as flutter_foundation;
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:listen/listen.dart' as listen;
 
 import '../channels/audio_texture_provider.dart';
 import '../channels/shader_channel.dart';
 import '../compiler/impeller_compiler.dart';
+import '../core/keyboard_state.dart';
 import '../core/shader_pass.dart';
 import '../core/shadertoy_uniforms.dart';
 import '../models/shadertoy_json.dart';
@@ -59,6 +60,7 @@ class ShaderToyController
   ShaderToyProject _project;
   final ShaderToyUniforms _uniforms;
   late final ShaderToyRenderer _renderer;
+  final ShaderToyKeyboardState _keyboard = ShaderToyKeyboardState();
   Ticker? _ticker;
 
   bool _isDisposed = false;
@@ -80,6 +82,7 @@ class ShaderToyController
   ShaderToyProject get project => _project;
   ShaderToyUniforms get uniforms => _uniforms;
   ShaderToyRenderer get renderer => _renderer;
+  ShaderToyKeyboardState get keyboard => _keyboard;
   ui.Image? get currentImage => currentImageNotifier.value;
   bool get isPlaying => isPlayingNotifier.value;
   bool get isCompiling => isCompilingNotifier.value;
@@ -656,6 +659,7 @@ class ShaderToyController
     _uniforms.timeDelta = isPlaying ? 0.016 : 0.0;
     _lastTimestamp = 0.0;
     _renderer.clearAudio();
+    _keyboard.reset();
     _renderer.gpuRenderer.clearPingPongBuffers();
     renderSingleFrame();
     notifyListeners();
@@ -705,6 +709,18 @@ class ShaderToyController
       -_uniforms.mouse.w.abs(),
     );
     notifyListeners();
+  }
+
+  /// Handles a keyboard event and updates the 256x3 keyboard texture state.
+  bool handleKeyEvent(KeyEvent event) {
+    final handled = _keyboard.handleKeyEvent(event);
+    if (handled) {
+      notifyListeners();
+      if (!isPlaying) {
+        renderSingleFrame();
+      }
+    }
+    return handled;
   }
 
   void _onTick(Duration elapsed) {
@@ -782,12 +798,20 @@ class ShaderToyController
       if (audio == null) {
         _renderer.clearAudio();
       }
+      final hasKeyboard = _project.passes.any(
+        (p) => p.channels.any((c) => c is KeyboardChannel),
+      );
+      if (!hasKeyboard) {
+        _renderer.clearKeyboard();
+      }
       final img = await _renderer.renderFrame(
         uniforms: _uniforms,
         passes: _project.passes,
         activePass: activePass,
         activeAudioChannel: audio,
+        keyboardData: hasKeyboard ? _keyboard.pixelData : null,
       );
+      _keyboard.endFrame();
       if (_isDisposed) {
         img?.dispose();
         return;

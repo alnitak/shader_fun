@@ -26,6 +26,7 @@ class ShaderToyViewport extends StatefulWidget {
 class _ShaderToyViewportState extends State<ShaderToyViewport>
     with SingleTickerProviderStateMixin {
   Offset? _lastPointerPos;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
 
   @override
   void dispose() {
+    _focusNode.dispose();
     widget.controller.detachTicker(this);
     super.dispose();
   }
@@ -97,64 +99,77 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
               child: SizedBox(
                 width: renderSize.width,
                 height: renderSize.height,
-                child: GestureDetector(
-                  onPanDown: (details) {
-                    _lastPointerPos = details.localPosition;
-                    widget.controller.handlePointerDown(details.localPosition);
+                child: Focus(
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  onKeyEvent: (node, event) {
+                    final handled = widget.controller.handleKeyEvent(event);
+                    return handled
+                        ? KeyEventResult.handled
+                        : KeyEventResult.ignored;
                   },
-                  onPanUpdate: (details) {
-                    _lastPointerPos = details.localPosition;
-                    widget.controller.handlePointerMove(details.localPosition);
-                  },
-                  onPanEnd: (details) {
-                    widget.controller.handlePointerUp(_lastPointerPos);
-                  },
-                  onPanCancel: () {
-                    widget.controller.handlePointerUp(_lastPointerPos);
-                  },
-                  child: AnimatedBuilder(
-                    animation: widget.controller,
-                    builder: (context, child) {
-                      final image = widget.controller.currentImage;
-                      final isCompiling = widget.controller.isCompiling;
-                      return Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CustomPaint(
-                            size: renderSize,
-                            painter: _ShaderImagePainter(image: image),
-                          ),
-                          if (image == null)
-                            Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Color(0xFF6366F1),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    isCompiling
-                                        ? 'Compiling shader...'
-                                        : 'Loading shader...',
-                                    style: const TextStyle(
-                                      color: Color(0xFF94A3B8),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      decoration: TextDecoration.none,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      );
+                  child: GestureDetector(
+                    onPanDown: (details) {
+                      if (!_focusNode.hasFocus) {
+                        _focusNode.requestFocus();
+                      }
+                      _lastPointerPos = details.localPosition;
+                      widget.controller.handlePointerDown(details.localPosition);
                     },
+                    onPanUpdate: (details) {
+                      _lastPointerPos = details.localPosition;
+                      widget.controller.handlePointerMove(details.localPosition);
+                    },
+                    onPanEnd: (details) {
+                      widget.controller.handlePointerUp(_lastPointerPos);
+                    },
+                    onPanCancel: () {
+                      widget.controller.handlePointerUp(_lastPointerPos);
+                    },
+                    child: AnimatedBuilder(
+                      animation: widget.controller,
+                      builder: (context, child) {
+                        final image = widget.controller.currentImage;
+                        final isCompiling = widget.controller.isCompiling;
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CustomPaint(
+                              size: renderSize,
+                              painter: _ShaderImagePainter(image: image),
+                            ),
+                            if (image == null)
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Color(0xFF6366F1),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      isCompiling
+                                          ? 'Compiling shader...'
+                                          : 'Loading shader...',
+                                      style: const TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        decoration: TextDecoration.none,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

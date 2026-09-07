@@ -275,6 +275,13 @@ vec2 rot(vec2 p, float a) {
               vflip: vflip,
             );
             break;
+          case 'keyboard':
+            channel = KeyboardChannel(
+              filter: filter,
+              wrap: wrap,
+              vflip: vflip,
+            );
+            break;
           case 'texture':
           default:
             channel = TextureChannel(
@@ -408,6 +415,9 @@ vec2 rot(vec2 p, float a) {
           ctype = 'mic';
         } else if (ch is CubeMapChannel) {
           ctype = 'cubemap';
+        } else if (ch is KeyboardChannel || ch.type == ChannelType.keyboard) {
+          ctype = 'keyboard';
+          id = 33;
         }
 
         inputs.add({

@@ -56,6 +56,7 @@ class ShaderToyRenderer {
     required List<ShaderPass> passes,
     ShaderPass? activePass,
     AudioChannel? activeAudioChannel,
+    Uint8List? keyboardData,
   }) async {
     // 1. If Flutter GPU is supported on this device, execute on GPU
     if (_gpuRenderer.isGpuAvailable) {
@@ -63,6 +64,9 @@ class ShaderToyRenderer {
         _gpuRenderer.uploadAudioTexture(activeAudioChannel);
       } else {
         _gpuRenderer.clearAudioTexture();
+      }
+      if (keyboardData != null) {
+        _gpuRenderer.uploadKeyboardTexture(keyboardData);
       }
       final gpuImage = await _gpuRenderer.renderFrame(
         uniforms: uniforms,
@@ -87,6 +91,11 @@ class ShaderToyRenderer {
   /// Clears active audio texture on the GPU renderer.
   void clearAudio() {
     _gpuRenderer.clearAudioTexture();
+  }
+
+  /// Clears active keyboard texture on the GPU renderer.
+  void clearKeyboard() {
+    _gpuRenderer.clearKeyboardTexture();
   }
 
   void dispose() {
