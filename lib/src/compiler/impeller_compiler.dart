@@ -5,12 +5,12 @@ import 'dart:typed_data';
 /// Result of an `impellerc` shader compilation.
 class CompileResult {
   const CompileResult.success(this.bundleBytes)
-      : isSuccess = true,
-        errorMessage = null;
+    : isSuccess = true,
+      errorMessage = null;
 
   const CompileResult.error(this.errorMessage)
-      : isSuccess = false,
-        bundleBytes = null;
+    : isSuccess = false,
+      bundleBytes = null;
 
   final bool isSuccess;
   final Uint8List? bundleBytes;
@@ -101,8 +101,9 @@ class ImpellerCompiler {
 
     for (final arch in hostArchs) {
       try {
-        final candidateFile =
-            File('$flutterRoot/bin/cache/artifacts/engine/$arch/$exeName');
+        final candidateFile = File(
+          '$flutterRoot/bin/cache/artifacts/engine/$arch/$exeName',
+        );
         if (candidateFile.existsSync()) {
           return candidateFile.path;
         }
@@ -111,8 +112,9 @@ class ImpellerCompiler {
 
     // 2. Fallback to directory listing if allowed
     try {
-      final engineArtifacts =
-          Directory('$flutterRoot/bin/cache/artifacts/engine');
+      final engineArtifacts = Directory(
+        '$flutterRoot/bin/cache/artifacts/engine',
+      );
       if (engineArtifacts.existsSync()) {
         final subdirs = engineArtifacts.listSync();
         for (final entity in subdirs) {
@@ -137,8 +139,10 @@ void main() {
 }
 ''';
 
-  static final RegExp _commentRegex =
-      RegExp(r'//.*$|/\*[\s\S]*?\*/', multiLine: true);
+  static final RegExp _commentRegex = RegExp(
+    r'//.*$|/\*[\s\S]*?\*/',
+    multiLine: true,
+  );
 
   /// Returns true if [code] references `iChannel$channelIndex` outside of comments.
   static bool shaderUsesChannel(String code, int channelIndex) {
@@ -170,7 +174,6 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 };
 ''');
 
-
     final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
         ? '$commonGlsl\n$userGlsl'
         : userGlsl;
@@ -179,7 +182,9 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     for (int i = 0; i < 4; i++) {
       if (shaderUsesChannel(codeForChannels, i)) {
         declaredChannels.add(i);
-        sb.writeln('layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;');
+        sb.writeln(
+          'layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;',
+        );
       }
     }
 
@@ -286,14 +291,8 @@ void main() {
       );
 
       final manifestJson = json.encode({
-        'QuadVertex': {
-          'type': 'vertex',
-          'file': vertFile.path,
-        },
-        'ShadertoyFragment': {
-          'type': 'fragment',
-          'file': fragFile.path,
-        },
+        'QuadVertex': {'type': 'vertex', 'file': vertFile.path},
+        'ShadertoyFragment': {'type': 'fragment', 'file': fragFile.path},
       });
 
       // Target platform flag
@@ -306,18 +305,13 @@ void main() {
         platformFlag = '--vulkan';
       }
 
-      final result = await Process.run(
-        impellerc,
-        [
-          platformFlag,
-          '--gles-language-version=300',
-          '--shader-bundle=$manifestJson',
-          '--sl=${bundleFile.path}',
-          '--verbose',
-        ],
-        workingDirectory: tempDir.path,
-      );
-
+      final result = await Process.run(impellerc, [
+        platformFlag,
+        '--gles-language-version=300',
+        '--shader-bundle=$manifestJson',
+        '--sl=${bundleFile.path}',
+        '--verbose',
+      ], workingDirectory: tempDir.path);
 
       if (result.exitCode != 0) {
         final stderr = result.stderr.toString().trim();

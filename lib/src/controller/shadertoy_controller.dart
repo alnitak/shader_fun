@@ -898,7 +898,12 @@ class ShaderToyController
     }
 
     if (rawRgba != null && w != null && h != null) {
-      final bytesToUpload = channel.vflip ? flipY(rawRgba, w, h) : rawRgba;
+      // In ShaderToy, vflip = true (the default) displays textures right-side up,
+      // while vflip = false inverts the texture vertically. Because st_texture
+      // inverts sampling Y (1.0 - uv.y) to match Impeller/Metal/Vulkan top-left
+      // origins, uploading rawRgba as-is corresponds to right-side up (vflip = true).
+      // When vflip = false, we invert the vertical rows to display it upside down.
+      final bytesToUpload = channel.vflip ? rawRgba : flipY(rawRgba, w, h);
       _renderer.gpuRenderer.uploadTextureChannel(
         channelIndex,
         bytesToUpload,

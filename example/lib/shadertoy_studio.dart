@@ -45,7 +45,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   bool _isFullscreen = false;
   String _compileStatus = 'Ready';
   bool _compileSuccess = true;
-  final double _fontSize = 13.0;
+  final double _fontSize = 15.0;
   final GlobalKey _viewportKey = GlobalKey();
   bool _isSyncingScroll = false;
   int _cachedLineCount = 1;
