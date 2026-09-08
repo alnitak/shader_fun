@@ -2,31 +2,19 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+
 import 'package:flutter/services.dart';
+
 import 'raw_image_decoder.dart';
 
 /// Filtering mode for an iChannel sampler.
-enum ChannelFilter {
-  linear,
-  nearest,
-  mipmap,
-}
+enum ChannelFilter { linear, nearest, mipmap }
 
 /// Address wrapping mode for an iChannel sampler.
-enum ChannelWrap {
-  clamp,
-  repeat,
-}
+enum ChannelWrap { clamp, repeat }
 
 /// The type of input connected to an iChannel slot.
-enum ChannelType {
-  texture,
-  buffer,
-  audio,
-  mic,
-  cubeMap,
-  keyboard,
-}
+enum ChannelType { texture, buffer, audio, mic, cubeMap, keyboard }
 
 /// Configuration and state for an iChannel input slot (0..3).
 abstract class ShaderChannel {
@@ -70,8 +58,8 @@ class TextureChannel extends ShaderChannel {
     super.wrap = ChannelWrap.repeat,
     super.vflip = true,
     ui.Size? initialResolution,
-  })  : src = src ?? assetPath,
-        _resolution = initialResolution ?? const ui.Size(512, 512);
+  }) : src = src ?? assetPath,
+       _resolution = initialResolution ?? const ui.Size(512, 512);
 
   /// Source URI, file path, or Flutter asset path.
   final String? src;
@@ -223,7 +211,7 @@ class BufferChannel extends ShaderChannel {
   ui.Size get resolution => const ui.Size(800, 450);
 }
 
-/// CubeMap channel with 6 cube faces.
+/// CubeMap channel with 6 cube faces. Not yet supported.
 class CubeMapChannel extends ShaderChannel {
   CubeMapChannel({
     this.assetPaths = const [],
