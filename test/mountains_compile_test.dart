@@ -7,7 +7,7 @@ import 'package:shader_fun/src/models/shadertoy_json.dart';
 
 void main() {
   test('compile mountains shader with ImpellerCompiler', () async {
-    final file = File('Mouse Paint Eroded Mountains.json.txt');
+    final file = File('example/shaders/mouse_paint_eroded_mountains.json');
     expect(file.existsSync(), isTrue);
     final content = file.readAsStringSync();
     final project =

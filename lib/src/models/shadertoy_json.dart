@@ -15,14 +15,12 @@ class ShaderToyProject {
     String author = 'Anonymous',
     String description = '',
     String url = '',
-    List<String> tags = const [],
     List<ShaderPass>? passes,
   })  : _id = id,
         _name = name,
         _author = author,
         _description = description,
         _url = url,
-        _tags = tags,
         passes = passes ?? [];
 
   /// Creates a default starter ShaderToy project with a single Image pass.
@@ -71,10 +69,6 @@ class ShaderToyProject {
   String? _url;
   String get url => _url ?? '';
   set url(String value) => _url = value;
-
-  List<String>? _tags;
-  List<String> get tags => _tags ?? const [];
-  set tags(List<String> value) => _tags = value;
 
   List<ShaderPass> passes;
 
@@ -252,10 +246,6 @@ vec2 rot(vec2 p, float a) {
     final username = info['username']?.toString() ?? 'Anonymous';
     final description = info['description']?.toString() ?? '';
     final url = info['url']?.toString() ?? '';
-    final rawTags = info['tags'];
-    final tags = rawTags is List
-        ? rawTags.map((t) => t.toString()).toList()
-        : <String>[];
 
     final rawPasses = shaderMap['renderpass'] as List<dynamic>? ?? [];
     final passes = <ShaderPass>[];
@@ -411,7 +401,6 @@ vec2 rot(vec2 p, float a) {
       author: username,
       description: description,
       url: url,
-      tags: tags,
       passes: passes,
     );
   }
@@ -571,7 +560,6 @@ vec2 rot(vec2 p, float a) {
           'username': author,
           'description': description,
           'url': url,
-          'tags': tags,
         },
         'renderpass': renderpassList,
       },

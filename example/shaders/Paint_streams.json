@@ -5,11 +5,7 @@
       "name": "Paint streams",
       "username": "michael0884",
       "description": "Cellular automaton particle tracking used for advection in a fluid which is also fully conservative\nEach pixel has 1 virtual particle\nhttps://michaelmoroz.github.io/Reintegration-Tracking/",
-      "url": "https://www.shadertoy.com/view/WtfyDj",
-      "tags": [
-        "particles",
-        "ca"
-      ]
+      "url": "https://www.shadertoy.com/view/WtfyDj"
     },
     "renderpass": [
       {

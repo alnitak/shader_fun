@@ -5,16 +5,7 @@
       "name": "[SH17B] Cold Shore",
       "username": "Xor",
       "description": "A helicopter ride over some icy mountains (Drag mouse to turn view). It could be improved, but I felt a little rushed.\nThis however does have good performance and a huge view distance.\nHere's my first attempt: https://www.shadertoy.com/view/4d2fWD",
-      "url": "https://www.shadertoy.com/view/4sSBzy",
-      "tags": [
-        "3d",
-        "water",
-        "mountains",
-        "xor",
-        "ice",
-        "snow",
-        "sh17b"
-      ]
+      "url": "https://www.shadertoy.com/view/4sSBzy"
     },
     "renderpass": [
       {

@@ -16,7 +16,6 @@ void main() {
       author: 'Initial Author',
       description: 'Initial Desc',
       url: 'https://initial.url',
-      tags: ['init_tag'],
     );
 
     await tester.pumpWidget(
@@ -50,15 +49,13 @@ void main() {
     // Verify JSON preview reflects the new author
     expect(find.textContaining('StarCoder'), findsWidgets);
 
-    // Find Tags text field and change it
-    final tagsField = find.widgetWithText(TextField, 'Tags (comma separated)');
-    expect(tagsField, findsOneWidget);
-    await tester.enterText(tagsField, 'glow, neon, retro');
+    // Find Description text field and change it
+    final descField = find.widgetWithText(TextField, 'Description');
+    expect(descField, findsOneWidget);
+    await tester.enterText(descField, 'A futuristic glow effect');
     await tester.pumpAndSettle();
 
-    // Verify JSON preview reflects the tags
-    expect(find.textContaining('"glow"'), findsWidgets);
-    expect(find.textContaining('"neon"'), findsWidgets);
-    expect(find.textContaining('"retro"'), findsWidgets);
+    // Verify JSON preview reflects the description
+    expect(find.textContaining('A futuristic glow effect'), findsWidgets);
   });
 }

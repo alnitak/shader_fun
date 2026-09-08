@@ -5,19 +5,7 @@
       "name": "Heartfelt",
       "username": "BigWIngs",
       "description": "If you want to really get sad then be sure to watch with sound  ;)\nIf you want to see and control the rain, comment out the HAS_HEART define\nControls: Mouse x = scrub time  y = rain amount (only without heart)",
-      "url": "https://www.shadertoy.com/view/ltffzl",
-      "tags": [
-        "glass",
-        "heart",
-        "rain",
-        "drop",
-        "sad",
-        "window",
-        "droplets",
-        "drops",
-        "raining",
-        "rainonwindow"
-      ]
+      "url": "https://www.shadertoy.com/view/ltffzl"
     },
     "renderpass": [
       {

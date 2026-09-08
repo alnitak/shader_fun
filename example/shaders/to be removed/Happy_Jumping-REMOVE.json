@@ -5,14 +5,7 @@
       "name": "Happy Jumping",
       "username": "iq",
       "description": "A happy and blobby creature jumping. Making of and related math/shader/art explanations (6 hours long): https://www.youtube.com/watch?v=Cfe5UQ-1L9Q.",
-      "url": "https://www.shadertoy.com/view/3lsSzf",
-      "tags": [
-        "procedural",
-        "3d",
-        "raymarching",
-        "sdf",
-        "animation"
-      ]
+      "url": "https://www.shadertoy.com/view/3lsSzf"
     },
     "renderpass": [
       {

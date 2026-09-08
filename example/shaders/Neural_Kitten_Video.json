@@ -5,13 +5,7 @@
       "name": "Neural Kitten Video",
       "username": "Espeset",
       "description": "An experiment using a SIREN based neural network for video. More info in the Image tab. 🤓",
-      "url": "https://www.shadertoy.com/view/NcKXW3",
-      "tags": [
-        "video",
-        "compression",
-        "ai",
-        "neural"
-      ]
+      "url": "https://www.shadertoy.com/view/NcKXW3"
     },
     "renderpass": [
       {

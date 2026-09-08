@@ -5,13 +5,7 @@
       "name": "Rainforest",
       "username": "iq",
       "description": "Another terrain, with cheap trees made of ellipsoids and noise. It computes analytic normals for the terrain and clouds. The art composed to camera as usual. Making-of Tutorial: https://www.youtube.com/watch?v=BFld4EBO2RE",
-      "url": "https://www.shadertoy.com/view/4ttSWf",
-      "tags": [
-        "procedural",
-        "3d",
-        "raymarching",
-        "reprojection"
-      ]
+      "url": "https://www.shadertoy.com/view/4ttSWf"
     },
     "renderpass": [
       {

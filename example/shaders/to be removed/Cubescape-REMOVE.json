@@ -5,17 +5,7 @@
       "name": "Cubescape",
       "username": "iq",
       "description": "Pulsating rounded cubes. Mixes raytracing in a (2D) grid and raymarching within a cell.",
-      "url": "https://www.shadertoy.com/view/Msl3Rr",
-      "tags": [
-        "procedural",
-        "3d",
-        "raymarching",
-        "sound",
-        "reactive",
-        "music",
-        "dda",
-        "vr"
-      ]
+      "url": "https://www.shadertoy.com/view/Msl3Rr"
     },
     "renderpass": [
       {

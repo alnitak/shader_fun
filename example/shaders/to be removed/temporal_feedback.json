@@ -5,13 +5,7 @@
       "name": "Temporal Feedback Trails",
       "username": "ShaderToy Multi-Pass",
       "description": "Multi-pass shader with Buffer A temporal feedback loop and mouse trails.",
-      "url": "",
-      "tags": [
-        "multipass",
-        "feedback",
-        "buffer",
-        "interactive"
-      ]
+      "url": ""
     },
     "renderpass": [
       {

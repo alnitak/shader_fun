@@ -12,7 +12,7 @@ void main() {
 
   group('Multi-pass pipeline & BufferChannel resolution', () {
     test('correctly maps Shadertoy buffer IDs and previz paths to bufferIndex', () {
-      final file = File('Mouse Paint Eroded Mountains.json.txt');
+      final file = File('example/shaders/mouse_paint_eroded_mountains.json');
       expect(file.existsSync(), isTrue);
 
       final jsonMap = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
@@ -48,7 +48,7 @@ void main() {
     });
 
     test('compileAllPasses compiles all passes of Mouse Paint Eroded Mountains', () async {
-      final file = File('Mouse Paint Eroded Mountains.json.txt');
+      final file = File('example/shaders/mouse_paint_eroded_mountains.json');
       final jsonMap = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       final project = ShaderToyProject.fromJson(jsonMap);
 

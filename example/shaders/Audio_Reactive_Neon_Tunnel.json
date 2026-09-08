@@ -5,14 +5,7 @@
       "name": "Audio Reactive Neon Tunnel",
       "username": "ShaderToy Studio",
       "description": "Audio visualizer reacting to music or live microphone in real-time via iChannel0.",
-      "url": "",
-      "tags": [
-        "audio",
-        "music",
-        "visualizer",
-        "fft",
-        "spectrum"
-      ]
+      "url": ""
     },
     "renderpass": [
       {

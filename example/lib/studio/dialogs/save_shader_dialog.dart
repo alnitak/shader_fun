@@ -29,7 +29,6 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
   late final TextEditingController _usernameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _urlController;
-  late final TextEditingController _tagsController;
 
   @override
   void initState() {
@@ -39,8 +38,6 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
     _descriptionController =
         TextEditingController(text: widget.project.description);
     _urlController = TextEditingController(text: widget.project.url);
-    _tagsController =
-        TextEditingController(text: widget.project.tags.join(', '));
   }
 
   @override
@@ -49,7 +46,6 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
     _usernameController.dispose();
     _descriptionController.dispose();
     _urlController.dispose();
-    _tagsController.dispose();
     super.dispose();
   }
 
@@ -58,11 +54,6 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
     widget.project.author = _usernameController.text.trim();
     widget.project.description = _descriptionController.text.trim();
     widget.project.url = _urlController.text.trim();
-    final rawTags = _tagsController.text.split(',');
-    widget.project.tags = rawTags
-        .map((t) => t.trim())
-        .where((t) => t.isNotEmpty)
-        .toList();
   }
 
   void _copyToClipboard() {
@@ -273,19 +264,6 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
                         style:
                             const TextStyle(color: Colors.white, fontSize: 13),
                         decoration: _fieldDecoration('Description'),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Tags field
-                      TextField(
-                        controller: _tagsController,
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 13),
-                        decoration: _fieldDecoration(
-                          'Tags (comma separated)',
-                          hint: '3d, raymarching, audio',
-                        ),
                         onChanged: (_) => setState(() {}),
                       ),
                       const SizedBox(height: 14),

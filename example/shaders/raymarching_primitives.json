@@ -5,13 +5,7 @@
       "name": "Raymarching Primitives",
       "username": "Inigo Quilez",
       "description": "A 3D raymarched scene showing geometric primitives, soft shadows, and phong lighting.",
-      "url": "",
-      "tags": [
-        "3d",
-        "raymarching",
-        "primitives",
-        "lighting"
-      ]
+      "url": ""
     },
     "renderpass": [
       {

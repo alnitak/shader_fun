@@ -5,19 +5,7 @@
       "name": "Smoke on the Water study2",
       "username": "yyf1994",
       "description": "A single pass fluid sim implementation of the GPU Pro 2 book chapter, \"Simple and Fast Fluids\". This was great fun writing and playing around with. Got to learn a lot by writing this.",
-      "url": "https://www.shadertoy.com/view/tXlcWf",
-      "tags": [
-        "simulation",
-        "fluid",
-        "curl",
-        "smoke",
-        "advection",
-        "physics",
-        "pixelated",
-        "navierstokes",
-        "fluidsim",
-        "vorticity"
-      ]
+      "url": "https://www.shadertoy.com/view/tXlcWf"
     },
     "renderpass": [
       {
