@@ -23,7 +23,7 @@
             "ctype": "music",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",

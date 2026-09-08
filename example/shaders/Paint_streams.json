@@ -33,7 +33,7 @@
             "ctype": "buffer",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",
@@ -60,7 +60,7 @@
             "ctype": "buffer",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",
@@ -87,7 +87,7 @@
             "ctype": "buffer",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",
@@ -114,7 +114,7 @@
             "ctype": "buffer",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",
@@ -127,7 +127,7 @@
             "ctype": "buffer",
             "channel": 1,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",
@@ -140,7 +140,7 @@
             "ctype": "buffer",
             "channel": 2,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",

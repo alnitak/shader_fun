@@ -33,7 +33,7 @@
             "ctype": "texture",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "repeat",
               "vflip": "true",
               "srgb": "false",
@@ -46,7 +46,7 @@
             "ctype": "texture",
             "channel": 1,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "repeat",
               "vflip": "true",
               "srgb": "false",

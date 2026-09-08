@@ -26,7 +26,7 @@
             "ctype": "music",
             "channel": 0,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "clamp",
               "vflip": "false",
               "srgb": "false",
@@ -39,7 +39,7 @@
             "ctype": "texture",
             "channel": 1,
             "sampler": {
-              "filter": "linear",
+              "filter": "mipmap",
               "wrap": "repeat",
               "vflip": "true",
               "srgb": "false",
