@@ -89,7 +89,8 @@ class RawImageDecoder {
     final idatChunks = <Uint8List>[];
 
     while (offset + 8 <= bytes.length) {
-      final length = (bytes[offset] << 24) |
+      final length =
+          (bytes[offset] << 24) |
           (bytes[offset + 1] << 16) |
           (bytes[offset + 2] << 8) |
           bytes[offset + 3];
@@ -101,11 +102,13 @@ class RawImageDecoder {
 
       if (type == 'IHDR') {
         if (length < 13) return null;
-        width = (bytes[dataStart] << 24) |
+        width =
+            (bytes[dataStart] << 24) |
             (bytes[dataStart + 1] << 16) |
             (bytes[dataStart + 2] << 8) |
             bytes[dataStart + 3];
-        height = (bytes[dataStart + 4] << 24) |
+        height =
+            (bytes[dataStart + 4] << 24) |
             (bytes[dataStart + 5] << 16) |
             (bytes[dataStart + 6] << 8) |
             bytes[dataStart + 7];
@@ -179,9 +182,7 @@ class RawImageDecoder {
       final filterType = decompressed[inOffset++];
       for (int x = 0; x < scanlineStride; x++) {
         final val = decompressed[inOffset++];
-        final a = (x >= bpp)
-            ? uncompressedScanlines[outOffset + x - bpp]
-            : 0;
+        final a = (x >= bpp) ? uncompressedScanlines[outOffset + x - bpp] : 0;
         final b = (y > 0)
             ? uncompressedScanlines[outOffset - scanlineStride + x]
             : 0;
@@ -267,10 +268,6 @@ class RawImageDecoder {
       }
     }
 
-    return DecodedImageResult(
-      rgbaBytes: rgba,
-      width: width,
-      height: height,
-    );
+    return DecodedImageResult(rgbaBytes: rgba, width: width, height: height);
   }
 }
