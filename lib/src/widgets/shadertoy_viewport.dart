@@ -1,7 +1,10 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_scene/scene.dart';
 
+import '../channels/shader_channel.dart';
 import '../controller/shadertoy_controller.dart';
 
 /// An interactive viewport displaying the rendered output of a [ShaderToyController].
@@ -24,9 +27,31 @@ class ShaderToyViewport extends StatefulWidget {
 }
 
 class _ShaderToyViewportState extends State<ShaderToyViewport>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   Offset? _lastPointerPos;
   final FocusNode _focusNode = FocusNode();
+  final Map<WidgetChannel, Set<int>> _activePointers = {};
+
+  List<WidgetChannel> _getActiveWidgetChannels() {
+    final channels = <WidgetChannel>{};
+    for (final pass in widget.controller.project.passes) {
+      for (final ch in pass.channels) {
+        if (ch is WidgetChannel) {
+          channels.add(ch);
+        }
+      }
+    }
+    return channels.toList();
+  }
+
+  bool _hasKeyboardChannel() {
+    for (final pass in widget.controller.project.passes) {
+      for (final ch in pass.channels) {
+        if (ch is KeyboardChannel) return true;
+      }
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -43,10 +68,26 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
       widget.controller.attachTicker(this);
       widget.controller.renderSingleFrame();
     }
+    final active = _getActiveWidgetChannels().toSet();
+    _activePointers.removeWhere((channel, pointers) {
+      if (!active.contains(channel)) {
+        for (final p in pointers) {
+          channel.textureController.pointerCancel(pointer: p);
+        }
+        return true;
+      }
+      return false;
+    });
   }
 
   @override
   void dispose() {
+    for (final entry in _activePointers.entries) {
+      for (final pointer in entry.value) {
+        entry.key.textureController.pointerCancel(pointer: pointer);
+      }
+    }
+    _activePointers.clear();
     _focusNode.dispose();
     widget.controller.detachTicker(this);
     super.dispose();
@@ -88,11 +129,33 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
           });
         }
 
+        final widgetChannels = _getActiveWidgetChannels();
+
         return Stack(
           fit: StackFit.expand,
           children: [
             // Dark viewport background
             const ColoredBox(color: Color(0xFF0A0A0D)),
+
+            // Mount WidgetTexture for active WidgetChannels so Flutter
+            // updates and rasterizes them into GPU textures every frame.
+            for (final ch in widgetChannels)
+              Positioned(
+                left: 0,
+                top: 0,
+                width: ch.width,
+                height: ch.height,
+                child: ExcludeSemantics(
+                  child: WidgetTexture(
+                    controller: ch.textureController,
+                    width: ch.width,
+                    height: ch.height,
+                    pixelRatio: ch.pixelRatio,
+                    update: WidgetUpdatePolicy.everyFrame,
+                    child: ch.child,
+                  ),
+                ),
+              ),
 
             // 1. Shader Image Viewport & Pointer Listener (centered 16:9 canvas)
             Center(
@@ -101,30 +164,142 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
                 height: renderSize.height,
                 child: Focus(
                   focusNode: _focusNode,
-                  autofocus: true,
+                  autofocus: false,
                   onKeyEvent: (node, event) {
                     final handled = widget.controller.handleKeyEvent(event);
                     return handled
                         ? KeyEventResult.handled
                         : KeyEventResult.ignored;
                   },
-                  child: GestureDetector(
-                    onPanDown: (details) {
-                      if (!_focusNode.hasFocus) {
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (event) {
+                      final local = event.localPosition;
+                      _lastPointerPos = local;
+                      widget.controller.handlePointerDown(local);
+
+                      bool channelHit = false;
+                      final uv = Offset(
+                        renderSize.width > 0
+                            ? local.dx / renderSize.width
+                            : 0.0,
+                        renderSize.height > 0
+                            ? local.dy / renderSize.height
+                            : 0.0,
+                      );
+                      for (final ch in widgetChannels) {
+                        if (!ch.interactive) continue;
+                        final widgetUv = ch.mapViewportUvToWidgetUv(uv);
+                        if (ch.isUvInside(widgetUv)) {
+                          channelHit = true;
+                          _activePointers
+                              .putIfAbsent(ch, () => <int>{})
+                              .add(event.pointer);
+                          ch.textureController.pointerDown(
+                            widgetUv!,
+                            pointer: event.pointer,
+                          );
+                        }
+                      }
+
+                      if (!channelHit &&
+                          _hasKeyboardChannel() &&
+                          !_focusNode.hasFocus) {
                         _focusNode.requestFocus();
                       }
-                      _lastPointerPos = details.localPosition;
-                      widget.controller.handlePointerDown(details.localPosition);
                     },
-                    onPanUpdate: (details) {
-                      _lastPointerPos = details.localPosition;
-                      widget.controller.handlePointerMove(details.localPosition);
+                    onPointerMove: (event) {
+                      final local = event.localPosition;
+                      _lastPointerPos = local;
+                      widget.controller.handlePointerMove(local);
+
+                      final uv = Offset(
+                        renderSize.width > 0
+                            ? local.dx / renderSize.width
+                            : 0.0,
+                        renderSize.height > 0
+                            ? local.dy / renderSize.height
+                            : 0.0,
+                      );
+                      for (final ch in widgetChannels) {
+                        if (!ch.interactive) continue;
+                        if (_activePointers[ch]?.contains(event.pointer) ==
+                            true) {
+                          final widgetUv = ch.mapViewportUvToWidgetUv(uv);
+                          if (widgetUv != null) {
+                            ch.textureController.pointerMove(
+                              widgetUv,
+                              pointer: event.pointer,
+                            );
+                          }
+                        }
+                      }
                     },
-                    onPanEnd: (details) {
+                    onPointerUp: (event) {
+                      final local = event.localPosition;
+                      _lastPointerPos = local;
+                      widget.controller.handlePointerUp(local);
+
+                      final uv = Offset(
+                        renderSize.width > 0
+                            ? local.dx / renderSize.width
+                            : 0.0,
+                        renderSize.height > 0
+                            ? local.dy / renderSize.height
+                            : 0.0,
+                      );
+                      for (final ch in widgetChannels) {
+                        if (!ch.interactive) continue;
+                        if (_activePointers[ch]?.remove(event.pointer) ==
+                            true) {
+                          final widgetUv = ch.mapViewportUvToWidgetUv(uv);
+                          if (widgetUv != null) {
+                            ch.textureController.pointerUp(
+                              widgetUv,
+                              pointer: event.pointer,
+                            );
+                          } else {
+                            ch.textureController.pointerCancel(
+                              pointer: event.pointer,
+                            );
+                          }
+                        }
+                      }
+                    },
+                    onPointerCancel: (event) {
                       widget.controller.handlePointerUp(_lastPointerPos);
+                      for (final ch in widgetChannels) {
+                        if (!ch.interactive) continue;
+                        if (_activePointers[ch]?.remove(event.pointer) ==
+                            true) {
+                          ch.textureController.pointerCancel(
+                            pointer: event.pointer,
+                          );
+                        }
+                      }
                     },
-                    onPanCancel: () {
-                      widget.controller.handlePointerUp(_lastPointerPos);
+                    onPointerSignal: (signal) {
+                      if (signal is PointerScrollEvent) {
+                        final local = signal.localPosition;
+                        final uv = Offset(
+                          renderSize.width > 0
+                              ? local.dx / renderSize.width
+                              : 0.0,
+                          renderSize.height > 0
+                              ? local.dy / renderSize.height
+                              : 0.0,
+                        );
+                        for (final ch in widgetChannels) {
+                          if (!ch.interactive) continue;
+                          final widgetUv = ch.mapViewportUvToWidgetUv(uv);
+                          if (ch.isUvInside(widgetUv)) {
+                            ch.textureController.pointerScroll(
+                              widgetUv!,
+                              signal.scrollDelta,
+                            );
+                          }
+                        }
+                      }
                     },
                     child: AnimatedBuilder(
                       animation: widget.controller,

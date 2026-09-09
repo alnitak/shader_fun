@@ -89,6 +89,7 @@ Future<CompileResult> runImpellerCompile({
   String? customImpellercPath,
   String? rawUserGlsl,
   String? rawCommonGlsl,
+  Map<String, int>? customUniformSlots,
 }) async {
   final impellerc = customImpellercPath ?? ImpellerCompiler.findImpellerc();
   if (impellerc == null) {

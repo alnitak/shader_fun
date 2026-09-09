@@ -1,4 +1,4 @@
-import 'package:example/shadertoy_studio.dart';
+import 'package:example/studio_example/shadertoy_studio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,11 +8,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: ShaderToyStudio(),
-      ),
-    );
+    await tester.pumpWidget(const MaterialApp(home: ShaderToyStudio()));
 
     // Pump frames to initialize and compile
     await tester.pump();

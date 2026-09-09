@@ -35,6 +35,7 @@ A high-performance Flutter package for running, writing, and experimenting with 
   - Automatic double-buffering (ping-pong) enabling self-referential feedback loops (e.g. fluid simulations, game of life, iterative raymarching, smoke & erosion).
   - Upstream buffer passes can be piped into any downstream pass channel.
 - **Dynamic Channel Types (`iChannel0` .. `iChannel3`)**:
+  - **Live Interactive Widgets (`WidgetChannel`)**: Rasterize any Flutter widget subtree into a live GPU texture (`sampler2D`) on every frame with zero frame delay. Supports full bidirectional gestures (taps, drags, mouse scrolls, keyboard typing in `TextField`s). Offers `autoRender = true` (automatic placement via horizontal and vertical percentiles) and `autoRender = false` (raw sampling for custom GLSL effects, distortions, and page transitions).
   - **2D Textures**: Load PNG/JPEG images from assets or files with configurable filter options (nearest, linear, mipmap), address modes (clamp, repeat, mirror), and vertical flip (`vflip`).
   - **Audio Files**: Stream local audio files or assets via `flutter_soloud`, providing real-time 512x2 audio textures (row 0: FFT frequency spectrum, row 1: time-domain waveform).
   - **Microphone Audio**: Capture live microphone input via `flutter_recorder` and feed real-time voice/music spectrum and waveform data into the shader.
@@ -232,6 +233,18 @@ pass.channels[3] = BufferChannel(
   bufferType: PassType.bufferA,
 );
 
+// 5. Live Interactive Flutter Widget
+pass.channels[0] = WidgetChannel(
+  width: 500,
+  height: 380,
+  pixelRatio: 2.0,
+  autoRender: true, // Automatically bounds widget within percentiles
+  horizontalPercentile: (0.1, 0.9), // Normalized coordinates [0.0, 1.0]
+  verticalPercentile: (0.05, 0.95),
+  interactive: true, // Forwards taps, drags, mouse wheel, and keyboard
+  child: MyInteractiveWidget(),
+);
+
 await controller.loadProject(project);
 ```
 
@@ -241,7 +254,7 @@ In your GLSL code:
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
 
-    // Sample 2D image texture from iChannel0:
+    // Sample 2D image texture or live Flutter widget from iChannel0:
     vec4 imageColor = texture(iChannel0, uv);
 
     // Sample audio spectrum from iChannel1 (x: frequency, y: 0.25 = FFT, 0.75 = Waveform):
@@ -252,11 +265,50 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 }
 ```
 
+### 4. Custom Uniforms (`setUniform`)
+
+You can declare custom GLSL uniforms in your shaders and update them dynamically from Dart with **zero recompilation overhead**—perfect for 60/120 FPS animations, page transitions, sliders, and interactive UI state:
+
+1. **Declare uniforms in your shader** using standard GLSL syntax:
+```glsl
+uniform float progress;
+uniform vec2 focusPoint;
+uniform vec4 glowColor;
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = fragCoord / iResolution.xy;
+    vec4 scene = texture(iChannel0, uv);
+    fragColor = mix(scene, glowColor, progress);
+}
+```
+
+2. **Set uniform values dynamically via `ShaderToyController`**:
+```dart
+// Supports double/num (float/int), Offset/Size (vec2), Color (vec4), and List<num>:
+controller.setUniform('progress', animation.value);
+controller.setUniform('focusPoint', const Offset(0.5, 0.5));
+controller.setUniform('glowColor', Colors.cyanAccent);
+```
+
+- **Zero recompilation**: Updates the GPU uniform buffer directly every frame without recompiling the shader bundle.
+- **Auto-repaint**: If playback is paused, calling `controller.setUniform(...)` automatically renders a single frame so changes are reflected on screen immediately.
+- **Cross-platform**: Supported seamlessly across native Impeller (macOS, iOS, Android) and WebGL2 (Web).
+
+#### Capacity & GPU Memory Pagination
+
+- **Default Capacity**: By default, `ShaderToyUniforms.maxCustomUniformSlots = 16` generic `vec4` registers (64 floats = 256 bytes) are reserved for custom uniforms.
+- **Hardware Alignment & Pagination**: Sizing the custom uniform space to 256 bytes aligns with standard GPU driver suballocation pagination (for example, `minUniformBufferOffsetAlignment` on Vulkan and Metal is typically 256 bytes). Even allocating a single 4-byte float still consumes a 256B/4KB physical page in GPU VRAM.
+- **Single-Step Scaling**: If your project requires more custom uniforms, updating `ShaderToyUniforms.maxCustomUniformSlots` (e.g. to `32` or `64`) is the **only step required**. All GLSL wrappers, native Impeller buffers, WebGL reflection structs, and `ShaderToyUniforms.totalUniformBufferSize` dynamically scale together automatically without any code changes across renderers or compilers.
+
 ---
 
-## Shadertoy Studio (Example Application)
+## Example Applications
 
-The package includes an in-depth interactive editor located in `example/lib/shadertoy_studio.dart`:
+The package includes two feature-packed example applications in the `example` folder:
+
+### 1. Shadertoy Studio (`example/lib/studio_example/main.dart`)
+
+An in-depth interactive GLSL workstation and IDE:
 
 - **Live Code Editor**: Write and edit GLSL shaders in real time with immediate compilation and hot reloading.
 - **Diagnostics Panel**: Compiler syntax errors with exact source lines are surfaced whenever compilation fails.
@@ -267,11 +319,27 @@ The package includes an in-depth interactive editor located in `example/lib/shad
   - *Mouse Paint Eroded Mountains* (multi-pass ping-pong terrain simulation)
   - *Dancing Flutter* (multi-pass audio-reactive visualizer)
 
-To run the example app:
+To run the studio app:
 
 ```bash
 cd example
-flutter run -d macos    # or windows, linux, chrome
+flutter run -t lib/studio_example/main.dart
+```
+
+### 2. Interactive Widget Showcase (`example/lib/widget_example/main.dart`)
+
+A dedicated showcase demonstrating live `WidgetChannel` rasterization and gesture forwarding across 4 interactive scenarios:
+
+- **Exploding Button**: Demonstrates `autoRender = true` bounded to `[0.3, 0.7]` x `[0.45, 0.55]`. Clicking the Flutter button triggers a cellular fragment shatter explosion, shockwave blast, and sparks.
+- **Liquid ListView**: Demonstrates interactive scrolling, counters, and switches rendered into a live GPU texture under refractive water caustics and mouse-following ripple waves.
+- **Retro CRT Terminal**: Demonstrates live keyboard typing and focus inside Flutter `TextField`s through CRT barrel curvature distortion, phosphor bloom, and scanlines.
+- **Digital Glitch Transition**: Demonstrates `autoRender = false` for seamless widget-to-widget page transitions driven by manual arrow navigation between Page A and Page B with glowing digital glitch wipe distortion.
+
+To run the widget showcase:
+
+```bash
+cd example
+flutter run -t lib/widget_example/main.dart
 ```
 
 ---

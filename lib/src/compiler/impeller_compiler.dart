@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../core/shadertoy_uniforms.dart';
 import 'compile_process.dart';
 
 /// Result of an `impellerc` shader compilation.
@@ -15,6 +16,19 @@ class CompileResult {
   final bool isSuccess;
   final Uint8List? bundleBytes;
   final String? errorMessage;
+}
+
+/// Represents a user-declared or injected custom uniform mapping.
+class CustomUniformDeclaration {
+  const CustomUniformDeclaration({
+    required this.name,
+    required this.type,
+    required this.slot,
+  });
+
+  final String name;
+  final String type; // 'float', 'int', 'vec2', 'vec3', 'vec4'
+  final int slot;
 }
 
 /// Compiler service that wraps Shadertoy GLSL code into modern Vulkan GLSL 4.60,
@@ -43,14 +57,77 @@ void main() {
     return RegExp('\\biChannel$channelIndex\\b').hasMatch(clean);
   }
 
+  static final _customUniformRegex = RegExp(
+    r'^\s*uniform\s+(float|int|vec2|vec3|vec4)\s+([a-zA-Z0-9_]+)\s*;',
+    multiLine: true,
+  );
+
+  static const _builtInUniformNames = {
+    'iResolution',
+    'iTime',
+    'iTimeDelta',
+    'iFrameRate',
+    'iFrame',
+    'iMouse',
+    'iDate',
+    'iSampleRate',
+    'iChannelResolution',
+    'iChannelTime',
+    'iChannel0',
+    'iChannel1',
+    'iChannel2',
+    'iChannel3',
+  };
+
+  /// Extracts user-declared custom uniforms from GLSL code.
+  /// Looks for top-level `uniform <type> <name>;` lines where type is
+  /// `float`, `int`, `vec2`, `vec3`, or `vec4`.
+  static List<CustomUniformDeclaration> extractCustomUniforms(
+    String glsl, {
+    Map<String, int>? existingSlots,
+  }) {
+    final uniforms = <CustomUniformDeclaration>[];
+    final assignedSlots = <int>{...?existingSlots?.values};
+    final seen = <String>{};
+
+    int getNextSlot(String name) {
+      if (existingSlots != null && existingSlots.containsKey(name)) {
+        return existingSlots[name]!;
+      }
+      for (int i = 0; i < ShaderToyUniforms.maxCustomUniformSlots; i++) {
+        if (!assignedSlots.contains(i)) {
+          assignedSlots.add(i);
+          return i;
+        }
+      }
+      return 0;
+    }
+
+    for (final match in _customUniformRegex.allMatches(glsl)) {
+      final type = match.group(1)!;
+      final name = match.group(2)!;
+      if (_builtInUniformNames.contains(name) || seen.contains(name)) {
+        continue;
+      }
+      seen.add(name);
+      final slot = getNextSlot(name);
+      uniforms.add(
+        CustomUniformDeclaration(name: name, type: type, slot: slot),
+      );
+    }
+    return uniforms;
+  }
+
   /// Wraps user Shadertoy GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
-  /// Wraps user-provided Shadertoy GLSL code with Flutter GPU (Impeller) compatible
-  /// uniforms (std140 FrameInfo uniform block at set 0, binding 0), optional
-  /// samplers, macros, and standard main() entry point.
+  /// optional samplers, macros, and standard main() entry point.
   /// If [commonGlsl] is provided, it is prepended so shared functions/structs
   /// are accessible to the pass.
   /// Uses `#line 1` so compiler error lines match the user's source lines.
-  static String wrapShadertoyGlsl(String userGlsl, {String? commonGlsl}) {
+  static String wrapShadertoyGlsl(
+    String userGlsl, {
+    String? commonGlsl,
+    Map<String, int>? customUniformSlots,
+  }) {
     final sb = StringBuffer();
     sb.writeln('''#version 460 core
 
@@ -64,12 +141,61 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     vec4 iDate;
     float iSampleRate;
     vec3 iChannelResolution[4];
+    // ${ShaderToyUniforms.maxCustomUniformSlots} vec4 registers = ${ShaderToyUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
+    // Total FrameInfo buffer size: ${ShaderToyUniforms.totalUniformBufferSize} bytes.
+    // Controlled globally via [ShaderToyUniforms.maxCustomUniformSlots] and [ShaderToyUniforms.totalUniformBufferSize].
+    vec4 iCustom[${ShaderToyUniforms.maxCustomUniformSlots}];
 };
 ''');
 
     final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
         ? '$commonGlsl\n$userGlsl'
         : userGlsl;
+
+    final declaredCustoms = extractCustomUniforms(
+      codeForChannels,
+      existingSlots: customUniformSlots,
+    );
+
+    final handledNames = <String>{};
+    for (final u in declaredCustoms) {
+      handledNames.add(u.name);
+      switch (u.type) {
+        case 'float':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].x)');
+        case 'int':
+          sb.writeln('#define ${u.name} (int(iCustom[${u.slot}].x))');
+        case 'vec2':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xy)');
+        case 'vec3':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xyz)');
+        case 'vec4':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}])');
+      }
+    }
+
+    if (customUniformSlots != null) {
+      for (final entry in customUniformSlots.entries) {
+        if (!handledNames.contains(entry.key) &&
+            !_builtInUniformNames.contains(entry.key)) {
+          sb.writeln('#define ${entry.key} (iCustom[${entry.value}].x)');
+        }
+      }
+    }
+
+    String sanitizeUniforms(String code) {
+      return code.replaceAllMapped(_customUniformRegex, (m) {
+        final name = m.group(2)!;
+        if (_builtInUniformNames.contains(name)) {
+          return m.group(0)!;
+        }
+        return '// ${m.group(0)}';
+      });
+    }
+
+    final sanitizedUserGlsl = sanitizeUniforms(userGlsl);
+    final sanitizedCommonGlsl =
+        commonGlsl != null ? sanitizeUniforms(commonGlsl) : null;
 
     final declaredChannels = <int>[];
     for (int i = 0; i < 4; i++) {
@@ -124,14 +250,14 @@ vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
 #define pow st_pow
 ''');
 
-    if (commonGlsl != null && commonGlsl.trim().isNotEmpty) {
+    if (sanitizedCommonGlsl != null && sanitizedCommonGlsl.trim().isNotEmpty) {
       sb.writeln('// Common Tab source');
-      sb.writeln(commonGlsl);
+      sb.writeln(sanitizedCommonGlsl);
       sb.writeln();
     }
 
     sb.writeln('''#line 1
-$userGlsl
+$sanitizedUserGlsl
 
 void main() {
     vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
@@ -163,10 +289,15 @@ void main() {
     required String shadertoyGlsl,
     String? commonGlsl,
     String? customImpellercPath,
+    Map<String, int>? customUniformSlots,
   }) {
     return runImpellerCompile(
       quadVertexShader: quadVertexShader,
-      wrappedFragGlsl: wrapShadertoyGlsl(shadertoyGlsl, commonGlsl: commonGlsl),
+      wrappedFragGlsl: wrapShadertoyGlsl(
+        shadertoyGlsl,
+        commonGlsl: commonGlsl,
+        customUniformSlots: customUniformSlots,
+      ),
       customImpellercPath: customImpellercPath,
       rawUserGlsl: shadertoyGlsl,
       rawCommonGlsl: commonGlsl,

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 // ignore: implementation_imports
 import 'package:flutter_scene/src/gpu/web/shader_bundle_generated.dart' as sbg;
 import 'package:flat_buffers/flat_buffers.dart' as fb;
+import '../core/shadertoy_uniforms.dart';
 import '../gpu/gpu.dart' as gpu;
 
 import 'impeller_compiler.dart';
@@ -28,6 +29,7 @@ String _wrapShadertoyGlslWeb({
   required String userGlsl,
   String? commonGlsl,
   required List<int> declaredChannels,
+  Map<String, int>? customUniformSlots,
 }) {
   final sb = StringBuffer();
   sb.writeln('''#version 300 es
@@ -44,8 +46,60 @@ layout(std140) uniform FrameInfo {
     vec4 iDate;
     float iSampleRate;
     vec3 iChannelResolution[4];
+    // ${ShaderToyUniforms.maxCustomUniformSlots} vec4 registers = ${ShaderToyUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
+    // Total FrameInfo buffer size: ${ShaderToyUniforms.totalUniformBufferSize} bytes.
+    vec4 iCustom[${ShaderToyUniforms.maxCustomUniformSlots}];
 };
 ''');
+
+  final codeForUniforms =
+      (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+          ? '$commonGlsl\n$userGlsl'
+          : userGlsl;
+
+  final declaredCustoms = ImpellerCompiler.extractCustomUniforms(
+    codeForUniforms,
+    existingSlots: customUniformSlots,
+  );
+
+  final handledNames = <String>{};
+  for (final u in declaredCustoms) {
+    handledNames.add(u.name);
+    switch (u.type) {
+      case 'float':
+        sb.writeln('#define ${u.name} (iCustom[${u.slot}].x)');
+      case 'int':
+        sb.writeln('#define ${u.name} (int(iCustom[${u.slot}].x))');
+      case 'vec2':
+        sb.writeln('#define ${u.name} (iCustom[${u.slot}].xy)');
+      case 'vec3':
+        sb.writeln('#define ${u.name} (iCustom[${u.slot}].xyz)');
+      case 'vec4':
+        sb.writeln('#define ${u.name} (iCustom[${u.slot}])');
+    }
+  }
+
+  if (customUniformSlots != null) {
+    for (final entry in customUniformSlots.entries) {
+      if (!handledNames.contains(entry.key)) {
+        sb.writeln('#define ${entry.key} (iCustom[${entry.value}].x)');
+      }
+    }
+  }
+
+  String sanitizeUniforms(String code) {
+    return code.replaceAllMapped(
+      RegExp(
+        r'^\s*uniform\s+(float|int|vec2|vec3|vec4)\s+([a-zA-Z0-9_]+)\s*;',
+        multiLine: true,
+      ),
+      (m) => '// ${m.group(0)}',
+    );
+  }
+
+  final sanitizedUserGlsl = sanitizeUniforms(userGlsl);
+  final sanitizedCommonGlsl =
+      commonGlsl != null ? sanitizeUniforms(commonGlsl) : null;
 
   for (final ch in declaredChannels) {
     sb.writeln('uniform highp sampler2D iChannel$ch;');
@@ -91,14 +145,14 @@ vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
 #define pow st_pow
 ''');
 
-  if (commonGlsl != null && commonGlsl.trim().isNotEmpty) {
+  if (sanitizedCommonGlsl != null && sanitizedCommonGlsl.trim().isNotEmpty) {
     sb.writeln('// Common Tab source');
-    sb.writeln(commonGlsl);
+    sb.writeln(sanitizedCommonGlsl);
     sb.writeln();
   }
 
   sb.writeln('''#line 1
-$userGlsl
+$sanitizedUserGlsl
 
 void main() {
     vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
@@ -227,12 +281,21 @@ Uint8List _buildWebShaderBundle({
       totalSizeInBytes: 64,
       type: sbg.UniformDataType.kFloat,
     ),
+    sbg.ShaderUniformStructFieldObjectBuilder(
+      name: 'iCustom',
+      offsetInBytes: ShaderToyUniforms.standardUniformsSizeBytes,
+      vecSize: 4,
+      columns: 1,
+      arrayElements: ShaderToyUniforms.maxCustomUniformSlots,
+      totalSizeInBytes: ShaderToyUniforms.customUniformsSizeBytes,
+      type: sbg.UniformDataType.kFloat,
+    ),
   ];
 
   final uniformStructs = [
     sbg.ShaderUniformStructObjectBuilder(
       name: 'FrameInfo',
-      sizeInBytes: 144,
+      sizeInBytes: ShaderToyUniforms.totalUniformBufferSize,
       fields: frameInfoFields,
     ),
   ];
@@ -307,6 +370,7 @@ Future<CompileResult> runImpellerCompile({
   String? customImpellercPath,
   String? rawUserGlsl,
   String? rawCommonGlsl,
+  Map<String, int>? customUniformSlots,
 }) async {
   try {
     final userCode = rawUserGlsl ?? wrappedFragGlsl;
@@ -325,6 +389,7 @@ Future<CompileResult> runImpellerCompile({
       userGlsl: userCode,
       commonGlsl: rawCommonGlsl,
       declaredChannels: declaredChannels,
+      customUniformSlots: customUniformSlots,
     );
 
     final bundleBytes = _buildWebShaderBundle(

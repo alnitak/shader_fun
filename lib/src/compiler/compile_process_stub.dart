@@ -6,6 +6,7 @@ Future<CompileResult> runImpellerCompile({
   String? customImpellercPath,
   String? rawUserGlsl,
   String? rawCommonGlsl,
+  Map<String, int>? customUniformSlots,
 }) async {
   return const CompileResult.error(
     'Runtime shader compilation is not supported on this platform. '

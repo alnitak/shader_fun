@@ -477,6 +477,8 @@ class FlutterGpuRenderer {
         texToBind = _keyboardTexture ?? fallbackTex;
       } else if (channel is TextureChannel && _textureChannels.containsKey(i)) {
         texToBind = _textureChannels[i];
+      } else if (channel is WidgetChannel) {
+        texToBind = channel.textureController.texture ?? fallbackTex;
       } else {
         texToBind = fallbackTex;
       }
@@ -552,7 +554,7 @@ class FlutterGpuRenderer {
     required double targetHeight,
     required ShaderPass pass,
   }) {
-    final uniformByteData = ByteData(144);
+    final uniformByteData = ByteData(ShaderToyUniforms.totalUniformBufferSize);
     uniformByteData.setFloat32(0, targetWidth, Endian.host);
     uniformByteData.setFloat32(4, targetHeight, Endian.host);
     uniformByteData.setFloat32(8, 1.0, Endian.host); // aspect ratio
@@ -596,6 +598,20 @@ class FlutterGpuRenderer {
         Endian.host,
       );
       uniformByteData.setFloat32(offset + 12, 0.0, Endian.host);
+    }
+
+    // 144..(ShaderToyUniforms.totalUniformBufferSize - 1): vec4 iCustom[...]
+    // Sized to match GPU memory allocators and driver uniform pagination
+    // (typically minUniformBufferOffsetAlignment is 256 bytes in Vulkan and Metal).
+    // If more registers are needed, update [ShaderToyUniforms.maxCustomUniformSlots];
+    // this allocation dynamically scales to match [ShaderToyUniforms.totalUniformBufferSize].
+    final customFloats = uniforms.customData;
+    for (int i = 0; i < customFloats.length; i++) {
+      uniformByteData.setFloat32(
+        ShaderToyUniforms.standardUniformsSizeBytes + i * 4,
+        customFloats[i],
+        Endian.host,
+      );
     }
 
     return uniformByteData;
@@ -714,7 +730,7 @@ class FlutterGpuRenderer {
               gpu.BufferView(
                 passUniformDeviceBuffer,
                 offsetInBytes: 0,
-                lengthInBytes: 144,
+                lengthInBytes: passUniformDeviceBuffer.sizeInBytes,
               ),
             );
           }
@@ -807,7 +823,7 @@ class FlutterGpuRenderer {
             gpu.BufferView(
               presentationUniformDeviceBuffer,
               offsetInBytes: 0,
-              lengthInBytes: 144,
+              lengthInBytes: presentationUniformDeviceBuffer.sizeInBytes,
             ),
           );
         }

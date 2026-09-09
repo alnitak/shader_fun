@@ -15,3 +15,5 @@ export 'src/widgets/shadertoy_viewport.dart';
 
 export 'package:flutter_soloud/flutter_soloud.dart';
 export 'package:listen/listen.dart';
+export 'package:flutter_scene/scene.dart'
+    show WidgetTexture, WidgetTextureController, WidgetUpdatePolicy;

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/shader_fun.dart';
 // ignore: avoid_relative_lib_imports
-import '../example/lib/studio/dialogs/channel_setup_dialog.dart';
+import '../example/lib/studio_example/dialogs/channel_setup_dialog.dart';
 
 void main() {
   test('ShaderChannel and TextureChannel default to ChannelFilter.mipmap', () {

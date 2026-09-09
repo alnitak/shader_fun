@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 // ignore: implementation_imports
 import 'package:flutter_scene/src/gpu/web/shader_bundle_generated.dart' as sbg;
+import 'package:shader_fun/shader_fun.dart';
 import 'package:shader_fun/src/compiler/compile_process_web.dart';
 
 void main() {
@@ -44,8 +45,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     expect(frag.openglEs!.uniformStructs?.length, 1);
     final frameInfo = frag.openglEs!.uniformStructs!.first;
     expect(frameInfo.name, 'FrameInfo');
-    expect(frameInfo.sizeInBytes, 144);
-    expect(frameInfo.fields?.length, 9);
+    expect(frameInfo.sizeInBytes, ShaderToyUniforms.totalUniformBufferSize);
+    expect(frameInfo.fields?.length, 10);
 
     // Channel textures
     expect(frag.openglEs!.uniformTextures?.length, 1);

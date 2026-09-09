@@ -19,10 +19,15 @@ class ShaderToyUniforms {
     this.sampleRate = 44100.0,
     List<double>? channelTime,
     List<Size>? channelResolution,
+    Map<String, Object>? customUniforms,
   })  : channelTime = channelTime ?? List<double>.filled(4, 0.0),
         channelResolution = channelResolution ??
             List<Size>.filled(4, const Size(512, 512)),
-        date = date ?? DateTime.now();
+        date = date ?? DateTime.now() {
+    if (customUniforms != null) {
+      customUniforms.forEach(setCustomUniform);
+    }
+  }
 
   /// Viewport resolution in pixels (`iResolution`).
   ///
@@ -189,6 +194,125 @@ class ShaderToyUniforms {
 
     return data;
   }
+
+  /// Standard ShaderToy uniform block size in bytes (iResolution, iTime, etc.).
+  static const int standardUniformsSizeBytes = 144;
+
+  /// Maximum number of generic vec4 custom uniform registers (16 vec4s = 64 floats = 256 bytes by default).
+  ///
+  /// Note: Sizing the custom uniform pool aligns with typical GPU hardware memory
+  /// allocators and driver suballocation pagination (e.g. `minUniformBufferOffsetAlignment`
+  /// in Vulkan and Metal is typically 256 bytes). Even allocating a single 4-byte float still consumes
+  /// a 256B/4KB physical page in GPU VRAM.
+  ///
+  /// To increase the custom uniforms capacity across the entire engine, updating this single
+  /// [maxCustomUniformSlots] constant (e.g. to 32) is the **only** required step. All GLSL wrappers,
+  /// GPU byte buffers, and WebGL reflection structures will automatically scale to match
+  /// [totalUniformBufferSize].
+  static const int maxCustomUniformSlots = 16;
+
+  /// Byte size reserved for custom uniforms (16 bytes per vec4 register).
+  static const int customUniformsSizeBytes = maxCustomUniformSlots * 16;
+
+  /// Total uniform buffer size in bytes uploaded to the GPU [FrameInfo] block
+  /// ([standardUniformsSizeBytes] + [customUniformsSizeBytes]).
+  ///
+  /// Referenced across native Impeller and WebGL pipelines to allocate and bind
+  /// uniform byte buffers matching GPU memory alignment and pagination constraints.
+  static const int totalUniformBufferSize =
+      standardUniformsSizeBytes + customUniformsSizeBytes;
+
+  /// Flattened raw float data for custom uniforms ([maxCustomUniformSlots] vec4 registers * 4 floats).
+  final Float32List customData = Float32List(maxCustomUniformSlots * 4);
+
+  final Map<String, int> _customSlots = {};
+  final Map<String, Object> _customValues = {};
+
+  /// Read-only map of assigned uniform slot indices (0..[maxCustomUniformSlots] - 1).
+  Map<String, int> get customSlots => Map.unmodifiable(_customSlots);
+
+  /// Read-only map of user-assigned custom uniform values.
+  Map<String, Object> get customValues => Map.unmodifiable(_customValues);
+
+  /// Explicitly registers or overrides a slot index (0..[maxCustomUniformSlots] - 1) for a uniform [name].
+  void registerCustomUniformSlot(String name, int slot) {
+    if (slot < 0 || slot >= maxCustomUniformSlots) {
+      throw ArgumentError(
+        'Custom uniform slot must be between 0 and ${maxCustomUniformSlots - 1}, got $slot',
+      );
+    }
+    _customSlots[name] = slot;
+  }
+
+  /// Retrieves the slot index for [name], or dynamically assigns the lowest available slot.
+  int getOrAssignSlot(String name) {
+    if (_customSlots.containsKey(name)) {
+      return _customSlots[name]!;
+    }
+    for (int i = 0; i < maxCustomUniformSlots; i++) {
+      if (!_customSlots.values.contains(i)) {
+        _customSlots[name] = i;
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  /// Sets a custom uniform [value] by [name].
+  ///
+  /// Up to [maxCustomUniformSlots] `vec4` slots are available within the GPU
+  /// uniform buffer of [totalUniformBufferSize] bytes.
+  ///
+  /// Automatically maps Dart/Flutter types to GLSL vectors:
+  /// - [num] / [double] / [int]: 1 float (component `.x`)
+  /// - [Offset] / [Size]: 2 floats (components `.xy`)
+  /// - [Color]: 4 floats normalized 0.0..1.0 (components `.xyzw`)
+  /// - [List<num>]: 1 to 4 floats depending on list length
+  void setCustomUniform(String name, Object value) {
+    final slot = getOrAssignSlot(name);
+    _customValues[name] = value;
+    final offset = slot * 4;
+
+    switch (value) {
+      case double v:
+        customData[offset] = v;
+        customData[offset + 1] = 0.0;
+        customData[offset + 2] = 0.0;
+        customData[offset + 3] = 0.0;
+      case int v:
+        customData[offset] = v.toDouble();
+        customData[offset + 1] = 0.0;
+        customData[offset + 2] = 0.0;
+        customData[offset + 3] = 0.0;
+      case Offset v:
+        customData[offset] = v.dx;
+        customData[offset + 1] = v.dy;
+        customData[offset + 2] = 0.0;
+        customData[offset + 3] = 0.0;
+      case Size v:
+        customData[offset] = v.width;
+        customData[offset + 1] = v.height;
+        customData[offset + 2] = 0.0;
+        customData[offset + 3] = 0.0;
+      case Color v:
+        customData[offset] = v.r;
+        customData[offset + 1] = v.g;
+        customData[offset + 2] = v.b;
+        customData[offset + 3] = v.a;
+      case List<num> v:
+        customData[offset] = v.isNotEmpty ? v[0].toDouble() : 0.0;
+        customData[offset + 1] = v.length > 1 ? v[1].toDouble() : 0.0;
+        customData[offset + 2] = v.length > 2 ? v[2].toDouble() : 0.0;
+        customData[offset + 3] = v.length > 3 ? v[3].toDouble() : 0.0;
+      default:
+        throw ArgumentError(
+          'Unsupported uniform value type for "$name": ${value.runtimeType}',
+        );
+    }
+  }
+
+  /// Gets the currently assigned value for custom uniform [name], if any.
+  Object? getCustomUniform(String name) => _customValues[name];
 }
 
 /// 4-component vector used for ShaderToy's `iMouse` (xyzw in pixel coordinates).

@@ -2,27 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shader_fun/shader_fun.dart';
 
-import 'studio/dialogs/channel_picker_modal.dart';
-import 'studio/dialogs/channel_setup_dialog.dart';
-import 'studio/dialogs/load_shader_dialog.dart';
-import 'studio/dialogs/save_shader_dialog.dart';
-import 'studio/widgets/channel_bar.dart';
-import 'studio/widgets/pass_tabs_bar.dart';
-import 'studio/widgets/shader_inputs_drawer.dart';
-import 'studio/widgets/studio_app_bar.dart';
-import 'studio/widgets/studio_code_editor.dart';
+import 'dialogs/channel_picker_modal.dart';
+import 'dialogs/channel_setup_dialog.dart';
+import 'dialogs/load_shader_dialog.dart';
+import 'dialogs/save_shader_dialog.dart';
+import 'widgets/channel_bar.dart';
+import 'widgets/pass_tabs_bar.dart';
+import 'widgets/shader_inputs_drawer.dart';
+import 'widgets/studio_app_bar.dart';
+import 'widgets/studio_code_editor.dart';
 
-export 'studio/dialogs/channel_picker_modal.dart';
-export 'studio/dialogs/channel_setup_dialog.dart';
-export 'studio/dialogs/load_shader_dialog.dart';
-export 'studio/dialogs/save_shader_dialog.dart';
-export 'studio/models/channel_assets.dart';
-export 'studio/widgets/channel_bar.dart';
-export 'studio/widgets/channel_slot_tile.dart';
-export 'studio/widgets/pass_tabs_bar.dart';
-export 'studio/widgets/shader_inputs_drawer.dart';
-export 'studio/widgets/studio_app_bar.dart';
-export 'studio/widgets/studio_code_editor.dart';
+export 'dialogs/channel_picker_modal.dart';
+export 'dialogs/channel_setup_dialog.dart';
+export 'dialogs/load_shader_dialog.dart';
+export 'dialogs/save_shader_dialog.dart';
+export 'models/channel_assets.dart';
+export 'widgets/channel_bar.dart';
+export 'widgets/channel_slot_tile.dart';
+export 'widgets/pass_tabs_bar.dart';
+export 'widgets/shader_inputs_drawer.dart';
+export 'widgets/studio_app_bar.dart';
+export 'widgets/studio_code_editor.dart';
 
 /// Complete ShaderToy Studio interface mimicking the official ShaderToy web experience.
 class ShaderToyStudio extends StatefulWidget {

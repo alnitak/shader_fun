@@ -148,9 +148,18 @@ class ShaderToyController
       for (final pass in visualPasses) {
         if (pass.code.trim().isEmpty) continue;
 
+        final declaredUniforms = ImpellerCompiler.extractCustomUniforms(
+          pass.code,
+          existingSlots: _uniforms.customSlots,
+        );
+        for (final u in declaredUniforms) {
+          _uniforms.registerCustomUniformSlot(u.name, u.slot);
+        }
+
         final result = await ImpellerCompiler.compile(
           shadertoyGlsl: pass.code,
           commonGlsl: commonCode,
+          customUniformSlots: _uniforms.customSlots,
         );
         if (!result.isSuccess) {
           lastErrorNotifier.value =
@@ -189,13 +198,12 @@ class ShaderToyController
     }
   }
 
-  /// Compiles an individual visual pass with optional common code prepended.
+  /// Compiles an individual [ShaderPass] without recompiling unaffected passes.
+  /// If [codeOverride] is specified, it compiles that code and updates [pass.code].
   Future<bool> compilePass(ShaderPass? pass, {String? codeOverride}) async {
-    final targetPass = pass ?? _project.imagePass;
-    final codeToCompile = codeOverride ?? targetPass?.code ?? '';
-    if (codeToCompile.trim().isEmpty) {
-      lastErrorNotifier.value = 'Shader code is empty';
-      notifyListeners();
+    final targetPass = pass ?? activePass;
+    final codeToCompile = codeOverride ?? targetPass?.code;
+    if (codeToCompile == null || codeToCompile.trim().isEmpty) {
       return false;
     }
 
@@ -207,9 +215,18 @@ class ShaderToyController
           ? _project.commonPass?.code
           : null;
 
+      final declaredUniforms = ImpellerCompiler.extractCustomUniforms(
+        codeToCompile,
+        existingSlots: _uniforms.customSlots,
+      );
+      for (final u in declaredUniforms) {
+        _uniforms.registerCustomUniformSlot(u.name, u.slot);
+      }
+
       final result = await ImpellerCompiler.compile(
         shadertoyGlsl: codeToCompile,
         commonGlsl: commonCode,
+        customUniformSlots: _uniforms.customSlots,
       );
       if (!result.isSuccess) {
         lastErrorNotifier.value =
@@ -250,6 +267,41 @@ class ShaderToyController
       notifyListeners();
     }
   }
+
+  // ===========================================================================
+  // Custom Uniforms Management
+  // ===========================================================================
+
+  /// Sets a custom uniform value by [name].
+  ///
+  /// Supports:
+  /// - [num] / [double] / [int] (maps to GLSL `float` or `int`)
+  /// - [ui.Offset] / [ui.Size] (maps to GLSL `vec2`)
+  /// - [ui.Color] (maps to GLSL `vec4`, normalized 0.0..1.0)
+  /// - [List<num>] (length 1..4 maps to `float`, `vec2`, `vec3`, `vec4`)
+  ///
+  /// Up to [ShaderToyUniforms.maxCustomUniformSlots] `vec4` uniform registers
+  /// ([ShaderToyUniforms.customUniformsSizeBytes] bytes total) are available by default.
+  /// This pool is sized to align with typical GPU driver pagination and offset boundaries
+  /// (`minUniformBufferOffsetAlignment` in Vulkan and Metal is typically 256 bytes).
+  /// If a project requires more uniform bytes, simply update [ShaderToyUniforms.maxCustomUniformSlots]
+  /// (for example to 32); all GLSL wrappers, GPU buffers, and WebGL structures automatically scale
+  /// to match [ShaderToyUniforms.totalUniformBufferSize].
+  ///
+  /// If playback is currently paused or inactive, a single frame is
+  /// rendered to reflect the updated uniform immediately.
+  void setUniform(String name, Object value) {
+    _uniforms.setCustomUniform(name, value);
+    if (!isPlaying) {
+      renderSingleFrame();
+    }
+  }
+
+  /// Retrieves the current value of a custom uniform by [name], if set.
+  Object? getUniform(String name) => _uniforms.getCustomUniform(name);
+
+  /// Map of all current custom uniform values.
+  Map<String, Object> get customUniforms => _uniforms.customValues;
 
   // ===========================================================================
   // Shader Source & Settings Management
