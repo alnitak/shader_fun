@@ -16,6 +16,7 @@ dependencies:
     path: ../flutter_recorder
   flutter_soloud: # ^5.0.2
     path: ../flutter_soloud
+  image: 4.9.2
   listen: ^1.0.1
   vector_math: ^2.4.2
 
