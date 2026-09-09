@@ -1,16 +1,15 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_gpu/gpu.dart' as gpu;
-
 import '../channels/audio_texture_provider.dart';
 import '../channels/shader_channel.dart';
 import '../compiler/impeller_compiler.dart';
 import '../core/shader_pass.dart';
 import '../core/shadertoy_uniforms.dart';
+import '../gpu/gpu.dart' as gpu;
 
-/// Low-level multi-pass renderer powered by Flutter GPU (`package:flutter_gpu/gpu.dart`).
-/// Executes compiled shader bundles on full-screen quad geometry and renders to [gpu.GpuImageSurface].
+/// Low-level multi-pass renderer powered by flutter_scene's cross-platform GPU pipeline.
+/// Executes compiled shader bundles on full-screen quad geometry and renders to swapchain [gpu.Texture]s.
 class FlutterGpuRenderer {
   FlutterGpuRenderer({
     this.width = 800,
@@ -22,7 +21,10 @@ class FlutterGpuRenderer {
   int width;
   int height;
 
-  gpu.GpuImageSurface? _imageSurface;
+  final List<gpu.Texture> _swapchainColors = [];
+  int _swapchainCursor = 0;
+  int _swapchainWidth = 0;
+  int _swapchainHeight = 0;
   bool _isGpuAvailable = false;
 
   gpu.ShaderLibrary? _shaderLibrary;
@@ -165,16 +167,38 @@ class FlutterGpuRenderer {
     }
   }
 
+  gpu.Texture _getNextSwapchainTexture(int w, int h) {
+    if (w != _swapchainWidth || h != _swapchainHeight) {
+      _swapchainColors.clear();
+      _swapchainCursor = 0;
+      _swapchainWidth = w;
+      _swapchainHeight = h;
+    }
+    if (_swapchainCursor >= _swapchainColors.length) {
+      final tex = gpu.gpuContext.createTexture(
+        gpu.StorageMode.devicePrivate,
+        w,
+        h,
+        format: gpu.PixelFormat.r8g8b8a8UNormInt,
+        enableRenderTargetUsage: true,
+        enableShaderReadUsage: true,
+      );
+      _swapchainColors.add(tex);
+    }
+    final result = _swapchainColors[_swapchainCursor];
+    _swapchainCursor = (_swapchainCursor + 1) % 2;
+    return result;
+  }
+
   void _initGpuResources() {
     try {
-      final context = gpu.gpuContext;
-      _imageSurface = context.createImageSurface(width, height);
+      final _ = gpu.gpuContext;
       _isGpuAvailable = true;
       _initQuadVertexBuffer();
-      debugPrint('Flutter GPU initialized successfully (${width}x$height).');
+      debugPrint('GPU initialized successfully (${width}x$height).');
     } catch (e) {
       _isGpuAvailable = false;
-      debugPrint('Flutter GPU initialization: $e');
+      debugPrint('GPU initialization: $e');
     }
   }
 
@@ -207,12 +231,12 @@ class FlutterGpuRenderer {
       _initGpuResources();
     }
     if (!_isGpuAvailable) {
-      debugPrint('Flutter GPU is not available (Impeller required).');
+      debugPrint('GPU context is not available.');
       return false;
     }
     try {
       final byteData = ByteData.sublistView(bundleBytes);
-      final lib = await gpu.ShaderLibrary.fromBytes(byteData);
+      final lib = await gpu.loadShaderLibraryFromBytesAsync(byteData);
       if (lib == null) return false;
 
       final vert = lib['QuadVertex'];
@@ -241,7 +265,7 @@ class FlutterGpuRenderer {
       }
       return true;
     } catch (e) {
-      debugPrint('Failed to load shader bundle into Flutter GPU: $e');
+      debugPrint('Failed to load shader bundle into GPU: $e');
       return false;
     }
   }
@@ -252,19 +276,10 @@ class FlutterGpuRenderer {
 
     width = newWidth;
     height = newHeight;
-
-    if (_imageSurface != null) {
-      try {
-        _imageSurface!.resize(width, height);
-      } catch (e) {
-        debugPrint('Flutter GPU imageSurface.resize: $e; recreating image surface');
-        try {
-          _imageSurface = gpu.gpuContext.createImageSurface(width, height);
-        } catch (e2) {
-          debugPrint('Failed to recreate imageSurface: $e2');
-        }
-      }
-    }
+    _swapchainColors.clear();
+    _swapchainCursor = 0;
+    _swapchainWidth = width;
+    _swapchainHeight = height;
   }
 
   /// Uploads audio spectrum (FFT) and waveform data to a 512x2 GPU texture.
@@ -609,12 +624,10 @@ class FlutterGpuRenderer {
 
     if (!_isGpuAvailable ||
         !hasPipeline ||
-        _imageSurface == null ||
         _quadVertexBuffer == null) {
       return null;
     }
 
-    gpu.GpuImageSurfaceFrame? surfaceFrame;
     try {
       gpu.DeviceBuffer? createPassUniformBuffer(ShaderPass pass) {
         final byteData = _packUniformByteData(
@@ -745,11 +758,11 @@ class FlutterGpuRenderer {
         executedBufferPasses.add(bpType);
       }
 
-      // 3. Execute presentation pass (Image) to screen surface
-      surfaceFrame = _imageSurface!.acquireNextFrame();
+      // 3. Execute presentation pass (Image) to swapchain color texture
+      final presentationTexture = _getNextSwapchainTexture(width, height);
       final surfaceRenderTarget = gpu.RenderTarget.singleColor(
         gpu.ColorAttachment(
-          texture: surfaceFrame.colorTexture,
+          texture: presentationTexture,
           loadAction: gpu.LoadAction.clear,
         ),
       );
@@ -770,7 +783,6 @@ class FlutterGpuRenderer {
               : null);
 
       if (presentationPipeline == null) {
-        surfaceFrame.discard();
         return null;
       }
 
@@ -830,15 +842,12 @@ class FlutterGpuRenderer {
         _bufferPingPongs[bpType]?.swap();
       }
 
-      // 5. Present surface and submit presentation command buffer
-      surfaceFrame.present(presentationCommandBuffer);
+      // 5. Submit presentation command buffer and snapshot texture to ui.Image
       presentationCommandBuffer.submit();
-      surfaceFrame = null;
 
-      return _imageSurface!.currentImage;
+      return presentationTexture.asImage();
     } catch (e) {
-      surfaceFrame?.discard();
-      debugPrint('Flutter GPU renderFrame error: $e');
+      debugPrint('GPU renderFrame error: $e');
       return null;
     }
   }
@@ -847,6 +856,8 @@ class FlutterGpuRenderer {
     _clearPingPongBuffers();
     _passPipelines.clear();
     _textureChannels.clear();
+    _swapchainColors.clear();
+    _swapchainCursor = 0;
     _audioTexture = null;
     _keyboardTexture = null;
     _defaultTexture = null;
@@ -854,7 +865,6 @@ class FlutterGpuRenderer {
     _quadVertexBuffer = null;
     _renderPipeline = null;
     _shaderLibrary = null;
-    _imageSurface = null;
   }
 }
 

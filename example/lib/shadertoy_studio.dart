@@ -156,8 +156,8 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
       final isGpu = _controller.renderer.gpuRenderer.isGpuAvailable;
       setState(() {
         _compileStatus = isGpu
-            ? 'Compiled and running (flutter_gpu)'
-            : 'Compiled with impellerc (GPU offline: Impeller required)';
+            ? 'Compiled and running (flutter_scene GPU)'
+            : 'Compiled with impellerc (GPU offline: Impeller/WebGL2 required)';
         _compileSuccess = true;
       });
     } else {

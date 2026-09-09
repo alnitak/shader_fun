@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
+
+import 'channel_file_loader.dart';
 
 import 'raw_image_decoder.dart';
 
@@ -96,29 +96,9 @@ class TextureChannel extends ShaderChannel {
 
       if (rawBytes == null && src != null && src!.isNotEmpty) {
         final path = src!;
-        if (path.startsWith('http://') || path.startsWith('https://')) {
-          // HTTP / HTTPS URL
-          final uri = Uri.parse(path);
-          final client = HttpClient();
-          final request = await client.getUrl(uri);
-          final response = await request.close();
-          final builder = BytesBuilder();
-          await for (final chunk in response) {
-            builder.add(chunk);
-          }
-          client.close();
-          rawBytes = builder.toBytes();
-        } else if (path.startsWith('file://') ||
-            path.startsWith('/') ||
-            RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path)) {
-          // Local filesystem file
-          final cleanPath = path.startsWith('file://')
-              ? Uri.parse(path).toFilePath()
-              : path;
-          final file = File(cleanPath);
-          if (await file.exists()) {
-            rawBytes = await file.readAsBytes();
-          }
+        final loaded = await loadFileOrHttpBytes(path);
+        if (loaded != null) {
+          rawBytes = loaded;
         } else {
           // Flutter Asset bundle with filesystem fallback
           try {
@@ -131,13 +111,7 @@ class TextureChannel extends ShaderChannel {
               '../example/$path',
               'assets/$path',
             ];
-            for (final cand in candidates) {
-              final f = File(cand);
-              if (f.existsSync()) {
-                rawBytes = f.readAsBytesSync();
-                break;
-              }
-            }
+            rawBytes = tryLoadFilesystemCandidates(candidates);
           }
         }
       }

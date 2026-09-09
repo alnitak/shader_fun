@@ -1,6 +1,7 @@
 name: shader_fun
 description: "A new Flutter package project."
 version: 0.0.1
+publish_to: 'none'
 homepage:
 
 environment:
@@ -10,12 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_gpu:
-    sdk: flutter
   flutter_recorder: # ^2.0.3
     path: ../flutter_recorder
+  flutter_scene: ^0.23.0
   flutter_soloud: # ^5.0.2
     path: ../flutter_soloud
+  flat_buffers: ^25.9.23
   image: 4.9.2
   listen: ^1.0.1
   vector_math: ^2.4.2
@@ -24,5 +25,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  hooks: ^2.2.0
 
 flutter:
+  assets:
+    - flutter_scene_generated/

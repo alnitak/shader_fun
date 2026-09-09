@@ -1,12 +1,13 @@
+// ignore_for_file: avoid_print
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/src/channels/shader_channel.dart';
 import 'package:shader_fun/src/compiler/impeller_compiler.dart';
 import 'package:shader_fun/src/core/shader_pass.dart';
 import 'package:shader_fun/src/core/shadertoy_uniforms.dart';
+import 'package:shader_fun/src/gpu/gpu.dart' as gpu;
 import 'package:shader_fun/src/models/shadertoy_json.dart';
 import 'package:shader_fun/src/renderer/gpu_renderer.dart';
 

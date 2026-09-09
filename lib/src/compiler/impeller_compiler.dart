@@ -1,6 +1,6 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+
+import 'compile_process.dart';
 
 /// Result of an `impellerc` shader compilation.
 class CompileResult {
@@ -21,115 +21,8 @@ class CompileResult {
 /// generates full-screen quad vertex shader geometry, and invokes `impellerc`
 /// to produce Flutter GPU `.shaderbundle` binaries or extract compilation errors.
 class ImpellerCompiler {
-  static String? _cachedImpellercPath;
-
   /// Locates the `impellerc` offline compiler binary from system PATH or Flutter SDK cache.
-  static String? findImpellerc() {
-    try {
-      if (_cachedImpellercPath != null &&
-          File(_cachedImpellercPath!).existsSync()) {
-        return _cachedImpellercPath;
-      }
-    } catch (_) {}
-
-    // 1. Check environment variables
-    try {
-      final flutterRoot = Platform.environment['FLUTTER_ROOT'];
-      if (flutterRoot != null) {
-        final candidate = _findInFlutterRoot(flutterRoot);
-        if (candidate != null) {
-          _cachedImpellercPath = candidate;
-          return candidate;
-        }
-      }
-    } catch (_) {}
-
-    // 2. Check system PATH via 'which' or 'where'
-    try {
-      final whichCmd = Platform.isWindows ? 'where' : 'which';
-      final result = Process.runSync(whichCmd, ['flutter']);
-      if (result.exitCode == 0) {
-        final flutterPath = result.stdout.toString().trim().split('\n').first;
-        // flutter is typically in <flutter_dir>/bin/flutter
-        final flutterDir = File(flutterPath).parent.parent.path;
-        final candidate = _findInFlutterRoot(flutterDir);
-        if (candidate != null) {
-          _cachedImpellercPath = candidate;
-          return candidate;
-        }
-      }
-    } catch (_) {}
-
-    // 3. Fallback common developer directories on macOS / Linux / Windows
-    final commonPaths = [
-      '/Volumes/NVME/dev/flutter',
-      Platform.environment['HOME'] != null
-          ? '${Platform.environment['HOME']}/development/flutter'
-          : null,
-      Platform.environment['HOME'] != null
-          ? '${Platform.environment['HOME']}/flutter'
-          : null,
-    ];
-
-    for (final dir in commonPaths) {
-      if (dir == null) continue;
-      try {
-        if (Directory(dir).existsSync()) {
-          final candidate = _findInFlutterRoot(dir);
-          if (candidate != null) {
-            _cachedImpellercPath = candidate;
-            return candidate;
-          }
-        }
-      } catch (_) {}
-    }
-
-    return null;
-  }
-
-  static String? _findInFlutterRoot(String flutterRoot) {
-    final exeName = Platform.isWindows ? 'impellerc.exe' : 'impellerc';
-
-    // 1. Check known host architecture subdirectories directly to avoid directory listing
-    final hostArchs = [
-      'darwin-arm64',
-      'darwin-x64',
-      'windows-x64',
-      'linux-x64',
-      'linux-arm64',
-    ];
-
-    for (final arch in hostArchs) {
-      try {
-        final candidateFile = File(
-          '$flutterRoot/bin/cache/artifacts/engine/$arch/$exeName',
-        );
-        if (candidateFile.existsSync()) {
-          return candidateFile.path;
-        }
-      } catch (_) {}
-    }
-
-    // 2. Fallback to directory listing if allowed
-    try {
-      final engineArtifacts = Directory(
-        '$flutterRoot/bin/cache/artifacts/engine',
-      );
-      if (engineArtifacts.existsSync()) {
-        final subdirs = engineArtifacts.listSync();
-        for (final entity in subdirs) {
-          if (entity is Directory) {
-            final file = File('${entity.path}/$exeName');
-            if (file.existsSync()) {
-              return file.path;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    return null;
-  }
+  static String? findImpellerc() => findImpellercBinary();
 
   /// The full-screen quad vertex shader source.
   static const String quadVertexShader = '''#version 460 core
@@ -270,76 +163,18 @@ void main() {
     required String shadertoyGlsl,
     String? commonGlsl,
     String? customImpellercPath,
-  }) async {
-    final impellerc = customImpellercPath ?? findImpellerc();
-    if (impellerc == null) {
-      return const CompileResult.error(
-        'Could not locate "impellerc" compiler binary in Flutter SDK. '
-        'Please ensure Flutter is installed and on PATH.',
-      );
-    }
-
-    final tempDir = await Directory.systemTemp.createTemp('shadertoy_compile_');
-    try {
-      final vertFile = File('${tempDir.path}/quad.vert');
-      final fragFile = File('${tempDir.path}/shadertoy.frag');
-      final bundleFile = File('${tempDir.path}/output.shaderbundle');
-
-      await vertFile.writeAsString(quadVertexShader);
-      await fragFile.writeAsString(
-        wrapShadertoyGlsl(shadertoyGlsl, commonGlsl: commonGlsl),
-      );
-
-      final manifestJson = json.encode({
-        'QuadVertex': {'type': 'vertex', 'file': vertFile.path},
-        'ShadertoyFragment': {'type': 'fragment', 'file': fragFile.path},
-      });
-
-      // Target platform flag
-      final String platformFlag;
-      if (Platform.isMacOS) {
-        platformFlag = '--metal-desktop';
-      } else if (Platform.isIOS) {
-        platformFlag = '--metal-ios';
-      } else {
-        platformFlag = '--vulkan';
-      }
-
-      final result = await Process.run(impellerc, [
-        platformFlag,
-        '--gles-language-version=300',
-        '--shader-bundle=$manifestJson',
-        '--sl=${bundleFile.path}',
-        '--verbose',
-      ], workingDirectory: tempDir.path);
-
-      if (result.exitCode != 0) {
-        final stderr = result.stderr.toString().trim();
-        final stdout = result.stdout.toString().trim();
-        final rawMsg = stderr.isNotEmpty ? stderr : stdout;
-
-        return CompileResult.error(_cleanCompilerError(rawMsg));
-      }
-
-      if (!await bundleFile.exists()) {
-        return const CompileResult.error(
-          'impellerc succeeded but output.shaderbundle was not produced.',
-        );
-      }
-
-      final bytes = await bundleFile.readAsBytes();
-      return CompileResult.success(bytes);
-    } catch (e) {
-      return CompileResult.error('Compilation exception: $e');
-    } finally {
-      try {
-        await tempDir.delete(recursive: true);
-      } catch (_) {}
-    }
+  }) {
+    return runImpellerCompile(
+      quadVertexShader: quadVertexShader,
+      wrappedFragGlsl: wrapShadertoyGlsl(shadertoyGlsl, commonGlsl: commonGlsl),
+      customImpellercPath: customImpellercPath,
+      rawUserGlsl: shadertoyGlsl,
+      rawCommonGlsl: commonGlsl,
+    );
   }
 
   /// Cleans and formats raw impellerc stderr for human-friendly UI display.
-  static String _cleanCompilerError(String raw) {
+  static String cleanCompilerError(String raw) {
     final lines = raw.split('\n');
     final cleaned = <String>[];
 
