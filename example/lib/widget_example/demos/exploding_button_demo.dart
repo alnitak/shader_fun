@@ -15,6 +15,7 @@ class ExplodingButtonDemo {
 
   void attachController(ShaderToyController controller) {
     _controller = controller;
+    _controller?.setUniform('detonateTime', 0.0);
   }
 
   void triggerExplosion() {
@@ -25,13 +26,13 @@ class ExplodingButtonDemo {
     isExploding = true;
     onStateChanged();
 
-    // Pass trigger timestamp instantly via sampleRate uniform without stalling/recompiling
-    _controller!.uniforms.sampleRate = triggerTime;
+    // Pass trigger timestamp instantly via custom uniform detonateTime
+    _controller!.setUniform('detonateTime', triggerTime);
 
     _resetTimer?.cancel();
     _resetTimer = Timer(const Duration(milliseconds: 3200), () {
       isExploding = false;
-      _controller?.uniforms.sampleRate = 0.0;
+      _controller?.setUniform('detonateTime', 0.0);
       onStateChanged();
     });
   }
@@ -56,10 +57,7 @@ class ExplodingButtonDemo {
       channels: [buttonChannel],
     );
 
-    return ShaderToyProject(
-      name: 'Exploding Button',
-      passes: [pass],
-    );
+    return ShaderToyProject(name: 'Exploding Button', passes: [pass]);
   }
 
   Widget buildChild() {
@@ -67,9 +65,6 @@ class ExplodingButtonDemo {
       builder: (context, setBtnState) {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: (_) {
-            triggerExplosion();
-          },
           onTap: () {
             triggerExplosion();
           },
@@ -128,21 +123,18 @@ class ExplodingButtonDemo {
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFFDC2626),
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       ),
       onPressed: isExploding ? null : triggerExplosion,
       icon: const Icon(Icons.local_fire_department, size: 18),
-      label: Text(
-        isExploding ? 'DETONATING...' : 'DETONATE NOW 💥',
-      ),
+      label: Text(isExploding ? 'DETONATING...' : 'DETONATE NOW 💥'),
     );
   }
 
   String getShaderCode() {
     return '''
+uniform float detonateTime;
+
 float hash21(vec2 p) {
     p = fract(p * vec2(233.34, 851.73));
     p += dot(p, p + 23.45);
@@ -158,9 +150,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 bMax = vec2(0.7, 0.55);
     vec2 bSize = bMax - bMin;
     
-    // iSampleRate carries the detonation timestamp dynamically!
-    float explodeAge = iTime - iSampleRate;
-    bool isExploding = iSampleRate > 0.0 && explodeAge >= 0.0 && explodeAge < 3.0;
+    // Custom uniform detonateTime carries the detonation timestamp dynamically!
+    float explodeAge = iTime - detonateTime;
+    bool isExploding = detonateTime > 0.0 && explodeAge >= 0.0 && explodeAge < 3.0;
     
     vec4 col = vec4(0.04, 0.05, 0.08, 1.0);
     
