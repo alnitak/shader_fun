@@ -5,7 +5,7 @@ class TransitionDemo {
   TransitionDemo({required this.vsync, required this.onStateChanged}) {
     pageTransitionAnimation = CurvedAnimation(
       parent: pageTransitionController,
-      curve: Curves.easeInOutCubic,
+      curve: Curves.linear,
     )..addListener(_onTransitionTick);
   }
 
@@ -14,6 +14,7 @@ class TransitionDemo {
 
   int transitionPageIndex = 0; // 0: Page 1 (A), 1: Page 2 (B)
   double sliderPercentage = 0.65;
+  double logoTurns = 0.0;
 
   WidgetChannel? dashboardChannel;
   WidgetChannel? playerChannel;
@@ -21,7 +22,7 @@ class TransitionDemo {
 
   late final AnimationController pageTransitionController = AnimationController(
     vsync: vsync,
-    duration: const Duration(milliseconds: 650),
+    duration: const Duration(milliseconds: 5000),
   );
   late final Animation<double> pageTransitionAnimation;
 
@@ -53,6 +54,7 @@ class TransitionDemo {
   ShaderToyProject createProject() {
     transitionPageIndex = 0;
     pageTransitionController.value = 0.0;
+    logoTurns = 0.0;
 
     dashboardChannel = WidgetChannel(
       name: 'DashboardA',
@@ -87,9 +89,23 @@ class TransitionDemo {
   Widget buildPageA() {
     return StatefulBuilder(
       builder: (context, setPageState) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted && logoTurns == 0.0) {
+            setPageState(() {
+              logoTurns = 1.0;
+            });
+          }
+        });
+
         return Container(
           padding: const EdgeInsets.all(16),
-          color: const Color(0xFF1E1E1E),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF1E1E1E), Color.fromARGB(255, 148, 30, 30)],
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -103,30 +119,48 @@ class TransitionDemo {
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: ListView.builder(
-                  itemCount: 50,
-                  itemBuilder: (context, index) {
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 12,
-                        backgroundColor: Colors.white24,
-                        child: Icon(
-                          Icons.folder,
-                          color: Colors.white,
-                          size: 14,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: 50,
+                        itemBuilder: (context, index) {
+                          return ListTile(
+                            dense: true,
+                            leading: const CircleAvatar(
+                              radius: 12,
+                              backgroundColor: Colors.white24,
+                              child: Icon(
+                                Icons.folder,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                            title: Text('Item ${index + 1}'),
+                            subtitle: Text('Description for item ${index + 1}'),
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: 200,
+                      child: Center(
+                        child: AnimatedRotation(
+                          turns: logoTurns,
+                          duration: const Duration(seconds: 4),
+                          curve: Curves.linear,
+                          onEnd: () {
+                            if (context.mounted) {
+                              setPageState(() {
+                                logoTurns += 1.0;
+                              });
+                            }
+                          },
+                          child: const FlutterLogo(size: 180),
                         ),
                       ),
-                      title: Text(
-                        'Item ${index + 1}',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      subtitle: Text(
-                        'Description for item ${index + 1}',
-                        style: const TextStyle(color: Colors.white54),
-                      ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -154,9 +188,21 @@ class TransitionDemo {
   Widget buildPageB() {
     return StatefulBuilder(
       builder: (context, setPageState) {
+        // At the top of buildPageB's builder:
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            setPageState(() {});
+          }
+        });
         return Container(
           padding: const EdgeInsets.all(16),
-          color: const Color(0xFF1E1E1E),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color.fromARGB(255, 13, 2, 108), Color(0xFF1E1E1E)],
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -170,27 +216,49 @@ class TransitionDemo {
               ),
               const Spacer(),
               Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: [
-                    Text(
-                      '${(sliderPercentage * 100).toInt()}%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${(sliderPercentage * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: 250,
+                          child: Slider(
+                            value: sliderPercentage,
+                            onChanged: (val) {
+                              setPageState(() {
+                                sliderPercentage = val;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
                     SizedBox(
-                      width: 320,
-                      child: Slider(
-                        value: sliderPercentage,
-                        onChanged: (val) {
-                          setPageState(() {
-                            sliderPercentage = val;
-                          });
-                        },
+                      width: 200,
+                      child: Center(
+                        child: AnimatedRotation(
+                          turns: logoTurns,
+                          duration: const Duration(seconds: 4),
+                          curve: Curves.linear,
+                          onEnd: () {
+                            if (context.mounted) {
+                              setPageState(() {
+                                logoTurns += 1.0;
+                              });
+                            }
+                          },
+                          child: const FlutterLogo(size: 120),
+                        ),
                       ),
                     ),
                   ],
@@ -277,47 +345,60 @@ class TransitionDemo {
     return '''
 uniform float progress;
 
-float hash2(vec2 p) {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-}
+// credits:
+// https://www.shadertoy.com/view/ls3cDB
+// https://github.com/alnitak/flutter_shader_fxs/blob/main/example/assets/shaders/page_curl.frag
+
+#define pi 3.14159265359
+#define radius .1
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    vec2 uv = fragCoord / iResolution.xy;
-    
-    // User-controlled transition progress from 0.0 (Page A) to 1.0 (Page B)
-    // driven directly via controller.setUniform('progress', value)
+    float aspect = iResolution.x / iResolution.y;
+
+    vec2 uv = fragCoord * vec2(aspect, 1.) / iResolution.xy;
     float p = clamp(progress, 0.0, 1.0);
-    
-    // Clean static render when idle on either page
-    if (p <= 0.0) {
-        fragColor = texture(iChannel0, uv);
+
+    // Clean static rendering when idle on either page
+    if (p <= 0.0 && iMouse.z <= 0.0) {
+        fragColor = texture(iChannel0, uv * vec2(1. / aspect, 1.));
         return;
     }
-    if (p >= 1.0) {
-        fragColor = texture(iChannel1, uv);
+    if (p >= 1.0 && iMouse.z <= 0.0) {
+        fragColor = texture(iChannel1, uv * vec2(1. / aspect, 1.));
         return;
     }
-    
-    // During transition: digital block displacement & glowing wipe
-    vec2 block = floor(uv * vec2(30.0, 15.0));
-    float noise = hash2(block);
-    float threshold = smoothstep(0.0, 1.0, p);
-    float edge = smoothstep(threshold - 0.1, threshold + 0.1, noise + uv.x * 0.2);
-    
-    float disp = sin(uv.y * 20.0 + iTime * 5.0) * 0.03 * (1.0 - abs(p - 0.5) * 2.0);
-    vec2 uvA = uv + vec2(disp * (1.0 - p), 0.0);
-    vec2 uvB = uv - vec2(disp * p, 0.0);
-    
-    vec4 colA = texture(iChannel0, clamp(uvA, 0.0, 1.0));
-    vec4 colB = texture(iChannel1, clamp(uvB, 0.0, 1.0));
-    
-    float glow = 1.0 - abs(edge - 0.5) * 2.0;
-    glow = pow(max(0.0, glow), 3.0) * (1.0 - abs(progress - 0.5) * 2.0);
-    vec3 glowCol = vec3(0.0, 0.9, 1.0) * glow * 2.5;
-    
-    vec4 finalCol = mix(colA, colB, edge);
-    finalCol.rgb += glowCol;
-    fragColor = finalCol;
+
+    vec2 mouse;
+    vec2 mouseDir;
+    vec2 origin;
+    float mouseDist;
+
+    mouseDir = normalize(vec2(1.0, 0.2));
+    origin = vec2(0.0);
+    float projMax = aspect * mouseDir.x + 1.0 * mouseDir.y;
+    mouseDist = mix(projMax + radius, -radius * (pi + 1.5), p);
+
+    float proj = dot(uv - origin, mouseDir);
+    float dist = proj - mouseDist;
+
+    vec2 linePoint = uv - dist * mouseDir;
+
+    if (dist > radius) {
+        fragColor = texture(iChannel1, uv * vec2(1. / aspect, 1.));
+        fragColor.rgb *= pow(clamp(dist - radius, 0., 1.) * 1.5, .2);
+    } else if (dist >= 0.) {
+        // map to cylinder point
+        float theta = asin(clamp(dist / radius, 0.0, 1.0));
+        vec2 p2 = linePoint + mouseDir * (pi - theta) * radius;
+        vec2 p1 = linePoint + mouseDir * theta * radius;
+        uv = (p2.x <= aspect && p2.y <= 1. && p2.x > 0. && p2.y > 0.) ? p2 : p1;
+        fragColor = texture(iChannel0, uv * vec2(1. / aspect, 1.));
+        fragColor.rgb *= pow(clamp((radius - dist) / radius, 0., 1.), .2);
+    } else {
+        vec2 pFold = linePoint + mouseDir * (abs(dist) + pi * radius);
+        uv = (pFold.x <= aspect && pFold.y <= 1. && pFold.x > 0. && pFold.y > 0.) ? pFold : uv;
+        fragColor = texture(iChannel0, uv * vec2(1. / aspect, 1.));
+    }
 }
 ''';
   }
