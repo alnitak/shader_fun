@@ -25,10 +25,7 @@ class LiquidListDemo {
       channels: [listChannel],
     );
 
-    return ShaderToyProject(
-      name: 'Liquid ListView',
-      passes: [pass],
-    );
+    return ShaderToyProject(name: 'Liquid ListView', passes: [pass]);
   }
 
   Widget buildChild() {
@@ -97,7 +94,7 @@ class LiquidListDemo {
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: 20,
+                  itemCount: 50,
                   itemBuilder: (context, i) {
                     final isChecked = switchStates[i] ?? false;
                     final count = itemCounters[i] ?? (i * 3 + 7);
@@ -225,6 +222,4 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 }
 ''';
   }
-
-  void dispose() {}
 }
