@@ -16,12 +16,12 @@ class ShaderToyProject {
     String description = '',
     String url = '',
     List<ShaderPass>? passes,
-  })  : _id = id,
-        _name = name,
-        _author = author,
-        _description = description,
-        _url = url,
-        passes = passes ?? [];
+  }) : _id = id,
+       _name = name,
+       _author = author,
+       _description = description,
+       _url = url,
+       passes = passes ?? [];
 
   /// Creates a default starter ShaderToy project with a single Image pass.
   factory ShaderToyProject.empty() {
@@ -71,15 +71,6 @@ class ShaderToyProject {
   set url(String value) => _url = value;
 
   List<ShaderPass> passes;
-
-  /// Built-in preset example asset filenames located in `assets/examples/`.
-  static const List<String> exampleAssets = [
-    'mouse_paint_eroded_mountains.json',
-    'raymarching_primitives.json',
-    'audio_reactive_tunnel.json',
-    'temporal_feedback.json',
-    'cosine_palette_fractal.json',
-  ];
 
   /// Loads a [ShaderToyProject] from a Flutter asset using [rootBundle] or a provided [bundle].
   ///
@@ -139,9 +130,7 @@ class ShaderToyProject {
   /// Whether any pass uses 2D image textures or cubemap channels.
   bool get usesTextures {
     return passes.any(
-      (p) => p.channels.any(
-        (c) => c is TextureChannel || c is CubeMapChannel,
-      ),
+      (p) => p.channels.any((c) => c is TextureChannel || c is CubeMapChannel),
     );
   }
 
@@ -265,11 +254,17 @@ vec2 rot(vec2 p, float a) {
       switch (passTypeStr) {
         case 'buffer':
           final upper = passName.toUpperCase();
-          if (upper.contains('BUFFER B') || upper.endsWith(' B') || upper == 'B') {
+          if (upper.contains('BUFFER B') ||
+              upper.endsWith(' B') ||
+              upper == 'B') {
             type = PassType.bufferB;
-          } else if (upper.contains('BUFFER C') || upper.endsWith(' C') || upper == 'C') {
+          } else if (upper.contains('BUFFER C') ||
+              upper.endsWith(' C') ||
+              upper == 'C') {
             type = PassType.bufferC;
-          } else if (upper.contains('BUFFER D') || upper.endsWith(' D') || upper == 'D') {
+          } else if (upper.contains('BUFFER D') ||
+              upper.endsWith(' D') ||
+              upper == 'D') {
             type = PassType.bufferD;
           } else {
             type = PassType.bufferA;
@@ -284,11 +279,7 @@ vec2 rot(vec2 p, float a) {
           break;
       }
 
-      final pass = ShaderPass(
-        type: type,
-        name: passName,
-        code: code,
-      );
+      final pass = ShaderPass(type: type, name: passName, code: code);
 
       // Parse iChannel inputs
       final rawInputs = rawPass['inputs'] as List<dynamic>? ?? [];
@@ -300,15 +291,16 @@ vec2 rot(vec2 p, float a) {
         final sampler = rawInput['sampler'] as Map<String, dynamic>? ?? {};
 
         final defaultFilterStr = ctype == 'keyboard' ? 'nearest' : 'mipmap';
-        final filterStr = sampler['filter']?.toString().toLowerCase() ?? defaultFilterStr;
+        final filterStr =
+            sampler['filter']?.toString().toLowerCase() ?? defaultFilterStr;
         final wrapStr = sampler['wrap']?.toString().toLowerCase() ?? 'clamp';
         final vflipStr = sampler['vflip']?.toString().toLowerCase() ?? 'true';
 
         final filter = filterStr == 'nearest'
             ? ChannelFilter.nearest
             : filterStr == 'linear'
-                ? ChannelFilter.linear
-                : ChannelFilter.mipmap;
+            ? ChannelFilter.linear
+            : ChannelFilter.mipmap;
 
         final wrap = wrapStr == 'repeat'
             ? ChannelWrap.repeat
@@ -328,14 +320,19 @@ vec2 rot(vec2 p, float a) {
                 bufferIdx = rawId % 4;
               }
             }
-            final srcLower = (rawInput['src'] ?? rawInput['filepath'] ?? '').toString().toLowerCase();
+            final srcLower = (rawInput['src'] ?? rawInput['filepath'] ?? '')
+                .toString()
+                .toLowerCase();
             if (srcLower.contains('buffer00') || srcLower.contains('buffera')) {
               bufferIdx = 0;
-            } else if (srcLower.contains('buffer01') || srcLower.contains('bufferb')) {
+            } else if (srcLower.contains('buffer01') ||
+                srcLower.contains('bufferb')) {
               bufferIdx = 1;
-            } else if (srcLower.contains('buffer02') || srcLower.contains('bufferc')) {
+            } else if (srcLower.contains('buffer02') ||
+                srcLower.contains('bufferc')) {
               bufferIdx = 2;
-            } else if (srcLower.contains('buffer03') || srcLower.contains('bufferd')) {
+            } else if (srcLower.contains('buffer03') ||
+                srcLower.contains('bufferd')) {
               bufferIdx = 3;
             }
             channel = BufferChannel(
@@ -356,11 +353,7 @@ vec2 rot(vec2 p, float a) {
             );
             break;
           case 'mic':
-            channel = MicAudioChannel(
-              filter: filter,
-              wrap: wrap,
-              vflip: vflip,
-            );
+            channel = MicAudioChannel(filter: filter, wrap: wrap, vflip: vflip);
             break;
           case 'cubemap':
             channel = CubeMapChannel(
@@ -371,17 +364,15 @@ vec2 rot(vec2 p, float a) {
             );
             break;
           case 'keyboard':
-            channel = KeyboardChannel(
-              filter: filter,
-              wrap: wrap,
-              vflip: vflip,
-            );
+            channel = KeyboardChannel(filter: filter, wrap: wrap, vflip: vflip);
             break;
           case 'texture':
           default:
             channel = TextureChannel(
               src: src.isNotEmpty ? src : null,
-              name: src.isNotEmpty ? src.split('/').last : 'Texture ${rawInput['id'] ?? ''}',
+              name: src.isNotEmpty
+                  ? src.split('/').last
+                  : 'Texture ${rawInput['id'] ?? ''}',
               filter: filter,
               wrap: wrap,
               vflip: vflip,
@@ -408,7 +399,8 @@ vec2 rot(vec2 p, float a) {
   /// Parses a concise settings JSON object into a [ShaderToyProject].
   factory ShaderToyProject.fromSettingsJson(Map<String, dynamic> jsonMap) {
     final name = jsonMap['name']?.toString() ?? 'Custom Shader';
-    final imageCode = jsonMap['imageCode']?.toString() ??
+    final imageCode =
+        jsonMap['imageCode']?.toString() ??
         'void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(1.0); }';
 
     final passes = <ShaderPass>[];
@@ -433,11 +425,9 @@ vec2 rot(vec2 p, float a) {
         } else if (upperKey == 'D' || upperKey.contains('BUFFER D')) {
           type = PassType.bufferD;
         }
-        passes.add(ShaderPass(
-          type: type,
-          name: 'Buffer $upperKey',
-          code: code,
-        ));
+        passes.add(
+          ShaderPass(type: type, name: 'Buffer $upperKey', code: code),
+        );
       });
     }
 
@@ -457,7 +447,13 @@ vec2 rot(vec2 p, float a) {
             imagePass.setChannel(chIdx, TextureChannel(src: src));
           } else if (type == 'buffer') {
             final bufStr = val['buffer']?.toString().toUpperCase() ?? 'A';
-            final bufIdx = bufStr == 'B' ? 1 : bufStr == 'C' ? 2 : bufStr == 'D' ? 3 : 0;
+            final bufIdx = bufStr == 'B'
+                ? 1
+                : bufStr == 'C'
+                ? 2
+                : bufStr == 'D'
+                ? 3
+                : 0;
             imagePass.setChannel(chIdx, BufferChannel(bufferIndex: bufIdx));
           }
         }
@@ -466,17 +462,14 @@ vec2 rot(vec2 p, float a) {
 
     final url = jsonMap['url']?.toString() ?? '';
 
-    return ShaderToyProject(
-      name: name,
-      url: url,
-      passes: passes,
-    );
+    return ShaderToyProject(name: name, url: url, passes: passes);
   }
 
   /// Parses a raw JSON string into a [ShaderToyProject].
   static ShaderToyProject parseJsonString(String jsonString) {
     final map = json.decode(jsonString) as Map<String, dynamic>;
-    if (map.containsKey('imageCode') || (map.containsKey('buffers') && !map.containsKey('Shader'))) {
+    if (map.containsKey('imageCode') ||
+        (map.containsKey('buffers') && !map.containsKey('Shader'))) {
       return ShaderToyProject.fromSettingsJson(map);
     }
     return ShaderToyProject.fromJson(map);
@@ -543,7 +536,7 @@ vec2 rot(vec2 p, float a) {
       renderpassList.add({
         'inputs': inputs,
         'outputs': [
-          {'id': 37, 'channel': 0}
+          {'id': 37, 'channel': 0},
         ],
         'code': pass.code,
         'name': pass.name,

@@ -21,7 +21,7 @@ class ChannelBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 72,
+      height: 80,
       decoration: const BoxDecoration(
         color: Color(0xFF14141A),
         border: Border(top: BorderSide(color: Color(0xFF282832), width: 1)),

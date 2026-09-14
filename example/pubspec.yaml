@@ -10,7 +10,6 @@ dependencies:
   file_picker: ^12.2.0
   flutter:
     sdk: flutter
-  flutter_scene: ^0.23.0
   shader_fun:
     path: ../
   shared_preferences: ^2.5.5
@@ -20,6 +19,10 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   hooks: ^2.2.0
+
+dependency_overrides:
+  scene:
+    path: ../../../tmp/flutter_scene/packages/scene
 
 flutter:
   uses-material-design: true

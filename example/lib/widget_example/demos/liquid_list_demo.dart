@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 class LiquidListDemo {
   final Map<int, bool> switchStates = {0: true, 1: false, 2: true};
   final Map<int, int> itemCounters = {0: 12, 1: 45, 2: 8};
+
+  void dispose() {}
 
   ShaderToyProject createProject() {
     final listChannel = WidgetChannel(

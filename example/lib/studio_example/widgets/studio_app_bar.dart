@@ -23,9 +23,7 @@ class StudioAppBar extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF16161C),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFF282832), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFF282832), width: 1)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -74,7 +72,7 @@ class StudioAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 40),
 
           // New button
           OutlinedButton.icon(
@@ -92,7 +90,7 @@ class StudioAppBar extends StatelessWidget implements PreferredSizeWidget {
             onPressed: onNew,
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 40),
 
           // Load button
           OutlinedButton.icon(
@@ -119,7 +117,7 @@ class StudioAppBar extends StatelessWidget implements PreferredSizeWidget {
           // Save button
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFFF5500),
+              backgroundColor: const Color.fromARGB(255, 201, 67, 0),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(
