@@ -24,7 +24,9 @@ class _SimpleExampleAppState extends State<SimpleExampleApp> {
     final passA = ShaderPass(
       name: 'Buffer A',
       type: PassType.bufferA,
-      channels: [SoLoudAudioChannel(src: 'assets/audio/electro_nebulae.mp3')],
+      channels: [
+        SoLoudAudioChannel(src: 'assets/audio/most_geometric_person.mp3'),
+      ],
       code: '''
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     fragColor = texture(iChannel0, fragCoord / iResolution.xy);
@@ -76,10 +78,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 ''',
     );
 
-    // Buffer C: Pinch effect reacting to bass, mid, and high frequencies
-    final passC = ShaderPass(
-      name: 'Buffer C',
-      type: PassType.bufferC,
+    // Image: Pinch effect reacting to bass, mid, and high frequencies
+    final passImage = ShaderPass(
+      name: 'Image',
+      type: PassType.image,
       channels: [
         BufferChannel(bufferIndex: 0), // Buffer A (Audio)
         BufferChannel(bufferIndex: 1), // Buffer B (Widget list)
@@ -88,17 +90,20 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
 
-    // Bass, mid, and high frequencies from Buffer A (row 0 at y = 0.25)
-    float bass = texture(iChannel0, vec2(0.05, 0.25)).r;
-    float mid  = texture(iChannel0, vec2(0.35, 0.25)).r;
-    float high = texture(iChannel0, vec2(0.75, 0.25)).r;
+    // Wide bass calculation across sub-bass and mid-bass (~30 Hz to ~250 Hz)
+    float b1 = texture(iChannel0, vec2(0.010, 0.25)).r;
+    float b2 = texture(iChannel0, vec2(0.020, 0.25)).r;
+    float bassMax = max(b1, b2);
+    float bassAvg = (b1 + b2) * 0.2;
+    float bass = mix(bassAvg, bassMax, 0.7);
+
+    float high = texture(iChannel0, vec2(0.60, 0.25)).r;
 
     // Pinch effect reacting to frequencies
     vec2 c = uv - 0.5;
     float d = length(c);
-    float pinch = bass * 0.5 * (1.0 - smoothstep(0.0, 0.50, d))
-                + mid  * 0.3 * (1.0 - smoothstep(0.0, 0.35, d))
-                + high * 0.2 * (1.0 - smoothstep(0.0, 0.20, d));
+    float pinch = bass * 0.4 * (1.0 - smoothstep(0.0, 0.30, d))
+                + high * 0.1 * (1.0 - smoothstep(0.0, 0.20, d));
 
     vec2 distortedUv = clamp(0.5 + c * (1.0 + pinch), 0.0, 1.0);
     fragColor = texture(iChannel1, distortedUv);
@@ -106,23 +111,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 ''',
     );
 
-    // Image: Presentation pass showing Buffer C
-    final passImage = ShaderPass(
-      name: 'Image',
-      type: PassType.image,
-      channels: [
-        BufferChannel(bufferIndex: 2), // Buffer C
-      ],
-      code: '''
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    fragColor = texture(iChannel0, fragCoord / iResolution.xy);
-}
-''',
-    );
-
     final project = ShaderProject(
       name: 'Audio Pinch Demo',
-      passes: [passA, passB, passC, passImage],
+      passes: [passA, passB, passImage],
     );
 
     _controller = ShaderController(initialProject: project, autoPlay: true);

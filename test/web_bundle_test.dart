@@ -41,7 +41,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(vert.openglEs!.inputs!.first.vecSize, 2);
 
       final frag = bundle.shaders!.firstWhere(
-        (s) => s.name == 'ShadertoyFragment',
+        (s) => s.name == 'ShaderFragment',
       );
       expect(frag.openglEs, isNotNull);
       expect(frag.openglEs!.stage.value, 1); // fragment
