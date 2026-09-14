@@ -99,10 +99,10 @@ Future<CompileResult> runImpellerCompile({
     );
   }
 
-  final tempDir = await Directory.systemTemp.createTemp('shadertoy_compile_');
+  final tempDir = await Directory.systemTemp.createTemp('shader_compile_');
   try {
     final vertFile = File('${tempDir.path}/quad.vert');
-    final fragFile = File('${tempDir.path}/shadertoy.frag');
+    final fragFile = File('${tempDir.path}/shader.frag');
     final bundleFile = File('${tempDir.path}/output.shaderbundle');
 
     await vertFile.writeAsString(quadVertexShader);
@@ -110,7 +110,7 @@ Future<CompileResult> runImpellerCompile({
 
     final manifestJson = json.encode({
       'QuadVertex': {'type': 'vertex', 'file': vertFile.path},
-      'ShadertoyFragment': {'type': 'fragment', 'file': fragFile.path},
+      'ShaderFragment': {'type': 'fragment', 'file': fragFile.path},
     });
 
     final String platformFlag;

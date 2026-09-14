@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../core/shadertoy_uniforms.dart';
+import '../core/common_uniforms.dart';
 import 'compile_process.dart';
 
 /// Result of an `impellerc` shader compilation.
@@ -31,7 +31,7 @@ class CustomUniformDeclaration {
   final int slot;
 }
 
-/// Compiler service that wraps Shadertoy GLSL code into modern Vulkan GLSL 4.60,
+/// Compiler service that wraps shader GLSL code into modern Vulkan GLSL 4.60,
 /// generates full-screen quad vertex shader geometry, and invokes `impellerc`
 /// to produce Flutter GPU `.shaderbundle` binaries or extract compilation errors.
 class ImpellerCompiler {
@@ -94,7 +94,7 @@ void main() {
       if (existingSlots != null && existingSlots.containsKey(name)) {
         return existingSlots[name]!;
       }
-      for (int i = 0; i < ShaderToyUniforms.maxCustomUniformSlots; i++) {
+      for (int i = 0; i < CommonUniforms.maxCustomUniformSlots; i++) {
         if (!assignedSlots.contains(i)) {
           assignedSlots.add(i);
           return i;
@@ -118,12 +118,12 @@ void main() {
     return uniforms;
   }
 
-  /// Wraps user Shadertoy GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// Wraps user shader GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
   /// optional samplers, macros, and standard main() entry point.
   /// If [commonGlsl] is provided, it is prepended so shared functions/structs
   /// are accessible to the pass.
   /// Uses `#line 1` so compiler error lines match the user's source lines.
-  static String wrapShadertoyGlsl(
+  static String wrapShaderGlsl(
     String userGlsl, {
     String? commonGlsl,
     Map<String, int>? customUniformSlots,
@@ -141,10 +141,10 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     vec4 iDate;
     float iSampleRate;
     vec3 iChannelResolution[4];
-    // ${ShaderToyUniforms.maxCustomUniformSlots} vec4 registers = ${ShaderToyUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
-    // Total FrameInfo buffer size: ${ShaderToyUniforms.totalUniformBufferSize} bytes.
-    // Controlled globally via [ShaderToyUniforms.maxCustomUniformSlots] and [ShaderToyUniforms.totalUniformBufferSize].
-    vec4 iCustom[${ShaderToyUniforms.maxCustomUniformSlots}];
+    // ${CommonUniforms.maxCustomUniformSlots} vec4 registers = ${CommonUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
+    // Total FrameInfo buffer size: ${CommonUniforms.totalUniformBufferSize} bytes.
+    // Controlled globally via [ShaderUniforms.maxCustomUniformSlots] and [ShaderUniforms.totalUniformBufferSize].
+    vec4 iCustom[${CommonUniforms.maxCustomUniformSlots}];
 };
 ''');
 
@@ -194,8 +194,9 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     }
 
     final sanitizedUserGlsl = sanitizeUniforms(userGlsl);
-    final sanitizedCommonGlsl =
-        commonGlsl != null ? sanitizeUniforms(commonGlsl) : null;
+    final sanitizedCommonGlsl = commonGlsl != null
+        ? sanitizeUniforms(commonGlsl)
+        : null;
 
     final declaredChannels = <int>[];
     for (int i = 0; i < 4; i++) {
@@ -212,10 +213,10 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 
     if (declaredChannels.isNotEmpty) {
       // In Vulkan and Metal, render target textures have (0, 0) at the top-left,
-      // whereas Shadertoy and OpenGL use bottom-left conventions.
+      // whereas shader and OpenGL use bottom-left conventions.
       // Sampling offscreen buffer textures with hardware UVs would invert the Y
       // axis on every pass/frame, causing alternating ping-pong flip flickering.
-      // These wrappers invert Y so that sampling is always consistent with Shadertoy.
+      // These wrappers invert Y so that sampling is always consistent with shader.
       sb.writeln('''
 vec4 st_texture(sampler2D s, vec2 uv) {
     return texture(s, vec2(uv.x, 1.0 - uv.y));
@@ -281,25 +282,25 @@ void main() {
     return sb.toString();
   }
 
-  /// Compiles a Shadertoy GLSL code string using `impellerc`.
-  /// If [commonGlsl] is specified, it is injected before [shadertoyGlsl].
+  /// Compiles a shader GLSL code string using `impellerc`.
+  /// If [commonGlsl] is specified, it is injected before [shaderGlsl].
   /// Returns [CompileResult.success] with the compiled `.shaderbundle` bytes,
   /// or [CompileResult.error] with the exact compiler diagnostics from `stderr`.
   static Future<CompileResult> compile({
-    required String shadertoyGlsl,
+    required String shaderGlsl,
     String? commonGlsl,
     String? customImpellercPath,
     Map<String, int>? customUniformSlots,
   }) {
     return runImpellerCompile(
       quadVertexShader: quadVertexShader,
-      wrappedFragGlsl: wrapShadertoyGlsl(
-        shadertoyGlsl,
+      wrappedFragGlsl: wrapShaderGlsl(
+        shaderGlsl,
         commonGlsl: commonGlsl,
         customUniformSlots: customUniformSlots,
       ),
       customImpellercPath: customImpellercPath,
-      rawUserGlsl: shadertoyGlsl,
+      rawUserGlsl: shaderGlsl,
       rawCommonGlsl: commonGlsl,
     );
   }

@@ -17,7 +17,7 @@ class WidgetShowcaseScreen extends StatefulWidget {
 class _WidgetShowcaseScreenState extends State<WidgetShowcaseScreen>
     with TickerProviderStateMixin {
   ShowcaseDemo _currentDemo = ShowcaseDemo.explodingButton;
-  ShaderToyController? _controller;
+  ShaderController? _controller;
 
   late final ExplodingButtonDemo _explodingButtonDemo = ExplodingButtonDemo(
     onStateChanged: () => setState(() {}),
@@ -56,39 +56,27 @@ class _WidgetShowcaseScreenState extends State<WidgetShowcaseScreen>
   void _initControllerForDemo(ShowcaseDemo demo) {
     _controller?.dispose();
 
-    final ShaderToyProject project;
+    final ShaderProject project;
     switch (demo) {
       case ShowcaseDemo.explodingButton:
         project = _explodingButtonDemo.createProject();
-        _controller = ShaderToyController(
-          initialProject: project,
-          autoPlay: true,
-        );
+        _controller = ShaderController(initialProject: project, autoPlay: true);
         _explodingButtonDemo.attachController(_controller!);
         break;
 
       case ShowcaseDemo.waterList:
         project = _liquidListDemo.createProject();
-        _controller = ShaderToyController(
-          initialProject: project,
-          autoPlay: true,
-        );
+        _controller = ShaderController(initialProject: project, autoPlay: true);
         break;
 
       case ShowcaseDemo.crtTerminal:
         project = _crtTerminalDemo.createProject();
-        _controller = ShaderToyController(
-          initialProject: project,
-          autoPlay: true,
-        );
+        _controller = ShaderController(initialProject: project, autoPlay: true);
         break;
 
       case ShowcaseDemo.widgetTransition:
         project = _transitionDemo.createProject();
-        _controller = ShaderToyController(
-          initialProject: project,
-          autoPlay: true,
-        );
+        _controller = ShaderController(initialProject: project, autoPlay: true);
         _transitionDemo.attachController(_controller!);
         break;
     }
@@ -154,7 +142,7 @@ class _WidgetShowcaseScreenState extends State<WidgetShowcaseScreen>
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: ShaderToyViewport(
+                            child: ShaderViewport(
                               key: ValueKey(_currentDemo),
                               controller: controller,
                               showControls: true,

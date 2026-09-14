@@ -13,7 +13,7 @@ class CrtTerminalDemo {
   );
   String terminalLogs = 'SYSTEM READY. AUTHENTICATED.';
 
-  ShaderToyProject createProject() {
+  ShaderProject createProject() {
     final terminalChannel = WidgetChannel(
       name: 'CyberTerminal',
       width: 480,
@@ -33,7 +33,7 @@ class CrtTerminalDemo {
       channels: [terminalChannel],
     );
 
-    return ShaderToyProject(name: 'CRT Terminal', passes: [pass]);
+    return ShaderProject(name: 'CRT Terminal', passes: [pass]);
   }
 
   Widget buildChild() {

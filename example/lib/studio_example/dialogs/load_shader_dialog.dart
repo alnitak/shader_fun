@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:shader_fun/shader_fun.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Metadata wrapper for a ShaderToy JSON file discovered in the folder.
+/// Metadata wrapper for a Shader JSON file discovered in the folder.
 class _JsonFileInfo {
   _JsonFileInfo({
     required this.file,
@@ -20,7 +20,7 @@ class _JsonFileInfo {
 
   final File file;
   final String fileName;
-  final ShaderToyProject? project;
+  final ShaderProject? project;
   final String? errorMessage;
 }
 
@@ -28,12 +28,9 @@ class _JsonFileInfo {
 ///
 /// Responsive standard Dialog that utilizes the maximum available height.
 class LoadShaderDialog extends StatefulWidget {
-  const LoadShaderDialog({
-    super.key,
-    required this.onLoadProject,
-  });
+  const LoadShaderDialog({super.key, required this.onLoadProject});
 
-  final ValueChanged<ShaderToyProject> onLoadProject;
+  final ValueChanged<ShaderProject> onLoadProject;
 
   @override
   State<LoadShaderDialog> createState() => _LoadShaderDialogState();
@@ -184,18 +181,18 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
         final fileName = file.uri.pathSegments.last;
         try {
           final content = await file.readAsString();
-          final project = ShaderToyProject.parseJsonString(content);
-          filesInfo.add(_JsonFileInfo(
-            file: file,
-            fileName: fileName,
-            project: project,
-          ));
+          final project = ShaderProject.parseJsonString(content);
+          filesInfo.add(
+            _JsonFileInfo(file: file, fileName: fileName, project: project),
+          );
         } catch (e) {
-          filesInfo.add(_JsonFileInfo(
-            file: file,
-            fileName: fileName,
-            errorMessage: e.toString(),
-          ));
+          filesInfo.add(
+            _JsonFileInfo(
+              file: file,
+              fileName: fileName,
+              errorMessage: e.toString(),
+            ),
+          );
         }
       }
 
@@ -240,8 +237,9 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     });
 
     try {
-      final project = item.project ??
-          ShaderToyProject.parseJsonString(await item.file.readAsString());
+      final project =
+          item.project ??
+          ShaderProject.parseJsonString(await item.file.readAsString());
       if (mounted) {
         widget.onLoadProject(project);
         Navigator.of(context).pop();
@@ -259,7 +257,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
   Future<void> _loadFromDisk() async {
     try {
       final files = await FilePicker.pickFiles(
-        dialogTitle: 'Select ShaderToy JSON',
+        dialogTitle: 'Select JSON',
         type: FileType.custom,
         allowedExtensions: ['json', 'txt'],
         initialDirectory: _currentFolderPath,
@@ -278,7 +276,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
       final content = utf8.decode(bytes);
 
       if (content.isEmpty) return;
-      final project = ShaderToyProject.parseJsonString(content);
+      final project = ShaderProject.parseJsonString(content);
       if (mounted) {
         widget.onLoadProject(project);
         Navigator.of(context).pop();
@@ -297,7 +295,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     if (text.isEmpty) return;
 
     try {
-      final project = ShaderToyProject.parseJsonString(text);
+      final project = ShaderProject.parseJsonString(text);
       widget.onLoadProject(project);
       Navigator.of(context).pop();
     } catch (e) {
@@ -311,7 +309,9 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     final base = fileName.replaceAll('.json', '');
     return base
         .split('_')
-        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .map(
+          (w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '',
+        )
         .join(' ');
   }
 
@@ -396,7 +396,10 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white54,
                 tabs: const [
-                  Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Folder Files'),
+                  Tab(
+                    icon: Icon(Icons.folder_open, size: 16),
+                    text: 'Folder Files',
+                  ),
                   Tab(icon: Icon(Icons.code, size: 16), text: 'Paste JSON'),
                 ],
               ),
@@ -406,10 +409,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
-                  children: [
-                    _buildFolderFilesTab(),
-                    _buildPasteJsonTab(),
-                  ],
+                  children: [_buildFolderFilesTab(), _buildPasteJsonTab()],
                 ),
               ),
 
@@ -494,7 +494,10 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                   tooltip: 'Refresh folder',
                   iconSize: 16,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
                   icon: const Icon(Icons.refresh, color: Colors.white54),
                   onPressed: _isLoadingFolder
                       ? null
@@ -504,13 +507,19 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF00E5FF),
                   side: const BorderSide(color: Color(0xFF00E5FF)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
                 icon: const Icon(Icons.drive_file_move_outlined, size: 14),
-                label: const Text('Change Folder', style: TextStyle(fontSize: 11)),
+                label: const Text(
+                  'Change Folder',
+                  style: TextStyle(fontSize: 11),
+                ),
                 onPressed: _chooseFolder,
               ),
             ],
@@ -528,240 +537,250 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                   ),
                 )
               : _folderFiles.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.folder_open_outlined,
+                          size: 48,
+                          color: Colors.white24,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Shader JSON files found',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Choose a folder containing .json files or load a file from disk.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.folder_open_outlined,
-                              size: 48,
-                              color: Colors.white24,
+                            FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF00E5FF),
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                              ),
+                              icon: const Icon(Icons.folder_open, size: 16),
+                              label: const Text(
+                                'Choose Folder',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              onPressed: _chooseFolder,
                             ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No Shader JSON files found',
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF38BDF8),
+                                side: const BorderSide(
+                                  color: Color(0xFF38BDF8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.file_upload_outlined,
+                                size: 16,
+                              ),
+                              label: const Text('Load from disk'),
+                              onPressed: _loadFromDisk,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _folderFiles.length,
+                  itemBuilder: (context, index) {
+                    final item = _folderFiles[index];
+                    final isInvalid = item.errorMessage != null;
+                    final proj = item.project;
+                    final title = proj != null && proj.name.isNotEmpty
+                        ? proj.name
+                        : _formatDisplayName(item.fileName);
+                    final desc = isInvalid
+                        ? 'Invalid JSON file'
+                        : proj?.description.isNotEmpty == true
+                        ? proj!.description
+                        : 'Shader project in ${item.fileName}';
+                    final passCount = proj?.passes.length ?? 0;
+                    final usesAudio = proj?.usesAudio ?? false;
+                    final usesTextures = proj?.usesTextures ?? false;
+                    final usesMouse = proj?.usesMouse ?? false;
+                    final usesMic = proj?.usesMic ?? false;
+                    final usesKeys = proj?.usesKeys ?? false;
+                    final isSelected = _loadingFile == item.fileName;
+
+                    return Card(
+                      color: const Color(0xFF20202A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: isInvalid
+                              ? const Color(0xFF7F1D1D)
+                              : const Color(0xFF2E2E3C),
+                        ),
+                      ),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isInvalid
+                                ? const Color(0xFFF87171)
+                                      .withValues(alpha: 0.12)
+                                : const Color(0xFF00E5FF)
+                                      .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isInvalid
+                                  ? const Color(0xFFF87171)
+                                        .withValues(alpha: 0.3)
+                                  : const Color(0xFF00E5FF)
+                                        .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Icon(
+                            isInvalid
+                                ? Icons.warning_amber_rounded
+                                : Icons.auto_awesome,
+                            color: isInvalid
+                                ? const Color(0xFFF87171)
+                                : const Color(0xFF00E5FF),
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          title,
+                          style: TextStyle(
+                            color: isInvalid
+                                ? const Color(0xFFF87171)
+                                : Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 2),
+                            Text(
+                              desc,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
+                                color: isInvalid
+                                    ? const Color(0xFFFCA5A5)
+                                    : Colors.white54,
+                                fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Choose a folder containing ShaderToy .json files or load a file from disk.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.white54, fontSize: 12),
-                            ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 4),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                FilledButton.icon(
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF00E5FF),
-                                    foregroundColor: Colors.black,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
+                                if (!isInvalid) ...[
+                                  _buildFeatureBadge(
+                                    '$passCount pass${passCount > 1 ? 'es' : ''}',
+                                    const Color(0xFF00E5FF),
+                                  ),
+                                  if (usesAudio)
+                                    _buildFeatureBadge(
+                                      'audio',
+                                      const Color(0xFFFFB300),
+                                    ),
+                                  if (usesTextures)
+                                    _buildFeatureBadge(
+                                      'texture',
+                                      const Color(0xFF40C4FF),
+                                    ),
+                                  if (usesMouse)
+                                    _buildFeatureBadge(
+                                      'mouse',
+                                      const Color(0xFFB388FF),
+                                    ),
+                                  if (usesMic)
+                                    _buildFeatureBadge(
+                                      'mic',
+                                      const Color(0xFFFF5252),
+                                    ),
+                                  if (usesKeys)
+                                    _buildFeatureBadge(
+                                      'keys',
+                                      const Color(0xFF69F0AE),
+                                    ),
+                                  const SizedBox(width: 4),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    item.fileName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white24,
+                                      fontSize: 10,
+                                      fontFamily: 'monospace',
                                     ),
                                   ),
-                                  icon: const Icon(Icons.folder_open, size: 16),
-                                  label: const Text(
-                                    'Choose Folder',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  onPressed: _chooseFolder,
-                                ),
-                                const SizedBox(width: 12),
-                                OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF38BDF8),
-                                    side: const BorderSide(color: Color(0xFF38BDF8)),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.file_upload_outlined, size: 16),
-                                  label: const Text('Load from disk'),
-                                  onPressed: _loadFromDisk,
                                 ),
                               ],
                             ),
                           ],
                         ),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _folderFiles.length,
-                      itemBuilder: (context, index) {
-                        final item = _folderFiles[index];
-                        final isInvalid = item.errorMessage != null;
-                        final proj = item.project;
-                        final title = proj != null && proj.name.isNotEmpty
-                            ? proj.name
-                            : _formatDisplayName(item.fileName);
-                        final desc = isInvalid
-                            ? 'Invalid ShaderToy JSON file'
-                            : proj?.description.isNotEmpty == true
-                                ? proj!.description
-                                : 'Shader project in ${item.fileName}';
-                        final passCount = proj?.passes.length ?? 0;
-                        final usesAudio = proj?.usesAudio ?? false;
-                        final usesTextures = proj?.usesTextures ?? false;
-                        final usesMouse = proj?.usesMouse ?? false;
-                        final usesMic = proj?.usesMic ?? false;
-                        final usesKeys = proj?.usesKeys ?? false;
-                        final isSelected = _loadingFile == item.fileName;
-
-                        return Card(
-                          color: const Color(0xFF20202A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(
-                              color: isInvalid
-                                  ? const Color(0xFF7F1D1D)
-                                  : const Color(0xFF2E2E3C),
-                            ),
+                        trailing: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: isInvalid
+                                ? const Color(0xFF383848)
+                                : const Color(0xFF00E5FF),
+                            foregroundColor: isInvalid
+                                ? Colors.white38
+                                : Colors.black,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                           ),
-                          margin: const EdgeInsets.only(bottom: 10),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            leading: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isInvalid
-                                    ? const Color(0xFFF87171).withValues(alpha: 0.12)
-                                    : const Color(0xFF00E5FF).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isInvalid
-                                      ? const Color(0xFFF87171).withValues(alpha: 0.3)
-                                      : const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                                ),
-                              ),
-                              child: Icon(
-                                isInvalid
-                                    ? Icons.warning_amber_rounded
-                                    : Icons.auto_awesome,
-                                color: isInvalid
-                                    ? const Color(0xFFF87171)
-                                    : const Color(0xFF00E5FF),
-                                size: 20,
-                              ),
-                            ),
-                            title: Text(
-                              title,
-                              style: TextStyle(
-                                color: isInvalid
-                                    ? const Color(0xFFF87171)
-                                    : Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 2),
-                                Text(
-                                  desc,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: isInvalid
-                                        ? const Color(0xFFFCA5A5)
-                                        : Colors.white54,
-                                    fontSize: 12,
+                          onPressed: (isSelected || isInvalid)
+                              ? null
+                              : () => _loadFile(item),
+                          child: isSelected
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.black,
                                   ),
+                                )
+                              : const Text(
+                                  'Load',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    if (!isInvalid) ...[
-                                      _buildFeatureBadge(
-                                        '$passCount pass${passCount > 1 ? 'es' : ''}',
-                                        const Color(0xFF00E5FF),
-                                      ),
-                                      if (usesAudio)
-                                        _buildFeatureBadge(
-                                          'audio',
-                                          const Color(0xFFFFB300),
-                                        ),
-                                      if (usesTextures)
-                                        _buildFeatureBadge(
-                                          'texture',
-                                          const Color(0xFF40C4FF),
-                                        ),
-                                      if (usesMouse)
-                                        _buildFeatureBadge(
-                                          'mouse',
-                                          const Color(0xFFB388FF),
-                                        ),
-                                      if (usesMic)
-                                        _buildFeatureBadge(
-                                          'mic',
-                                          const Color(0xFFFF5252),
-                                        ),
-                                      if (usesKeys)
-                                        _buildFeatureBadge(
-                                          'keys',
-                                          const Color(0xFF69F0AE),
-                                        ),
-                                      const SizedBox(width: 4),
-                                    ],
-                                    Expanded(
-                                      child: Text(
-                                        item.fileName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white24,
-                                          fontSize: 10,
-                                          fontFamily: 'monospace',
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            trailing: FilledButton(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: isInvalid
-                                    ? const Color(0xFF383848)
-                                    : const Color(0xFF00E5FF),
-                                foregroundColor:
-                                    isInvalid ? Colors.white38 : Colors.black,
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                              ),
-                              onPressed: (isSelected || isInvalid)
-                                  ? null
-                                  : () => _loadFile(item),
-                              child: isSelected
-                                  ? const SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.black,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Load',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -770,17 +789,11 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
   Widget _buildFeatureBadge(String label, Color color) {
     return Container(
       margin: const EdgeInsets.only(right: 5),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 5,
-        vertical: 1,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: color.withValues(alpha: 0.35),
-          width: 0.8,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Text(
         label,
@@ -816,8 +829,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
               ),
               decoration: const InputDecoration(
                 border: InputBorder.none,
-                hintText:
-                    'Paste Shadertoy project JSON here (from Shadertoy.com export or saved JSON)...',
+                hintText: 'Paste project JSON here',
                 hintStyle: TextStyle(color: Colors.white24, fontSize: 12),
               ),
             ),
@@ -830,10 +842,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF00E5FF),
               foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             ),
             icon: const Icon(Icons.check, size: 16),
             label: const Text(

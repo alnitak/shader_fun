@@ -28,7 +28,7 @@ export 'widgets/studio_code_editor.dart';
 class ShaderToyStudio extends StatefulWidget {
   const ShaderToyStudio({super.key, this.initialProject});
 
-  final ShaderToyProject? initialProject;
+  final ShaderProject? initialProject;
 
   @override
   State<ShaderToyStudio> createState() => _ShaderToyStudioState();
@@ -36,7 +36,7 @@ class ShaderToyStudio extends StatefulWidget {
 
 class _ShaderToyStudioState extends State<ShaderToyStudio>
     with SingleTickerProviderStateMixin {
-  late final ShaderToyController _controller;
+  late final ShaderController _controller;
   final TextEditingController _codeEditorController = TextEditingController();
   final ScrollController _editorScrollController = ScrollController();
   final ScrollController _gutterScrollController = ScrollController();
@@ -53,8 +53,8 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   @override
   void initState() {
     super.initState();
-    _controller = ShaderToyController(
-      initialProject: widget.initialProject ?? ShaderToyProject.empty(),
+    _controller = ShaderController(
+      initialProject: widget.initialProject ?? ShaderProject.empty(),
       vsync: this,
       autoPlay: true,
     );
@@ -172,7 +172,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
     if (SoLoud.instance.isInitialized) {
       SoLoud.instance.disposeAllSources();
     }
-    final project = ShaderToyProject.empty();
+    final project = ShaderProject.empty();
     await _controller.loadProject(project);
     _syncCodeWithActivePass();
     _controller.play();
@@ -355,7 +355,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
           final isWide = constraints.maxWidth >= 900;
 
           if (_isFullscreen) {
-            return ShaderToyViewport(
+            return ShaderViewport(
               key: _viewportKey,
               controller: _controller,
               isFullscreen: true,
@@ -363,7 +363,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
             );
           }
 
-          final viewportWidget = ShaderToyViewport(
+          final viewportWidget = ShaderViewport(
             key: _viewportKey,
             controller: _controller,
             isFullscreen: false,

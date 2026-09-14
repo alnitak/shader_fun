@@ -9,7 +9,7 @@ void main() {
 
   group('ShaderToyUniforms', () {
     test('initializes with valid defaults and pack to Float32List', () {
-      final uniforms = ShaderToyUniforms(
+      final uniforms = CommonUniforms(
         resolution: const Size(1920, 1080),
         time: 5.25,
         frame: 315,
@@ -27,8 +27,8 @@ void main() {
     });
   });
 
-  ShaderToyProject createRaymarchingTestProject() {
-    return ShaderToyProject(
+  ShaderProject createRaymarchingTestProject() {
+    return ShaderProject(
       id: '4slGD4',
       name: 'Raymarching Primitives',
       author: 'Inigo Quilez',
@@ -47,7 +47,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     );
   }
 
-  ShaderToyProject createFeedbackTestProject() {
+  ShaderProject createFeedbackTestProject() {
     final bufferPass = ShaderPass(
       type: PassType.bufferA,
       name: 'Buffer A',
@@ -60,7 +60,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       code: 'void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(1.0); }',
     );
     imagePass.setChannel(0, BufferChannel(bufferIndex: 0));
-    return ShaderToyProject(
+    return ShaderProject(
       id: 'feedback_test',
       name: 'Feedback Test',
       passes: [bufferPass, imagePass],
@@ -68,36 +68,41 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   }
 
   group('ShaderToyProject JSON Format', () {
-    test('serializes and deserializes correctly matching ShaderToy JSON structure', () {
-      final original = createRaymarchingTestProject();
-      final jsonMap = original.toJson();
+    test(
+      'serializes and deserializes correctly matching ShaderToy JSON structure',
+      () {
+        final original = createRaymarchingTestProject();
+        final jsonMap = original.toJson();
 
-      expect(jsonMap.containsKey('Shader'), isTrue);
-      final shader = jsonMap['Shader'] as Map<String, dynamic>;
-      expect(shader['info']['id'], '4slGD4');
-      expect(shader['info']['name'], 'Raymarching Primitives');
-      expect(shader['renderpass'] is List, isTrue);
+        expect(jsonMap.containsKey('Shader'), isTrue);
+        final shader = jsonMap['Shader'] as Map<String, dynamic>;
+        expect(shader['info']['id'], '4slGD4');
+        expect(shader['info']['name'], 'Raymarching Primitives');
+        expect(shader['renderpass'] is List, isTrue);
 
-      final jsonString = original.toJsonString();
-      final parsed = ShaderToyProject.parseJsonString(jsonString);
+        final jsonString = original.toJsonString();
+        final parsed = ShaderProject.parseJsonString(jsonString);
 
-      expect(parsed.id, '4slGD4');
-      expect(parsed.name, 'Raymarching Primitives');
-      expect(parsed.passes.length, original.passes.length);
-      expect(parsed.passes.first.type, PassType.image);
-      expect(parsed.passes.first.code, contains('mainImage'));
-    });
+        expect(parsed.id, '4slGD4');
+        expect(parsed.name, 'Raymarching Primitives');
+        expect(parsed.passes.length, original.passes.length);
+        expect(parsed.passes.first.type, PassType.image);
+        expect(parsed.passes.first.code, contains('mainImage'));
+      },
+    );
 
     test('multi-pass feedback project serializes channels and passes', () {
       final project = createFeedbackTestProject();
       final jsonMap = project.toJson();
-      final parsed = ShaderToyProject.fromJson(jsonMap);
+      final parsed = ShaderProject.fromJson(jsonMap);
 
       expect(parsed.passes.length, 2);
       expect(parsed.passes.any((p) => p.type == PassType.bufferA), isTrue);
       expect(parsed.passes.any((p) => p.type == PassType.image), isTrue);
 
-      final bufferA = parsed.passes.firstWhere((p) => p.type == PassType.bufferA);
+      final bufferA = parsed.passes.firstWhere(
+        (p) => p.type == PassType.bufferA,
+      );
       expect(bufferA.channels[0], isNotNull);
       expect(bufferA.channels[0]?.type, ChannelType.buffer);
     });
@@ -134,7 +139,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   group('ShaderToyController', () {
     test('manages playback state and pass navigation', () async {
       final project = createFeedbackTestProject();
-      final controller = ShaderToyController(
+      final controller = ShaderController(
         initialProject: project,
         initialResolution: const Size(800, 450),
       );
@@ -163,12 +168,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     test('updateActivePassCode updates pass code and re-renders', () {
       final project = createRaymarchingTestProject();
-      final controller = ShaderToyController(
+      final controller = ShaderController(
         initialProject: project,
         initialResolution: const Size(800, 450),
       );
 
-      controller.updateActivePassCode('void mainImage() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }');
+      controller.updateActivePassCode(
+        'void mainImage() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }',
+      );
       expect(controller.activePass?.code, contains('1.0, 0.0, 0.0'));
       controller.dispose();
     });
@@ -176,13 +183,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     test('compile with invalid sourceCode does not mutate active pass code on failure', () async {
       final project = createRaymarchingTestProject();
       final originalCode = project.passes.first.code;
-      final controller = ShaderToyController(
+      final controller = ShaderController(
         initialProject: project,
         initialResolution: const Size(800, 450),
       );
 
       // Attempt to compile broken GLSL code
-      final success = await controller.compile(sourceCode: 'invalid GLSL syntax !!!');
+      final success = await controller.compile(
+        sourceCode: 'invalid GLSL syntax !!!',
+      );
       expect(success, isFalse);
       expect(controller.hasError, isTrue);
       // Ensure the active pass code was not overwritten with the broken code
@@ -193,7 +202,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
   group('ShaderCodeEvaluator', () {
     test('extracts direct fragColor assignment', () {
-      const code = 'void mainImage() { fragColor = vec4(1.0, 0.5, 0.25, 1.0); }';
+      const code =
+          'void mainImage() { fragColor = vec4(1.0, 0.5, 0.25, 1.0); }';
       final color = ShaderCodeEvaluator.extractDirectFragColor(code);
       expect(color, isNotNull);
       expect((color!.a * 255).round(), 255);
@@ -236,11 +246,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(config.spheres.first.center.dx, 1.0);
       expect(config.spheres.first.center.dy, 2.0);
       expect(config.rotationSpeed, 1.5);
-      expect((config.diffuseColor.g * 255).round(), greaterThan(200)); // Vibrant green
+      expect(
+        (config.diffuseColor.g * 255).round(),
+        greaterThan(200),
+      ); // Vibrant green
     });
 
     test('evaluates raymarching and audio tunnel shaders to images', () async {
-      final uniforms = ShaderToyUniforms(
+      final uniforms = CommonUniforms(
         resolution: const Size(800, 450),
         time: 1.0,
       );
@@ -277,8 +290,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     });
 
     test('ImpellerCompiler wraps GLSL with UBO, samplers, and #line 1', () {
-      const userCode = 'void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = texture(iChannel0, fragCoord); }';
-      final wrapped = ImpellerCompiler.wrapShadertoyGlsl(userCode);
+      const userCode =
+          'void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = texture(iChannel0, fragCoord); }';
+      final wrapped = ImpellerCompiler.wrapShaderGlsl(userCode);
 
       expect(wrapped, contains('#version 460 core'));
       expect(wrapped, contains('uniform FrameInfo'));
@@ -305,7 +319,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     });
 
     test('ShaderToyProject serializes and restores src for URLs, local paths, and assets', () {
-      final project = ShaderToyProject(
+      final project = ShaderProject(
         name: 'Source Test',
         passes: [
           ShaderPass(
@@ -323,7 +337,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       );
 
       final jsonMap = project.toJson();
-      final parsed = ShaderToyProject.fromJson(jsonMap);
+      final parsed = ShaderProject.fromJson(jsonMap);
 
       expect(parsed.passes.first.channels[0]?.type, ChannelType.audio);
       final ch0 = parsed.passes.first.channels[0] as SoLoudAudioChannel;
@@ -350,7 +364,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         },
       };
 
-      final project = ShaderToyProject.fromSettingsJson(jsonMap);
+      final project = ShaderProject.fromSettingsJson(jsonMap);
       expect(project.name, 'Concise Shader');
       expect(project.passes.length, 2);
       expect(project.passes.first.channels[0]?.type, ChannelType.audio);
@@ -359,8 +373,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     });
 
     test('ShaderToyController manages channels and source code', () {
-      final controller = ShaderToyController();
-      controller.setImagePassCode('void mainImage(out vec4 c, in vec2 u) { c = vec4(1.0); }');
+      final controller = ShaderController();
+      controller.setImagePassCode(
+        'void mainImage(out vec4 c, in vec2 u) { c = vec4(1.0); }',
+      );
       expect(controller.imagePassCode, contains('vec4(1.0)'));
 
       controller.setBufferChannel(0, PassType.bufferA);
@@ -373,7 +389,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     });
 
     test('ShaderToyController supports package:listen ChangeNotifier and ValueNotifiers', () {
-      final controller = ShaderToyController();
+      final controller = ShaderController();
       int controllerNotifications = 0;
       int isPlayingNotifications = 0;
 
@@ -398,26 +414,29 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       controller.dispose();
     });
 
-    test('ShaderPass and AudioChannel handle multiple dispose calls idempotently', () {
-      final pass = ShaderPass(
-        type: PassType.image,
-        name: 'Image',
-        code: 'void mainImage(out vec4 c, in vec2 u) {}',
-      );
-      final ch1 = SoLoudAudioChannel();
-      pass.setChannel(0, ch1);
+    test(
+      'ShaderPass and AudioChannel handle multiple dispose calls idempotently',
+      () {
+        final pass = ShaderPass(
+          type: PassType.image,
+          name: 'Image',
+          code: 'void mainImage(out vec4 c, in vec2 u) {}',
+        );
+        final ch1 = SoLoudAudioChannel();
+        pass.setChannel(0, ch1);
 
-      // Replacing with another channel triggers disposal of ch1
-      final ch2 = SoLoudAudioChannel();
-      pass.setChannel(0, ch2);
-      expect(ch1.isDisposed, isTrue);
+        // Replacing with another channel triggers disposal of ch1
+        final ch2 = SoLoudAudioChannel();
+        pass.setChannel(0, ch2);
+        expect(ch1.isDisposed, isTrue);
 
-      // Calling dispose again directly must be an idempotent no-op (no Bad state exception)
-      ch1.dispose();
-      expect(ch1.isDisposed, isTrue);
+        // Calling dispose again directly must be an idempotent no-op (no Bad state exception)
+        ch1.dispose();
+        expect(ch1.isDisposed, isTrue);
 
-      pass.dispose();
-      expect(ch2.isDisposed, isTrue);
-    });
+        pass.dispose();
+        expect(ch2.isDisposed, isTrue);
+      },
+    );
   });
 }

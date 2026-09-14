@@ -18,7 +18,7 @@ class TransitionDemo {
 
   WidgetChannel? dashboardChannel;
   WidgetChannel? playerChannel;
-  ShaderToyController? _controller;
+  ShaderController? _controller;
 
   late final AnimationController pageTransitionController = AnimationController(
     vsync: vsync,
@@ -26,7 +26,7 @@ class TransitionDemo {
   );
   late final Animation<double> pageTransitionAnimation;
 
-  void attachController(ShaderToyController controller) {
+  void attachController(ShaderController controller) {
     _controller = controller;
     _controller?.setUniform('progress', 0.0);
   }
@@ -51,7 +51,7 @@ class TransitionDemo {
     pageTransitionController.reverse();
   }
 
-  ShaderToyProject createProject() {
+  ShaderProject createProject() {
     transitionPageIndex = 0;
     pageTransitionController.value = 0.0;
     logoTurns = 0.0;
@@ -83,7 +83,7 @@ class TransitionDemo {
       channels: [dashboardChannel!, playerChannel!],
     );
 
-    return ShaderToyProject(name: 'Widget Transition', passes: [pass]);
+    return ShaderProject(name: 'Widget Transition', passes: [pass]);
   }
 
   Widget buildPageA() {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widget_previews.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 class LiquidListDemo {
@@ -8,7 +7,7 @@ class LiquidListDemo {
 
   void dispose() {}
 
-  ShaderToyProject createProject() {
+  ShaderProject createProject() {
     final listChannel = WidgetChannel(
       name: 'InteractiveList',
       width: 500,
@@ -28,7 +27,7 @@ class LiquidListDemo {
       channels: [listChannel],
     );
 
-    return ShaderToyProject(name: 'Liquid ListView', passes: [pass]);
+    return ShaderProject(name: 'Liquid ListView', passes: [pass]);
   }
 
   Widget buildChild() {

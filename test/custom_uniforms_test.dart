@@ -9,18 +9,18 @@ void main() {
   group('Custom Uniforms', () {
     test('ShaderToyUniforms buffer constants and size consistency', () {
       expect(
-        ShaderToyUniforms.customUniformsSizeBytes,
-        ShaderToyUniforms.maxCustomUniformSlots * 16,
+        CommonUniforms.customUniformsSizeBytes,
+        CommonUniforms.maxCustomUniformSlots * 16,
       );
       expect(
-        ShaderToyUniforms.totalUniformBufferSize,
-        ShaderToyUniforms.standardUniformsSizeBytes +
-            ShaderToyUniforms.customUniformsSizeBytes,
+        CommonUniforms.totalUniformBufferSize,
+        CommonUniforms.standardUniformsSizeBytes +
+            CommonUniforms.customUniformsSizeBytes,
       );
     });
 
     test('ShaderToyUniforms stores and packs custom uniform types', () {
-      final uniforms = ShaderToyUniforms();
+      final uniforms = CommonUniforms();
 
       uniforms.setCustomUniform('progress', 0.75);
       uniforms.setCustomUniform('count', 42);
@@ -42,7 +42,10 @@ void main() {
 
       final tintSlot = uniforms.getOrAssignSlot('tint');
       expect(uniforms.customData[tintSlot * 4], closeTo(1.0, 0.0001)); // r
-      expect(uniforms.customData[tintSlot * 4 + 1], closeTo(128 / 255.0, 0.01)); // g
+      expect(
+        uniforms.customData[tintSlot * 4 + 1],
+        closeTo(128 / 255.0, 0.01),
+      ); // g
       expect(uniforms.customData[tintSlot * 4 + 2], closeTo(0.0, 0.0001)); // b
       expect(uniforms.customData[tintSlot * 4 + 3], closeTo(1.0, 0.0001)); // a
     });
@@ -67,7 +70,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(extracted[2].name, 'glowColor');
       expect(extracted[2].type, 'vec4');
 
-      final wrapped = ImpellerCompiler.wrapShadertoyGlsl(glsl);
+      final wrapped = ImpellerCompiler.wrapShaderGlsl(glsl);
       expect(wrapped, contains('vec4 iCustom[16];'));
       expect(wrapped, contains('#define progress (iCustom[0].x)'));
       expect(wrapped, contains('#define focusPoint (iCustom[1].xy)'));
@@ -77,7 +80,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     });
 
     test('ShaderToyController setUniform updates uniforms without error', () {
-      final project = ShaderToyProject(
+      final project = ShaderProject(
         name: 'Uniform Test',
         passes: [
           ShaderPass(
@@ -93,7 +96,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         ],
       );
 
-      final controller = ShaderToyController(initialProject: project);
+      final controller = ShaderController(initialProject: project);
       controller.setUniform('progress', 0.85);
 
       expect(controller.getUniform('progress'), 0.85);

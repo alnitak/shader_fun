@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../channels/audio_texture_provider.dart';
-import '../core/shadertoy_uniforms.dart';
+import '../core/common_uniforms.dart';
 
 /// Evaluates and extracts parameters and visual expressions from GLSL `mainImage` code.
 class ShaderCodeEvaluator {
@@ -155,23 +155,37 @@ class ShaderCodeEvaluator {
 
       // Ignore lines ending with semicolon, open brace, close brace, comma
       final lastChar = line[line.length - 1];
-      if (lastChar == ';' || lastChar == '{' || lastChar == '}' || lastChar == ',') {
+      if (lastChar == ';' ||
+          lastChar == '{' ||
+          lastChar == '}' ||
+          lastChar == ',') {
         continue;
       }
 
       // Ignore lines ending with open parenthesis/bracket or binary/ternary operators
-      if (lastChar == '(' || lastChar == '[' ||
-          lastChar == '+' || lastChar == '-' || lastChar == '*' || lastChar == '/' ||
-          lastChar == '=' || lastChar == '?' || lastChar == ':' ||
-          line.endsWith('&&') || line.endsWith('||')) {
+      if (lastChar == '(' ||
+          lastChar == '[' ||
+          lastChar == '+' ||
+          lastChar == '-' ||
+          lastChar == '*' ||
+          lastChar == '/' ||
+          lastChar == '=' ||
+          lastChar == '?' ||
+          lastChar == ':' ||
+          line.endsWith('&&') ||
+          line.endsWith('||')) {
         continue;
       }
 
       // Ignore control flow keywords that start a statement on next line
-      if (line == 'else' || line.startsWith('else ') ||
-          line.startsWith('if ') || line.startsWith('if(') ||
-          line.startsWith('for ') || line.startsWith('for(') ||
-          line.startsWith('while ') || line.startsWith('while(') ||
+      if (line == 'else' ||
+          line.startsWith('else ') ||
+          line.startsWith('if ') ||
+          line.startsWith('if(') ||
+          line.startsWith('for ') ||
+          line.startsWith('for(') ||
+          line.startsWith('while ') ||
+          line.startsWith('while(') ||
           line == 'do') {
         continue;
       }
@@ -269,9 +283,8 @@ class ShaderCodeEvaluator {
     }
 
     // 3. Simple single-value vec4(c): e.g. fragColor = vec4(1.0);
-    final singleVec4 = RegExp(
-      r'fragColor\s*=\s*vec4\s*\(\s*([0-9.]+)\s*\)\s*;',
-    ).firstMatch(code);
+    final singleVec4 = RegExp(r'fragColor\s*=\s*vec4\s*\(\s*([0-9.]+)\s*\)\s*;')
+        .firstMatch(code);
     if (singleVec4 != null) {
       final v = (double.tryParse(singleVec4.group(1)!) ?? 0.0).clamp(0.0, 1.0);
       final byte = (v * 255.0).round();
@@ -283,10 +296,24 @@ class ShaderCodeEvaluator {
       r'col\s*=\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*;[^\n]*\n?[^\n]*fragColor\s*=\s*vec4\s*\(\s*col',
     ).firstMatch(code);
     if (colAssignment != null) {
-      final r = (double.tryParse(colAssignment.group(1)!) ?? 0.0).clamp(0.0, 1.0);
-      final g = (double.tryParse(colAssignment.group(2)!) ?? 0.0).clamp(0.0, 1.0);
-      final b = (double.tryParse(colAssignment.group(3)!) ?? 0.0).clamp(0.0, 1.0);
-      return ui.Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+      final r = (double.tryParse(colAssignment.group(1)!) ?? 0.0).clamp(
+        0.0,
+        1.0,
+      );
+      final g = (double.tryParse(colAssignment.group(2)!) ?? 0.0).clamp(
+        0.0,
+        1.0,
+      );
+      final b = (double.tryParse(colAssignment.group(3)!) ?? 0.0).clamp(
+        0.0,
+        1.0,
+      );
+      return ui.Color.fromARGB(
+        255,
+        (r * 255).round(),
+        (g * 255).round(),
+        (b * 255).round(),
+      );
     }
 
     return null;
@@ -297,33 +324,62 @@ class ShaderCodeEvaluator {
     final config = AudioTunnelConfig();
 
     // 1. Wave line color: looks for vec3(r, g, b) multiplied by waveLine or wave
-    final waveColorMatch = RegExp(
-      r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*wave',
-      caseSensitive: false,
-    ).firstMatch(code) ??
-    RegExp(
-      r'waveLine\s*.*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
-      caseSensitive: false,
-    ).firstMatch(code) ??
-    RegExp(
-      r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*waveLine',
-      caseSensitive: false,
-    ).firstMatch(code);
+    final waveColorMatch =
+        RegExp(
+          r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*wave',
+          caseSensitive: false,
+        ).firstMatch(code) ??
+        RegExp(
+          r'waveLine\s*.*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
+          caseSensitive: false,
+        ).firstMatch(code) ??
+        RegExp(
+          r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*waveLine',
+          caseSensitive: false,
+        ).firstMatch(code);
 
     if (waveColorMatch != null) {
-      final r = (double.tryParse(waveColorMatch.group(1)!) ?? 0.0).clamp(0.0, 1.0);
-      final g = (double.tryParse(waveColorMatch.group(2)!) ?? 1.0).clamp(0.0, 1.0);
-      final b = (double.tryParse(waveColorMatch.group(3)!) ?? 1.0).clamp(0.0, 1.0);
-      config.waveLineColor = ui.Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+      final r = (double.tryParse(waveColorMatch.group(1)!) ?? 0.0).clamp(
+        0.0,
+        1.0,
+      );
+      final g = (double.tryParse(waveColorMatch.group(2)!) ?? 1.0).clamp(
+        0.0,
+        1.0,
+      );
+      final b = (double.tryParse(waveColorMatch.group(3)!) ?? 1.0).clamp(
+        0.0,
+        1.0,
+      );
+      config.waveLineColor = ui.Color.fromARGB(
+        255,
+        (r * 255).round(),
+        (g * 255).round(),
+        (b * 255).round(),
+      );
     } else {
       final directColMatch = RegExp(
         r'col\s*=\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
       ).firstMatch(code);
       if (directColMatch != null) {
-        final r = (double.tryParse(directColMatch.group(1)!) ?? 0.0).clamp(0.0, 1.0);
-        final g = (double.tryParse(directColMatch.group(2)!) ?? 1.0).clamp(0.0, 1.0);
-        final b = (double.tryParse(directColMatch.group(3)!) ?? 1.0).clamp(0.0, 1.0);
-        config.waveLineColor = ui.Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+        final r = (double.tryParse(directColMatch.group(1)!) ?? 0.0).clamp(
+          0.0,
+          1.0,
+        );
+        final g = (double.tryParse(directColMatch.group(2)!) ?? 1.0).clamp(
+          0.0,
+          1.0,
+        );
+        final b = (double.tryParse(directColMatch.group(3)!) ?? 1.0).clamp(
+          0.0,
+          1.0,
+        );
+        config.waveLineColor = ui.Color.fromARGB(
+          255,
+          (r * 255).round(),
+          (g * 255).round(),
+          (b * 255).round(),
+        );
       }
     }
 
@@ -334,9 +390,11 @@ class ShaderCodeEvaluator {
     }
 
     // 3. Oscilloscope amplitude (e.g. (wave - 0.5) * 0.6)
-    final ampMatch = RegExp(r'wave\s*-\s*0\.5\s*\)\s*\*\s*([0-9.]+)').firstMatch(code);
+    final ampMatch = RegExp(r'wave\s*-\s*0\.5\s*\)\s*\*\s*([0-9.]+)')
+        .firstMatch(code);
     if (ampMatch != null) {
-      config.waveAmplitudeMultiplier = double.tryParse(ampMatch.group(1)!) ?? 0.6;
+      config.waveAmplitudeMultiplier =
+          double.tryParse(ampMatch.group(1)!) ?? 0.6;
     }
 
     // 4. Tunnel ring frequency (e.g. 10.0 * r or sin(10.0 * r))
@@ -346,7 +404,8 @@ class ShaderCodeEvaluator {
     }
 
     // 5. Tunnel speed (e.g. iTime * 4.0 or 4.0 * iTime)
-    final timeSpeedMatch = RegExp(r'iTime\s*\*\s*([0-9.]+)').firstMatch(code) ??
+    final timeSpeedMatch =
+        RegExp(r'iTime\s*\*\s*([0-9.]+)').firstMatch(code) ??
         RegExp(r'([0-9.]+)\s*\*\s*iTime').firstMatch(code);
     if (timeSpeedMatch != null) {
       config.tunnelSpeed = double.tryParse(timeSpeedMatch.group(1)!) ?? 4.0;
@@ -383,26 +442,40 @@ class ShaderCodeEvaluator {
     if (sphereMatches.isNotEmpty) {
       config.spheres.clear();
       for (final m in sphereMatches) {
-        final x = m.group(1) != null ? (double.tryParse(m.group(1)!) ?? 0.0) : 0.0;
-        final y = m.group(2) != null ? (double.tryParse(m.group(2)!) ?? 0.0) : 0.0;
-        final z = m.group(3) != null ? (double.tryParse(m.group(3)!) ?? 0.0) : 0.0;
+        final x = m.group(1) != null
+            ? (double.tryParse(m.group(1)!) ?? 0.0)
+            : 0.0;
+        final y = m.group(2) != null
+            ? (double.tryParse(m.group(2)!) ?? 0.0)
+            : 0.0;
+        final z = m.group(3) != null
+            ? (double.tryParse(m.group(3)!) ?? 0.0)
+            : 0.0;
         final r = double.tryParse(m.group(4)!) ?? 1.0;
-        config.spheres.add(SphereData(center: ui.Offset(x, y), z: z, radius: r));
+        config.spheres.add(
+          SphereData(center: ui.Offset(x, y), z: z, radius: r),
+        );
       }
     }
 
     // 2. Diffuse color: vec3(r, g, b) * dif or dif * vec3(r, g, b)
-    final difMatch = RegExp(
-      r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*dif',
-    ).firstMatch(code) ??
-    RegExp(
-      r'dif\s*\*\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
-    ).firstMatch(code);
+    final difMatch =
+        RegExp(
+          r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*dif',
+        ).firstMatch(code) ??
+        RegExp(
+          r'dif\s*\*\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
+        ).firstMatch(code);
     if (difMatch != null) {
       final r = (double.tryParse(difMatch.group(1)!) ?? 0.8).clamp(0.0, 1.0);
       final g = (double.tryParse(difMatch.group(2)!) ?? 0.7).clamp(0.0, 1.0);
       final b = (double.tryParse(difMatch.group(3)!) ?? 0.6).clamp(0.0, 1.0);
-      config.diffuseColor = ui.Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+      config.diffuseColor = ui.Color.fromARGB(
+        255,
+        (r * 255).round(),
+        (g * 255).round(),
+        (b * 255).round(),
+      );
     } else {
       final colMatch = RegExp(
         r'col\s*=\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
@@ -411,22 +484,33 @@ class ShaderCodeEvaluator {
         final r = (double.tryParse(colMatch.group(1)!) ?? 0.8).clamp(0.0, 1.0);
         final g = (double.tryParse(colMatch.group(2)!) ?? 0.7).clamp(0.0, 1.0);
         final b = (double.tryParse(colMatch.group(3)!) ?? 0.6).clamp(0.0, 1.0);
-        config.diffuseColor = ui.Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+        config.diffuseColor = ui.Color.fromARGB(
+          255,
+          (r * 255).round(),
+          (g * 255).round(),
+          (b * 255).round(),
+        );
       }
     }
 
     // 3. Ambient color: vec3(r, g, b) * amb or amb * vec3(r, g, b)
-    final ambMatch = RegExp(
-      r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*amb',
-    ).firstMatch(code) ??
-    RegExp(
-      r'amb\s*\*\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
-    ).firstMatch(code);
+    final ambMatch =
+        RegExp(
+          r'vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)\s*\*\s*amb',
+        ).firstMatch(code) ??
+        RegExp(
+          r'amb\s*\*\s*vec3\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)',
+        ).firstMatch(code);
     if (ambMatch != null) {
       final r = (double.tryParse(ambMatch.group(1)!) ?? 0.2).clamp(0.0, 1.0);
       final g = (double.tryParse(ambMatch.group(2)!) ?? 0.3).clamp(0.0, 1.0);
       final b = (double.tryParse(ambMatch.group(3)!) ?? 0.4).clamp(0.0, 1.0);
-      config.ambientColor = ui.Color.fromARGB(255, (r * 255).round(), (g * 255).round(), (b * 255).round());
+      config.ambientColor = ui.Color.fromARGB(
+        255,
+        (r * 255).round(),
+        (g * 255).round(),
+        (b * 255).round(),
+      );
     }
 
     // 4. Camera rotation speed: float an = X * iTime
@@ -441,7 +525,7 @@ class ShaderCodeEvaluator {
   /// Renders a real-time 3D raymarching scene per pixel using software rasterization.
   static Future<ui.Image?> evaluateRaymarchingShader({
     required String code,
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required int width,
     required int height,
   }) async {
@@ -539,7 +623,8 @@ class ShaderCodeEvaluator {
             final dx = posX - sph.center.dx;
             final dy = posY - sph.center.dy;
             final dz = posZ - sph.z;
-            final sphereDist = math.sqrt(dx * dx + dy * dy + dz * dz) - sph.radius;
+            final sphereDist =
+                math.sqrt(dx * dx + dy * dy + dz * dz) - sph.radius;
             if (sphereDist < d) {
               d = sphereDist;
               hitIdx = s;
@@ -579,7 +664,10 @@ class ShaderCodeEvaluator {
             norZ = (hitZ - sph.z) / sph.radius;
           }
 
-          final dotL = (norX * ligX + norY * ligY + norZ * ligZ).clamp(0.0, 1.0);
+          final dotL = (norX * ligX + norY * ligY + norZ * ligZ).clamp(
+            0.0,
+            1.0,
+          );
           final amb = 0.5 + 0.5 * norY;
 
           if (hitSphereIdx >= 0) {
@@ -620,7 +708,7 @@ class ShaderCodeEvaluator {
   /// Renders real-time audio-reactive neon tunnel per pixel using software rasterization.
   static Future<ui.Image?> evaluateAudioTunnelShader({
     required String code,
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required int width,
     required int height,
     AudioChannel? audio,
@@ -654,7 +742,9 @@ class ShaderCodeEvaluator {
         final r = math.sqrt(uvX * uvX + uvY * uvY);
 
         // Tunnel modulation
-        final tunnel = math.sin(config.tunnelFrequency * r - t * 4.0 + fftMag * 3.0);
+        final tunnel = math.sin(
+          config.tunnelFrequency * r - t * 4.0 + fftMag * 3.0,
+        );
 
         // Oscilloscope waveform line
         final waveSampleIdx = (normX * 511).round().clamp(0, 511);
@@ -695,7 +785,7 @@ class ShaderCodeEvaluator {
   /// Evaluates an arbitrary user GLSL pixel shader at reduced resolution for real-time rendering.
   static Future<ui.Image?> evaluateCustomPixelShader({
     required String code,
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required int width,
     required int height,
     AudioChannel? audio,
@@ -708,8 +798,12 @@ class ShaderCodeEvaluator {
 
     // Check for explicit colors in the code
     final colors = extractVec3Colors(code);
-    final primaryColor = colors.isNotEmpty ? colors.first : const ui.Color(0xFF00E5FF);
-    final secondaryColor = colors.length > 1 ? colors[1] : const ui.Color(0xFFFF0055);
+    final primaryColor = colors.isNotEmpty
+        ? colors.first
+        : const ui.Color(0xFF00E5FF);
+    final secondaryColor = colors.length > 1
+        ? colors[1]
+        : const ui.Color(0xFFFF0055);
 
     final hasSin = code.contains('sin');
     final hasCos = code.contains('cos');
@@ -732,14 +826,18 @@ class ShaderCodeEvaluator {
 
         if (hasLength) {
           final dist = math.sqrt(uvX * uvX + uvY * uvY);
-          final wave = hasSin ? math.sin(dist * 12.0 - t * 4.0 + (hasFft ? bass * 4.0 : 0.0)) : dist;
+          final wave = hasSin
+              ? math.sin(dist * 12.0 - t * 4.0 + (hasFft ? bass * 4.0 : 0.0))
+              : dist;
           final factor = (0.5 + 0.5 * wave).clamp(0.0, 1.0);
           r = primaryColor.r * factor + secondaryColor.r * (1.0 - factor);
           g = primaryColor.g * factor + secondaryColor.g * (1.0 - factor);
           b = primaryColor.b * factor + secondaryColor.b * (1.0 - factor);
         } else if (hasCos || hasSin) {
-          r = (0.5 + 0.5 * math.cos(t + uvX * 2.0 + primaryColor.r * 2.0)).clamp(0.0, 1.0);
-          g = (0.5 + 0.5 * math.cos(t + uvY * 2.0 + secondaryColor.g * 2.0)).clamp(0.0, 1.0);
+          r = (0.5 + 0.5 * math.cos(t + uvX * 2.0 + primaryColor.r * 2.0))
+              .clamp(0.0, 1.0);
+          g = (0.5 + 0.5 * math.cos(t + uvY * 2.0 + secondaryColor.g * 2.0))
+              .clamp(0.0, 1.0);
           b = (0.5 + 0.5 * math.cos(t + uvX * 2.0 + 4.0)).clamp(0.0, 1.0);
         } else {
           // Direct UV coordinates
@@ -759,7 +857,11 @@ class ShaderCodeEvaluator {
     return _decodePixelsToImage(pixelBytes, gridW, gridH);
   }
 
-  static Future<ui.Image?> _decodePixelsToImage(Uint8List pixelBytes, int width, int height) {
+  static Future<ui.Image?> _decodePixelsToImage(
+    Uint8List pixelBytes,
+    int width,
+    int height,
+  ) {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
       pixelBytes,

@@ -11,9 +11,9 @@ class ExplodingButtonDemo {
   int detonateCount = 0;
   bool isExploding = false;
   Timer? _resetTimer;
-  ShaderToyController? _controller;
+  ShaderController? _controller;
 
-  void attachController(ShaderToyController controller) {
+  void attachController(ShaderController controller) {
     _controller = controller;
     _controller?.setUniform('detonateTime', 0.0);
   }
@@ -37,7 +37,7 @@ class ExplodingButtonDemo {
     });
   }
 
-  ShaderToyProject createProject() {
+  ShaderProject createProject() {
     final buttonChannel = WidgetChannel(
       name: 'Button',
       width: 320,
@@ -57,7 +57,7 @@ class ExplodingButtonDemo {
       channels: [buttonChannel],
     );
 
-    return ShaderToyProject(name: 'Exploding Button', passes: [pass]);
+    return ShaderProject(name: 'Exploding Button', passes: [pass]);
   }
 
   Widget buildChild() {

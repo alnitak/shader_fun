@@ -3,17 +3,15 @@ import 'dart:ui' as ui;
 
 import '../channels/audio_texture_provider.dart';
 import '../core/shader_pass.dart';
-import '../core/shadertoy_uniforms.dart';
+import '../core/common_uniforms.dart';
 import 'compositor_renderer.dart';
 import 'gpu_renderer.dart';
 
 /// Unified rendering engine coordinating GPU pipelines and fallback compositing.
-class ShaderToyRenderer {
-  ShaderToyRenderer({
-    int width = 800,
-    int height = 450,
-  })  : _width = width,
-        _height = height {
+class ShaderRenderer {
+  ShaderRenderer({int width = 800, int height = 450})
+    : _width = width,
+      _height = height {
     _gpuRenderer = FlutterGpuRenderer(width: width, height: height);
     _compositorRenderer = CompositorRenderer(width: width, height: height);
   }
@@ -52,7 +50,7 @@ class ShaderToyRenderer {
 
   /// Renders a single frame and returns the resulting [ui.Image].
   Future<ui.Image?> renderFrame({
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required List<ShaderPass> passes,
     ShaderPass? activePass,
     AudioChannel? activeAudioChannel,

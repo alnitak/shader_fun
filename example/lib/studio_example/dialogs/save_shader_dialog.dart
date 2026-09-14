@@ -13,12 +13,9 @@ import 'package:shader_fun/shader_fun.dart';
 ///
 /// Responsive standard Dialog that utilizes the maximum available height.
 class SaveShaderDialog extends StatefulWidget {
-  const SaveShaderDialog({
-    super.key,
-    required this.project,
-  });
+  const SaveShaderDialog({super.key, required this.project});
 
-  final ShaderToyProject project;
+  final ShaderProject project;
 
   @override
   State<SaveShaderDialog> createState() => _SaveShaderDialogState();
@@ -35,8 +32,9 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.project.name);
     _usernameController = TextEditingController(text: widget.project.author);
-    _descriptionController =
-        TextEditingController(text: widget.project.description);
+    _descriptionController = TextEditingController(
+      text: widget.project.description,
+    );
     _urlController = TextEditingController(text: widget.project.url);
   }
 
@@ -235,8 +233,7 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
                                 color: Colors.white,
                                 fontSize: 13,
                               ),
-                              decoration:
-                                  _fieldDecoration('Username / Author'),
+                              decoration: _fieldDecoration('Username / Author'),
                               onChanged: (_) => setState(() {}),
                             ),
                           ),
@@ -247,8 +244,10 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
                       // URL field
                       TextField(
                         controller: _urlController,
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
                         decoration: _fieldDecoration(
                           'URL / Project Link',
                           hint: 'https://shadertoy.com/view/...',
@@ -261,8 +260,10 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
                       TextField(
                         controller: _descriptionController,
                         maxLines: 2,
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
                         decoration: _fieldDecoration('Description'),
                         onChanged: (_) => setState(() {}),
                       ),
@@ -294,10 +295,7 @@ class _SaveShaderDialogState extends State<SaveShaderDialog> {
 
                       // JSON Preview Container
                       Container(
-                        height: max(
-                          200.0,
-                          dialogHeight - 340.0,
-                        ),
+                        height: max(200.0, dialogHeight - 340.0),
                         decoration: BoxDecoration(
                           color: const Color(0xFF101016),
                           borderRadius: BorderRadius.circular(6),

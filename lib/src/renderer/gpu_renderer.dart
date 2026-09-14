@@ -1,20 +1,18 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+
 import '../channels/audio_texture_provider.dart';
 import '../channels/shader_channel.dart';
 import '../compiler/impeller_compiler.dart';
 import '../core/shader_pass.dart';
-import '../core/shadertoy_uniforms.dart';
+import '../core/common_uniforms.dart';
 import '../gpu/gpu.dart' as gpu;
 
 /// Low-level multi-pass renderer powered by flutter_scene's cross-platform GPU pipeline.
 /// Executes compiled shader bundles on full-screen quad geometry and renders to swapchain [gpu.Texture]s.
 class FlutterGpuRenderer {
-  FlutterGpuRenderer({
-    this.width = 800,
-    this.height = 450,
-  }) {
+  FlutterGpuRenderer({this.width = 800, this.height = 450}) {
     _initGpuResources();
   }
 
@@ -96,8 +94,8 @@ class FlutterGpuRenderer {
       final format = supportsFloat32
           ? gpu.PixelFormat.r32g32b32a32Float
           : (supportsFloat16
-              ? gpu.PixelFormat.r16g16b16a16Float
-              : gpu.PixelFormat.r8g8b8a8UNormInt);
+                ? gpu.PixelFormat.r16g16b16a16Float
+                : gpu.PixelFormat.r8g8b8a8UNormInt);
 
       return gpu.gpuContext.createTexture(
         gpu.StorageMode.devicePrivate,
@@ -155,14 +153,18 @@ class FlutterGpuRenderer {
         enableRenderTargetUsage: false,
         enableShaderReadUsage: true,
       );
-      final dummyBytes = Uint8List(_kDefaultTextureSize * _kDefaultTextureSize * 4);
+      final dummyBytes = Uint8List(
+        _kDefaultTextureSize * _kDefaultTextureSize * 4,
+      );
       for (int i = 3; i < dummyBytes.length; i += 4) {
         dummyBytes[i] = 255; // Opaque black
       }
       _defaultTexture!.overwrite(ByteData.sublistView(dummyBytes));
       return _defaultTexture;
     } catch (e) {
-      debugPrint('Failed to create default ${_kDefaultTextureSize}x$_kDefaultTextureSize texture: $e');
+      debugPrint(
+        'Failed to create default ${_kDefaultTextureSize}x$_kDefaultTextureSize texture: $e',
+      );
       return null;
     }
   }
@@ -207,12 +209,18 @@ class FlutterGpuRenderer {
     if (!_isGpuAvailable) return;
     try {
       final vertices = Float32List.fromList([
-        -1.0, -1.0,
-         1.0, -1.0,
-        -1.0,  1.0,
-        -1.0,  1.0,
-         1.0, -1.0,
-         1.0,  1.0,
+        -1.0,
+        -1.0,
+        1.0,
+        -1.0,
+        -1.0,
+        1.0,
+        -1.0,
+        1.0,
+        1.0,
+        -1.0,
+        1.0,
+        1.0,
       ]);
       final byteData = ByteData.sublistView(vertices);
       _quadVertexBuffer = gpu.gpuContext.createDeviceBufferWithCopy(byteData);
@@ -240,9 +248,9 @@ class FlutterGpuRenderer {
       if (lib == null) return false;
 
       final vert = lib['QuadVertex'];
-      final frag = lib['ShadertoyFragment'];
+      final frag = lib['ShaderFragment'];
       if (vert == null || frag == null) {
-        debugPrint('Shader bundle missing QuadVertex or ShadertoyFragment');
+        debugPrint('Shader bundle missing QuadVertex or ShaderFragment');
         return false;
       }
 
@@ -361,8 +369,13 @@ class FlutterGpuRenderer {
       for (int level = 1; level < maxMipLevels; level++) {
         final nextW = texture.getMipLevelWidth(level);
         final nextH = texture.getMipLevelHeight(level);
-        final nextBytes =
-            _downsampleRgba(currentBytes, currentW, currentH, nextW, nextH);
+        final nextBytes = _downsampleRgba(
+          currentBytes,
+          currentW,
+          currentH,
+          nextW,
+          nextH,
+        );
         texture.overwrite(ByteData.sublistView(nextBytes), mipLevel: level);
         currentBytes = nextBytes;
         currentW = nextW;
@@ -370,8 +383,10 @@ class FlutterGpuRenderer {
       }
 
       _textureChannels[channelIndex] = texture;
-      _textureChannelResolutions[channelIndex] =
-          ui.Size(texWidth.toDouble(), texHeight.toDouble());
+      _textureChannelResolutions[channelIndex] = ui.Size(
+        texWidth.toDouble(),
+        texHeight.toDouble(),
+      );
       return texture;
     } catch (e) {
       debugPrint('Failed to upload texture channel $channelIndex: $e');
@@ -407,11 +422,14 @@ class FlutterGpuRenderer {
         final dstOffset = dstRowOffset + (x * 4);
         dst[dstOffset] = (src[p00] + src[p10] + src[p01] + src[p11] + 2) >> 2;
         dst[dstOffset + 1] =
-            (src[p00 + 1] + src[p10 + 1] + src[p01 + 1] + src[p11 + 1] + 2) >> 2;
+            (src[p00 + 1] + src[p10 + 1] + src[p01 + 1] + src[p11 + 1] + 2) >>
+            2;
         dst[dstOffset + 2] =
-            (src[p00 + 2] + src[p10 + 2] + src[p01 + 2] + src[p11 + 2] + 2) >> 2;
+            (src[p00 + 2] + src[p10 + 2] + src[p01 + 2] + src[p11 + 2] + 2) >>
+            2;
         dst[dstOffset + 3] =
-            (src[p00 + 3] + src[p10 + 3] + src[p01 + 3] + src[p11 + 3] + 2) >> 2;
+            (src[p00 + 3] + src[p10 + 3] + src[p01 + 3] + src[p11 + 3] + 2) >>
+            2;
       }
     }
     return dst;
@@ -458,8 +476,10 @@ class FlutterGpuRenderer {
     for (int i = 0; i < 4; i++) {
       final hasConfiguredChannel =
           i < pass.channels.length && pass.channels[i] != null;
-      final codeUsesChannel =
-          ImpellerCompiler.shaderUsesChannel(effectiveCode, i);
+      final codeUsesChannel = ImpellerCompiler.shaderUsesChannel(
+        effectiveCode,
+        i,
+      );
 
       if (!hasConfiguredChannel && !codeUsesChannel) {
         continue;
@@ -518,7 +538,7 @@ class FlutterGpuRenderer {
     int channelIndex,
     double targetWidth,
     double targetHeight,
-    ShaderToyUniforms uniforms,
+    CommonUniforms uniforms,
   ) {
     if (channelIndex < pass.channels.length &&
         pass.channels[channelIndex] != null) {
@@ -532,7 +552,9 @@ class FlutterGpuRenderer {
         return ch.resolution;
       } else if (ch is AudioChannel) {
         return const ui.Size(
-            kAudioTextureWidth + 0.0, kAudioTextureHeight + 0.0);
+          kAudioTextureWidth + 0.0,
+          kAudioTextureHeight + 0.0,
+        );
       } else if (ch is KeyboardChannel) {
         return const ui.Size(256.0, 3.0);
       } else {
@@ -549,12 +571,12 @@ class FlutterGpuRenderer {
   }
 
   ByteData _packUniformByteData({
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required double targetWidth,
     required double targetHeight,
     required ShaderPass pass,
   }) {
-    final uniformByteData = ByteData(ShaderToyUniforms.totalUniformBufferSize);
+    final uniformByteData = ByteData(CommonUniforms.totalUniformBufferSize);
     uniformByteData.setFloat32(0, targetWidth, Endian.host);
     uniformByteData.setFloat32(4, targetHeight, Endian.host);
     uniformByteData.setFloat32(8, 1.0, Endian.host); // aspect ratio
@@ -567,13 +589,17 @@ class FlutterGpuRenderer {
     uniformByteData.setFloat32(36, uniforms.mouse.y, Endian.host);
     uniformByteData.setFloat32(40, uniforms.mouse.z, Endian.host);
     uniformByteData.setFloat32(44, uniforms.mouse.w, Endian.host);
-    final secondsOfDay = uniforms.date.hour * 3600.0 +
+    final secondsOfDay =
+        uniforms.date.hour * 3600.0 +
         uniforms.date.minute * 60.0 +
         uniforms.date.second.toDouble() +
         uniforms.date.millisecond / 1000.0;
     uniformByteData.setFloat32(48, uniforms.date.year.toDouble(), Endian.host);
     uniformByteData.setFloat32(
-        52, (uniforms.date.month - 1).toDouble(), Endian.host);
+      52,
+      (uniforms.date.month - 1).toDouble(),
+      Endian.host,
+    );
     uniformByteData.setFloat32(56, uniforms.date.day.toDouble(), Endian.host);
     uniformByteData.setFloat32(60, secondsOfDay, Endian.host);
     uniformByteData.setFloat32(64, uniforms.sampleRate, Endian.host);
@@ -600,15 +626,15 @@ class FlutterGpuRenderer {
       uniformByteData.setFloat32(offset + 12, 0.0, Endian.host);
     }
 
-    // 144..(ShaderToyUniforms.totalUniformBufferSize - 1): vec4 iCustom[...]
+    // 144..(ShaderUniforms.totalUniformBufferSize - 1): vec4 iCustom[...]
     // Sized to match GPU memory allocators and driver uniform pagination
     // (typically minUniformBufferOffsetAlignment is 256 bytes in Vulkan and Metal).
-    // If more registers are needed, update [ShaderToyUniforms.maxCustomUniformSlots];
-    // this allocation dynamically scales to match [ShaderToyUniforms.totalUniformBufferSize].
+    // If more registers are needed, update [ShaderUniforms.maxCustomUniformSlots];
+    // this allocation dynamically scales to match [ShaderUniforms.totalUniformBufferSize].
     final customFloats = uniforms.customData;
     for (int i = 0; i < customFloats.length; i++) {
       uniformByteData.setFloat32(
-        ShaderToyUniforms.standardUniformsSizeBytes + i * 4,
+        CommonUniforms.standardUniformsSizeBytes + i * 4,
         customFloats[i],
         Endian.host,
       );
@@ -624,7 +650,7 @@ class FlutterGpuRenderer {
   /// 3. Executes the presentation pass (Image) to the display surface.
   /// 4. Swaps ping-pong buffers for the next frame.
   Future<ui.Image?> renderFrame({
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required List<ShaderPass> passes,
     ShaderPass? activePass,
     AudioChannel? activeAudioChannel,
@@ -638,9 +664,7 @@ class FlutterGpuRenderer {
       resize(targetWidth, targetHeight);
     }
 
-    if (!_isGpuAvailable ||
-        !hasPipeline ||
-        _quadVertexBuffer == null) {
+    if (!_isGpuAvailable || !hasPipeline || _quadVertexBuffer == null) {
       return null;
     }
 
@@ -655,7 +679,9 @@ class FlutterGpuRenderer {
         try {
           return gpu.gpuContext.createDeviceBufferWithCopy(byteData);
         } catch (e) {
-          debugPrint('Failed to allocate uniform device buffer for ${pass.name}: $e');
+          debugPrint(
+            'Failed to allocate uniform device buffer for ${pass.name}: $e',
+          );
           return null;
         }
       }
@@ -692,7 +718,8 @@ class FlutterGpuRenderer {
       for (final bpType in bufferOrder) {
         final pass = passes.firstWhere(
           (p) => p.type == bpType && p.enabled,
-          orElse: () => ShaderPass(type: bpType, name: bpType.displayName, code: ''),
+          orElse: () =>
+              ShaderPass(type: bpType, name: bpType.displayName, code: ''),
         );
         if (!pass.enabled) continue;
 
@@ -711,12 +738,9 @@ class FlutterGpuRenderer {
 
         final passCommandBuffer = gpu.gpuContext.createCommandBuffer();
         final renderPass = passCommandBuffer.createRenderPass(renderTarget);
-        renderPass.setViewport(gpu.Viewport(
-          x: 0,
-          y: 0,
-          width: width,
-          height: height,
-        ));
+        renderPass.setViewport(
+          gpu.Viewport(x: 0, y: 0, width: width, height: height),
+        );
 
         renderPass.bindPipeline(pipelineInfo.pipeline);
         renderPass.bindVertexBuffer(quadView);
@@ -724,7 +748,9 @@ class FlutterGpuRenderer {
         try {
           final passUniformDeviceBuffer = createPassUniformBuffer(pass);
           if (passUniformDeviceBuffer != null) {
-            final uniformSlot = pipelineInfo.fragmentShader.getUniformSlot('FrameInfo');
+            final uniformSlot = pipelineInfo.fragmentShader.getUniformSlot(
+              'FrameInfo',
+            );
             renderPass.bindUniform(
               uniformSlot,
               gpu.BufferView(
@@ -785,10 +811,15 @@ class FlutterGpuRenderer {
 
       final presentationPass = passes.firstWhere(
         (p) => p.type == PassType.image && p.enabled,
-        orElse: () => activePass ?? (passes.isNotEmpty ? passes.first : ShaderPass(type: PassType.image, name: 'Image', code: '')),
+        orElse: () =>
+            activePass ??
+            (passes.isNotEmpty
+                ? passes.first
+                : ShaderPass(type: PassType.image, name: 'Image', code: '')),
       );
 
-      final presentationPipeline = _passPipelines[presentationPass.type] ??
+      final presentationPipeline =
+          _passPipelines[presentationPass.type] ??
           (hasPipeline
               ? _PassPipeline(
                   pipeline: _renderPipeline!,
@@ -803,21 +834,23 @@ class FlutterGpuRenderer {
       }
 
       final presentationCommandBuffer = gpu.gpuContext.createCommandBuffer();
-      final surfaceRenderPass = presentationCommandBuffer.createRenderPass(surfaceRenderTarget);
-      surfaceRenderPass.setViewport(gpu.Viewport(
-        x: 0,
-        y: 0,
-        width: width,
-        height: height,
-      ));
+      final surfaceRenderPass = presentationCommandBuffer.createRenderPass(
+        surfaceRenderTarget,
+      );
+      surfaceRenderPass.setViewport(
+        gpu.Viewport(x: 0, y: 0, width: width, height: height),
+      );
 
       surfaceRenderPass.bindPipeline(presentationPipeline.pipeline);
       surfaceRenderPass.bindVertexBuffer(quadView);
 
       try {
-        final presentationUniformDeviceBuffer = createPassUniformBuffer(presentationPass);
+        final presentationUniformDeviceBuffer = createPassUniformBuffer(
+          presentationPass,
+        );
         if (presentationUniformDeviceBuffer != null) {
-          final uniformSlot = presentationPipeline.fragmentShader.getUniformSlot('FrameInfo');
+          final uniformSlot = presentationPipeline.fragmentShader
+              .getUniformSlot('FrameInfo');
           surfaceRenderPass.bindUniform(
             uniformSlot,
             gpu.BufferView(

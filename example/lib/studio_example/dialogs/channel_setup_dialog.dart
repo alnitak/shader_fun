@@ -12,7 +12,7 @@ class ChannelSetupDialog extends StatefulWidget {
 
   final int slotIndex;
   final ShaderChannel channel;
-  final ShaderToyController controller;
+  final ShaderController controller;
 
   @override
   State<ChannelSetupDialog> createState() => _ChannelSetupDialogState();
@@ -54,10 +54,7 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
     if (_isKeyboard || _isAudio) {
       return const [ChannelWrap.clamp];
     }
-    return const [
-      ChannelWrap.repeat,
-      ChannelWrap.clamp,
-    ];
+    return const [ChannelWrap.repeat, ChannelWrap.clamp];
   }
 
   String _getChannelTypeName() {
@@ -95,19 +92,13 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
   void _onWrapChanged(ChannelWrap? newWrap) {
     if (newWrap == null || newWrap == _wrap) return;
     setState(() => _wrap = newWrap);
-    widget.controller.updateChannelSettings(
-      widget.slotIndex,
-      wrap: newWrap,
-    );
+    widget.controller.updateChannelSettings(widget.slotIndex, wrap: newWrap);
   }
 
   void _onVFlipChanged(bool? newVFlip) {
     if (newVFlip == null || newVFlip == _vflip) return;
     setState(() => _vflip = newVFlip);
-    widget.controller.updateChannelSettings(
-      widget.slotIndex,
-      vflip: newVFlip,
-    );
+    widget.controller.updateChannelSettings(widget.slotIndex, vflip: newVFlip);
   }
 
   @override
@@ -132,7 +123,11 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
               // Header
               Row(
                 children: [
-                  const Icon(Icons.settings, size: 18, color: Color(0xFF38BDF8)),
+                  const Icon(
+                    Icons.settings,
+                    size: 18,
+                    color: Color(0xFF38BDF8),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -147,9 +142,16 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 18, color: Colors.white60),
+                    icon: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Colors.white60,
+                    ),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
                     splashRadius: 16,
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -199,8 +201,11 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
                               : availableFilters.first,
                           isExpanded: true,
                           dropdownColor: const Color(0xFF242430),
-                          icon: const Icon(Icons.arrow_drop_down,
-                              color: Colors.white70, size: 20),
+                          icon: const Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -251,8 +256,11 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
                               : availableWraps.first,
                           isExpanded: true,
                           dropdownColor: const Color(0xFF242430),
-                          icon: const Icon(Icons.arrow_drop_down,
-                              color: Colors.white70, size: 20),
+                          icon: const Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -330,8 +338,10 @@ class _ChannelSetupDialogState extends State<ChannelSetupDialog> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                   child: const Text('Done', style: TextStyle(fontSize: 13)),
                 ),

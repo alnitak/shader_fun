@@ -3,12 +3,9 @@ import 'package:shader_fun/shader_fun.dart';
 
 /// Shader inputs reference drawer displaying current uniform values.
 class ShaderInputsDrawer extends StatelessWidget {
-  const ShaderInputsDrawer({
-    super.key,
-    required this.uniforms,
-  });
+  const ShaderInputsDrawer({super.key, required this.uniforms});
 
-  final ShaderToyUniforms uniforms;
+  final CommonUniforms uniforms;
 
   @override
   Widget build(BuildContext context) {

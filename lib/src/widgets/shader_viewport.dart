@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_scene/scene.dart';
 
 import '../channels/shader_channel.dart';
-import '../controller/shadertoy_controller.dart';
+import '../controller/shader_controller.dart';
 
-/// An interactive viewport displaying the rendered output of a [ShaderToyController].
-class ShaderToyViewport extends StatefulWidget {
-  const ShaderToyViewport({
+/// An interactive viewport displaying the rendered output of a [ShaderController].
+class ShaderViewport extends StatefulWidget {
+  const ShaderViewport({
     super.key,
     required this.controller,
     this.showControls = true,
@@ -17,16 +17,16 @@ class ShaderToyViewport extends StatefulWidget {
     this.isFullscreen = false,
   });
 
-  final ShaderToyController controller;
+  final ShaderController controller;
   final bool showControls;
   final VoidCallback? onToggleFullscreen;
   final bool isFullscreen;
 
   @override
-  State<ShaderToyViewport> createState() => _ShaderToyViewportState();
+  State<ShaderViewport> createState() => _ShaderViewportState();
 }
 
-class _ShaderToyViewportState extends State<ShaderToyViewport>
+class _ShaderViewportState extends State<ShaderViewport>
     with TickerProviderStateMixin {
   Offset? _lastPointerPos;
   final FocusNode _focusNode = FocusNode();
@@ -61,7 +61,7 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
   }
 
   @override
-  void didUpdateWidget(covariant ShaderToyViewport oldWidget) {
+  void didUpdateWidget(covariant ShaderViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.detachTicker(this);
@@ -104,10 +104,12 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxW =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : 800.0;
-        final maxH =
-            constraints.maxHeight.isFinite ? constraints.maxHeight : 450.0;
+        final maxW = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 800.0;
+        final maxH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 450.0;
 
         // Fit standard 16:9 canvas within viewport constraints so shaders display the full plane
         double targetW = maxW;
@@ -117,8 +119,10 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
           targetW = targetH * 16.0 / 9.0;
         }
 
-        final renderSize =
-            Size(targetW.floorToDouble(), targetH.floorToDouble());
+        final renderSize = Size(
+          targetW.floorToDouble(),
+          targetH.floorToDouble(),
+        );
 
         // Schedule resize if dimensions changed
         if (widget.controller.resolution != renderSize) {
@@ -434,7 +438,9 @@ class _ShaderToyViewportState extends State<ShaderToyViewport>
                           // FPS
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black45,
                               borderRadius: BorderRadius.circular(4),

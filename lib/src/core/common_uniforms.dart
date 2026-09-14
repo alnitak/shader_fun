@@ -6,8 +6,8 @@ import 'dart:ui';
 /// Encapsulates the runtime variables accessible in Shadertoy GLSL code
 /// (`iResolution`, `iTime`, `iTimeDelta`, `iFrame`, `iFrameRate`, `iMouse`,
 /// `iDate`, `iSampleRate`, `iChannelTime`, `iChannelResolution`).
-class ShaderToyUniforms {
-  ShaderToyUniforms({
+class CommonUniforms {
+  CommonUniforms({
     this.resolution = const Size(800, 450),
     this.pixelRatio = 1.0,
     this.time = 0.0,
@@ -20,10 +20,10 @@ class ShaderToyUniforms {
     List<double>? channelTime,
     List<Size>? channelResolution,
     Map<String, Object>? customUniforms,
-  })  : channelTime = channelTime ?? List<double>.filled(4, 0.0),
-        channelResolution = channelResolution ??
-            List<Size>.filled(4, const Size(512, 512)),
-        date = date ?? DateTime.now() {
+  }) : channelTime = channelTime ?? List<double>.filled(4, 0.0),
+       channelResolution =
+           channelResolution ?? List<Size>.filled(4, const Size(512, 512)),
+       date = date ?? DateTime.now() {
     if (customUniforms != null) {
       customUniforms.forEach(setCustomUniform);
     }
@@ -158,7 +158,9 @@ class ShaderToyUniforms {
     final data = Float32List(32);
     data[0] = resolution.width;
     data[1] = resolution.height;
-    data[2] = resolution.height > 0 ? resolution.width / resolution.height : 1.0;
+    data[2] = resolution.height > 0
+        ? resolution.width / resolution.height
+        : 1.0;
     data[3] = time;
     data[4] = timeDelta;
     data[5] = frame.toDouble();
@@ -170,7 +172,8 @@ class ShaderToyUniforms {
     data[10] = mouse.z;
     data[11] = mouse.w;
 
-    final secondsOfDay = date.hour * 3600.0 +
+    final secondsOfDay =
+        date.hour * 3600.0 +
         date.minute * 60.0 +
         date.second.toDouble() +
         date.millisecond / 1000.0;
@@ -335,12 +338,7 @@ class Offset4 {
   final double w;
 
   Offset4 copyWith({double? x, double? y, double? z, double? w}) {
-    return Offset4(
-      x ?? this.x,
-      y ?? this.y,
-      z ?? this.z,
-      w ?? this.w,
-    );
+    return Offset4(x ?? this.x, y ?? this.y, z ?? this.z, w ?? this.w);
   }
 
   @override

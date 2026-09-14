@@ -2,15 +2,8 @@ import 'package:listen/listen.dart' as listen;
 
 import '../channels/shader_channel.dart';
 
-/// Supported ShaderToy render pass types.
-enum PassType {
-  image,
-  bufferA,
-  bufferB,
-  bufferC,
-  bufferD,
-  common,
-}
+/// Supported render pass types.
+enum PassType { image, bufferA, bufferB, bufferC, bufferD, common }
 
 extension PassTypeExtension on PassType {
   String get displayName {
@@ -37,7 +30,7 @@ extension PassTypeExtension on PassType {
       this == PassType.bufferD;
 }
 
-/// Represents an individual rendering pass in a ShaderToy project.
+/// Represents an individual rendering pass in a project.
 /// Implements [listen.ChangeNotifier] to dispatch notifications upon code or channel changes.
 class ShaderPass with listen.ChangeNotifier {
   ShaderPass({
@@ -46,12 +39,12 @@ class ShaderPass with listen.ChangeNotifier {
     required String code,
     List<ShaderChannel?>? channels,
     bool enabled = true,
-  })  :
-        // ignore: prefer_initializing_formals
-        _code = code,
-        // ignore: prefer_initializing_formals
-        _enabled = enabled,
-        channels = channels ?? List<ShaderChannel?>.filled(4, null);
+  }) : //
+       // ignore: prefer_initializing_formals
+       _code = code,
+       // ignore: prefer_initializing_formals
+       _enabled = enabled,
+       channels = channels ?? List<ShaderChannel?>.filled(4, null);
 
   final PassType type;
   String name;

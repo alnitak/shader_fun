@@ -12,34 +12,34 @@ import '../channels/shader_channel.dart';
 import '../compiler/impeller_compiler.dart';
 import '../core/keyboard_state.dart';
 import '../core/shader_pass.dart';
-import '../core/shadertoy_uniforms.dart';
-import '../models/shadertoy_json.dart';
-import '../renderer/shadertoy_renderer.dart';
+import '../core/common_uniforms.dart';
+import '../models/shader_project.dart';
+import '../renderer/shader_renderer.dart';
 
-/// State, compilation, and playback controller for a ShaderToy session.
+/// State, compilation, and playback controller for a Shader session.
 /// Exposes package capabilities for compiling shaders via `impellerc`, managing
 /// channels (audio, mic, textures, buffers), pass sources, and GPU rendering.
 ///
 /// Implements [listen.ChangeNotifier] and provides fine-grained [listen.ValueListenable]
 /// properties for reactive UI bindings while also implementing [flutter_foundation.Listenable]
 /// for direct Flutter widget interoperability.
-class ShaderToyController
+class ShaderController
     with listen.ChangeNotifier
     implements flutter_foundation.Listenable {
-  ShaderToyController({
-    ShaderToyProject? initialProject,
+  ShaderController({
+    ShaderProject? initialProject,
     ui.Size initialResolution = const ui.Size(800, 450),
     TickerProvider? vsync,
     bool autoPlay = false,
-  }) : _project = initialProject ?? ShaderToyProject.empty(),
-       _uniforms = ShaderToyUniforms(resolution: initialResolution),
+  }) : _project = initialProject ?? ShaderProject.empty(),
+       _uniforms = CommonUniforms(resolution: initialResolution),
        _vsync = vsync,
        isPlayingNotifier = listen.ValueNotifier<bool>(autoPlay),
        isCompilingNotifier = listen.ValueNotifier<bool>(true),
        lastErrorNotifier = listen.ValueNotifier<String?>(null),
        activePassIndexNotifier = listen.ValueNotifier<int>(0),
        currentImageNotifier = listen.ValueNotifier<ui.Image?>(null) {
-    _renderer = ShaderToyRenderer(
+    _renderer = ShaderRenderer(
       width: initialResolution.width.toInt(),
       height: initialResolution.height.toInt(),
     );
@@ -59,10 +59,10 @@ class ShaderToyController
 
   TickerProvider? _vsync;
   TickerProvider? _attachedVsync;
-  ShaderToyProject _project;
-  final ShaderToyUniforms _uniforms;
-  late final ShaderToyRenderer _renderer;
-  final ShaderToyKeyboardState _keyboard = ShaderToyKeyboardState();
+  ShaderProject _project;
+  final CommonUniforms _uniforms;
+  late final ShaderRenderer _renderer;
+  final ShaderKeyboardState _keyboard = ShaderKeyboardState();
   Ticker? _ticker;
 
   bool _isDisposed = false;
@@ -81,10 +81,10 @@ class ShaderToyController
   final List<double> _fpsHistory = [];
 
   // Getters
-  ShaderToyProject get project => _project;
-  ShaderToyUniforms get uniforms => _uniforms;
-  ShaderToyRenderer get renderer => _renderer;
-  ShaderToyKeyboardState get keyboard => _keyboard;
+  ShaderProject get project => _project;
+  CommonUniforms get uniforms => _uniforms;
+  ShaderRenderer get renderer => _renderer;
+  ShaderKeyboardState get keyboard => _keyboard;
   ui.Image? get currentImage => currentImageNotifier.value;
   bool get isPlaying => isPlayingNotifier.value;
   bool get isCompiling => isCompilingNotifier.value;
@@ -157,7 +157,7 @@ class ShaderToyController
         }
 
         final result = await ImpellerCompiler.compile(
-          shadertoyGlsl: pass.code,
+          shaderGlsl: pass.code,
           commonGlsl: commonCode,
           customUniformSlots: _uniforms.customSlots,
         );
@@ -224,7 +224,7 @@ class ShaderToyController
       }
 
       final result = await ImpellerCompiler.compile(
-        shadertoyGlsl: codeToCompile,
+        shaderGlsl: codeToCompile,
         commonGlsl: commonCode,
         customUniformSlots: _uniforms.customSlots,
       );
@@ -280,13 +280,13 @@ class ShaderToyController
   /// - [ui.Color] (maps to GLSL `vec4`, normalized 0.0..1.0)
   /// - [List<num>] (length 1..4 maps to `float`, `vec2`, `vec3`, `vec4`)
   ///
-  /// Up to [ShaderToyUniforms.maxCustomUniformSlots] `vec4` uniform registers
-  /// ([ShaderToyUniforms.customUniformsSizeBytes] bytes total) are available by default.
+  /// Up to [CommonUniforms.maxCustomUniformSlots] `vec4` uniform registers
+  /// ([CommonUniforms.customUniformsSizeBytes] bytes total) are available by default.
   /// This pool is sized to align with typical GPU driver pagination and offset boundaries
   /// (`minUniformBufferOffsetAlignment` in Vulkan and Metal is typically 256 bytes).
-  /// If a project requires more uniform bytes, simply update [ShaderToyUniforms.maxCustomUniformSlots]
+  /// If a project requires more uniform bytes, simply update [CommonUniforms.maxCustomUniformSlots]
   /// (for example to 32); all GLSL wrappers, GPU buffers, and WebGL structures automatically scale
-  /// to match [ShaderToyUniforms.totalUniformBufferSize].
+  /// to match [CommonUniforms.totalUniformBufferSize].
   ///
   /// If playback is currently paused or inactive, a single frame is
   /// rendered to reflect the updated uniform immediately.
@@ -350,12 +350,11 @@ class ShaderToyController
   }
 
   /// Sets the active project (backwards compatibility).
-  Future<void> setProject(ShaderToyProject newProject) =>
-      loadProject(newProject);
+  Future<void> setProject(ShaderProject newProject) => loadProject(newProject);
 
-  /// Loads a complete [ShaderToyProject] and optionally compiles.
+  /// Loads a complete [ShaderProject] and optionally compiles.
   Future<void> loadProject(
-    ShaderToyProject newProject, {
+    ShaderProject newProject, {
     bool autoCompile = true,
     int? activePassIndex,
   }) async {
@@ -378,8 +377,9 @@ class ShaderToyController
     lastErrorNotifier.value = null;
 
     _project = newProject;
-    final defaultIdx =
-        _project.passes.indexWhere((p) => p.type == PassType.image);
+    final defaultIdx = _project.passes.indexWhere(
+      (p) => p.type == PassType.image,
+    );
     activePassIndexNotifier.value =
         activePassIndex ?? (defaultIdx >= 0 ? defaultIdx : 0);
     _renderer.clearAudio();
@@ -398,12 +398,12 @@ class ShaderToyController
     notifyListeners();
   }
 
-  /// Loads project settings from a JSON string (supporting standard ShaderToy and concise JSON formats).
+  /// Loads project settings from a JSON string (supporting standard shader and concise JSON formats).
   Future<void> loadProjectFromJson(
     String jsonString, {
     bool autoCompile = true,
   }) async {
-    final parsed = ShaderToyProject.parseJsonString(jsonString);
+    final parsed = ShaderProject.parseJsonString(jsonString);
     await loadProject(parsed, autoCompile: autoCompile);
   }
 
@@ -435,7 +435,7 @@ class ShaderToyController
       });
     }
 
-    final newProj = ShaderToyProject(name: shaderName, passes: passes);
+    final newProj = ShaderProject(name: shaderName, passes: passes);
 
     await loadProject(newProj, autoCompile: autoCompile);
   }
@@ -795,7 +795,8 @@ class ShaderToyController
   }
 
   void handlePointerUp([ui.Offset? localPosition]) {
-    final hasValidPos = localPosition != null && localPosition != ui.Offset.zero;
+    final hasValidPos =
+        localPosition != null && localPosition != ui.Offset.zero;
     final x = hasValidPos ? localPosition.dx : _uniforms.mouse.x;
     final y = hasValidPos
         ? (_uniforms.resolution.height - localPosition.dy)
@@ -889,7 +890,9 @@ class ShaderToyController
           try {
             await ch.startListening();
           } catch (e) {
-            flutter_foundation.debugPrint('Failed to start MicAudioChannel: $e');
+            flutter_foundation.debugPrint(
+              'Failed to start MicAudioChannel: $e',
+            );
           }
         } else if (ch is TextureChannel) {
           try {
@@ -950,7 +953,7 @@ class ShaderToyController
     }
 
     if (rawRgba != null && w != null && h != null) {
-      // In ShaderToy, vflip = true (the default) displays textures right-side up,
+      // In shaders, vflip = true (the default) displays textures right-side up,
       // while vflip = false inverts the texture vertically. Because st_texture
       // inverts sampling Y (1.0 - uv.y) to match Impeller/Metal/Vulkan top-left
       // origins, uploading rawRgba as-is corresponds to right-side up (vflip = true).

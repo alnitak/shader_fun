@@ -4,7 +4,7 @@ import 'package:shader_fun/shader_fun.dart';
 void main() {
   group('ShaderToyProject dynamic pass management', () {
     test('adds and removes tabs while keeping Image permanent', () {
-      final project = ShaderToyProject.empty();
+      final project = ShaderProject.empty();
       expect(project.passes.length, 1);
       expect(project.imagePass, isNotNull);
 
@@ -41,17 +41,29 @@ void main() {
     });
 
     test('loadProject completely replaces passes, deletes absent tabs, and sets Image as active', () async {
-      final multiPassProject = ShaderToyProject(
+      final multiPassProject = ShaderProject(
         name: 'MultiPass',
         passes: [
-          ShaderPass(type: PassType.common, name: 'Common', code: '// common 1'),
-          ShaderPass(type: PassType.bufferA, name: 'Buffer A', code: '// bufA 1'),
-          ShaderPass(type: PassType.bufferB, name: 'Buffer B', code: '// bufB 1'),
+          ShaderPass(
+            type: PassType.common,
+            name: 'Common',
+            code: '// common 1',
+          ),
+          ShaderPass(
+            type: PassType.bufferA,
+            name: 'Buffer A',
+            code: '// bufA 1',
+          ),
+          ShaderPass(
+            type: PassType.bufferB,
+            name: 'Buffer B',
+            code: '// bufB 1',
+          ),
           ShaderPass(type: PassType.image, name: 'Image', code: '// image 1'),
         ],
       );
 
-      final controller = ShaderToyController(
+      final controller = ShaderController(
         initialProject: multiPassProject,
         autoPlay: false,
       );
@@ -64,10 +76,14 @@ void main() {
       expect(controller.activePass?.code, '// common 1');
 
       // Now load a single-pass project with completely different code
-      final singlePassProject = ShaderToyProject(
+      final singlePassProject = ShaderProject(
         name: 'SinglePass',
         passes: [
-          ShaderPass(type: PassType.image, name: 'Image', code: '// new image only'),
+          ShaderPass(
+            type: PassType.image,
+            name: 'Image',
+            code: '// new image only',
+          ),
         ],
       );
 
@@ -86,14 +102,34 @@ void main() {
       expect(controller.activePassIndex, 0);
 
       // Now load back a 5-pass project (like Mouse Paint Eroded Mountains)
-      final fivePassProject = ShaderToyProject(
+      final fivePassProject = ShaderProject(
         name: 'FivePass',
         passes: [
-          ShaderPass(type: PassType.common, name: 'Common', code: '// new common'),
-          ShaderPass(type: PassType.bufferA, name: 'Buffer A', code: '// new bufA'),
-          ShaderPass(type: PassType.bufferB, name: 'Buffer B', code: '// new bufB'),
-          ShaderPass(type: PassType.bufferC, name: 'Buffer C', code: '// new bufC'),
-          ShaderPass(type: PassType.image, name: 'Image', code: '// new image 2'),
+          ShaderPass(
+            type: PassType.common,
+            name: 'Common',
+            code: '// new common',
+          ),
+          ShaderPass(
+            type: PassType.bufferA,
+            name: 'Buffer A',
+            code: '// new bufA',
+          ),
+          ShaderPass(
+            type: PassType.bufferB,
+            name: 'Buffer B',
+            code: '// new bufB',
+          ),
+          ShaderPass(
+            type: PassType.bufferC,
+            name: 'Buffer C',
+            code: '// new bufC',
+          ),
+          ShaderPass(
+            type: PassType.image,
+            name: 'Image',
+            code: '// new image 2',
+          ),
         ],
       );
 
@@ -127,13 +163,14 @@ void main() {
             {
               'name': 'Image',
               'type': 'image',
-              'code': 'void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }',
-            }
+              'code':
+                  'void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }',
+            },
           ],
-        }
+        },
       };
 
-      final project = ShaderToyProject.fromJson(json);
+      final project = ShaderProject.fromJson(json);
       expect(project.url, 'https://www.shadertoy.com/view/sf23W1');
 
       final serialized = project.toJson();

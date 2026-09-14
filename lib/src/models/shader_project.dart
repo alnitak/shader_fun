@@ -7,9 +7,9 @@ import '../channels/audio_texture_provider.dart';
 import '../channels/shader_channel.dart';
 import '../core/shader_pass.dart';
 
-/// Represents a complete ShaderToy project containing metadata and passes.
-class ShaderToyProject {
-  ShaderToyProject({
+/// Represents a complete project containing metadata and passes.
+class ShaderProject {
+  ShaderProject({
     String id = '',
     String name = 'New Shader',
     String author = 'Anonymous',
@@ -23,9 +23,9 @@ class ShaderToyProject {
        _url = url,
        passes = passes ?? [];
 
-  /// Creates a default starter ShaderToy project with a single Image pass.
-  factory ShaderToyProject.empty() {
-    return ShaderToyProject(
+  /// Creates a default starter project with a single Image pass.
+  factory ShaderProject.empty() {
+    return ShaderProject(
       id: 'new',
       name: 'New Shader',
       url: '',
@@ -72,11 +72,11 @@ class ShaderToyProject {
 
   List<ShaderPass> passes;
 
-  /// Loads a [ShaderToyProject] from a Flutter asset using [rootBundle] or a provided [bundle].
+  /// Loads a [ShaderProject] from a Flutter asset using [rootBundle] or a provided [bundle].
   ///
   /// [assetPathOrName] can be a simple file name (e.g. `'raymarching_primitives.json'`)
   /// or a full asset path (e.g. `'assets/examples/raymarching_primitives.json'`).
-  static Future<ShaderToyProject> loadFromAsset(
+  static Future<ShaderProject> loadFromAsset(
     String assetPathOrName, {
     AssetBundle? bundle,
   }) async {
@@ -85,7 +85,7 @@ class ShaderToyProject {
         : 'assets/examples/$assetPathOrName';
     final effectiveBundle = bundle ?? rootBundle;
     final jsonString = await effectiveBundle.loadString(path);
-    return ShaderToyProject.parseJsonString(jsonString);
+    return ShaderProject.parseJsonString(jsonString);
   }
 
   ShaderPass? getPass(PassType type) {
@@ -223,8 +223,8 @@ vec2 rot(vec2 p, float a) {
     passes.sort((a, b) => passOrder(a.type).compareTo(passOrder(b.type)));
   }
 
-  /// Deserializes a ShaderToy JSON string or object into a [ShaderToyProject].
-  factory ShaderToyProject.fromJson(Map<String, dynamic> rootJson) {
+  /// Deserializes a JSON string or object into a [ShaderProject].
+  factory ShaderProject.fromJson(Map<String, dynamic> rootJson) {
     final shaderMap = rootJson.containsKey('Shader')
         ? rootJson['Shader'] as Map<String, dynamic>
         : rootJson;
@@ -386,7 +386,7 @@ vec2 rot(vec2 p, float a) {
       passes.add(pass);
     }
 
-    return ShaderToyProject(
+    return ShaderProject(
       id: id,
       name: name,
       author: username,
@@ -396,8 +396,8 @@ vec2 rot(vec2 p, float a) {
     );
   }
 
-  /// Parses a concise settings JSON object into a [ShaderToyProject].
-  factory ShaderToyProject.fromSettingsJson(Map<String, dynamic> jsonMap) {
+  /// Parses a concise settings JSON object into a [ShaderProject].
+  factory ShaderProject.fromSettingsJson(Map<String, dynamic> jsonMap) {
     final name = jsonMap['name']?.toString() ?? 'Custom Shader';
     final imageCode =
         jsonMap['imageCode']?.toString() ??
@@ -462,20 +462,20 @@ vec2 rot(vec2 p, float a) {
 
     final url = jsonMap['url']?.toString() ?? '';
 
-    return ShaderToyProject(name: name, url: url, passes: passes);
+    return ShaderProject(name: name, url: url, passes: passes);
   }
 
-  /// Parses a raw JSON string into a [ShaderToyProject].
-  static ShaderToyProject parseJsonString(String jsonString) {
+  /// Parses a raw JSON string into a [ShaderProject].
+  static ShaderProject parseJsonString(String jsonString) {
     final map = json.decode(jsonString) as Map<String, dynamic>;
     if (map.containsKey('imageCode') ||
         (map.containsKey('buffers') && !map.containsKey('Shader'))) {
-      return ShaderToyProject.fromSettingsJson(map);
+      return ShaderProject.fromSettingsJson(map);
     }
-    return ShaderToyProject.fromJson(map);
+    return ShaderProject.fromJson(map);
   }
 
-  /// Serializes the project into a standard ShaderToy JSON structure.
+  /// Serializes the project into a standard JSON structure.
   Map<String, dynamic> toJson() {
     final renderpassList = <Map<String, dynamic>>[];
 

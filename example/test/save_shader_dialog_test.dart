@@ -11,7 +11,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
-      final project = ShaderToyProject(
+      final project = ShaderProject(
         id: 'test_id',
         name: 'Initial Name',
         author: 'Initial Author',

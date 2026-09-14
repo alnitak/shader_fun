@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 // ignore: implementation_imports
 import 'package:flutter_scene/src/gpu/web/shader_bundle_generated.dart' as sbg;
 import 'package:flat_buffers/flat_buffers.dart' as fb;
-import '../core/shadertoy_uniforms.dart';
+
+import '../core/common_uniforms.dart';
 import '../gpu/gpu.dart' as gpu;
 
 import 'impeller_compiler.dart';
@@ -22,10 +23,10 @@ void main() {
 }
 ''';
 
-/// Wraps Shadertoy GLSL code into modern WebGL2 GLSL ES 3.00 with
+/// Wraps shader GLSL code into modern WebGL2 GLSL ES 3.00 with
 /// std140 uniform block, sampler bindings, compatibility definitions,
 /// and main() entrypoint.
-String _wrapShadertoyGlslWeb({
+String _wrapShaderGlslWeb({
   required String userGlsl,
   String? commonGlsl,
   required List<int> declaredChannels,
@@ -46,16 +47,15 @@ layout(std140) uniform FrameInfo {
     vec4 iDate;
     float iSampleRate;
     vec3 iChannelResolution[4];
-    // ${ShaderToyUniforms.maxCustomUniformSlots} vec4 registers = ${ShaderToyUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
-    // Total FrameInfo buffer size: ${ShaderToyUniforms.totalUniformBufferSize} bytes.
-    vec4 iCustom[${ShaderToyUniforms.maxCustomUniformSlots}];
+    // ${CommonUniforms.maxCustomUniformSlots} vec4 registers = ${CommonUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
+    // Total FrameInfo buffer size: ${CommonUniforms.totalUniformBufferSize} bytes.
+    vec4 iCustom[${CommonUniforms.maxCustomUniformSlots}];
 };
 ''');
 
-  final codeForUniforms =
-      (commonGlsl != null && commonGlsl.trim().isNotEmpty)
-          ? '$commonGlsl\n$userGlsl'
-          : userGlsl;
+  final codeForUniforms = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+      ? '$commonGlsl\n$userGlsl'
+      : userGlsl;
 
   final declaredCustoms = ImpellerCompiler.extractCustomUniforms(
     codeForUniforms,
@@ -98,8 +98,9 @@ layout(std140) uniform FrameInfo {
   }
 
   final sanitizedUserGlsl = sanitizeUniforms(userGlsl);
-  final sanitizedCommonGlsl =
-      commonGlsl != null ? sanitizeUniforms(commonGlsl) : null;
+  final sanitizedCommonGlsl = commonGlsl != null
+      ? sanitizeUniforms(commonGlsl)
+      : null;
 
   for (final ch in declaredChannels) {
     sb.writeln('uniform highp sampler2D iChannel$ch;');
@@ -108,7 +109,7 @@ layout(std140) uniform FrameInfo {
   sb.writeln('layout(location = 0) out highp vec4 fragColor;');
   sb.writeln();
 
-  // Backward compatibility aliases for older Shadertoy GLSL
+  // Backward compatibility aliases for older shader GLSL
   sb.writeln('''
 #define texture2D texture
 #define textureCube texture
@@ -170,7 +171,7 @@ void main() {
 }
 
 /// Builds an in-memory FlatBuffer .shaderbundle containing QuadVertex and
-/// ShadertoyFragment with reflection metadata for WebGL2.
+/// ShaderFragment with reflection metadata for WebGL2.
 Uint8List _buildWebShaderBundle({
   required String vertexGlsl,
   required String fragmentGlsl,
@@ -198,7 +199,7 @@ Uint8List _buildWebShaderBundle({
     inputs: vertexInputs,
   );
 
-  // 3. Fragment Uniform Struct: FrameInfo (std140 layout matching ShaderToyUniforms)
+  // 3. Fragment Uniform Struct: FrameInfo (std140 layout matching ShaderUniforms)
   final frameInfoFields = [
     sbg.ShaderUniformStructFieldObjectBuilder(
       name: 'iResolution',
@@ -283,11 +284,11 @@ Uint8List _buildWebShaderBundle({
     ),
     sbg.ShaderUniformStructFieldObjectBuilder(
       name: 'iCustom',
-      offsetInBytes: ShaderToyUniforms.standardUniformsSizeBytes,
+      offsetInBytes: CommonUniforms.standardUniformsSizeBytes,
       vecSize: 4,
       columns: 1,
-      arrayElements: ShaderToyUniforms.maxCustomUniformSlots,
-      totalSizeInBytes: ShaderToyUniforms.customUniformsSizeBytes,
+      arrayElements: CommonUniforms.maxCustomUniformSlots,
+      totalSizeInBytes: CommonUniforms.customUniformsSizeBytes,
       type: sbg.UniformDataType.kFloat,
     ),
   ];
@@ -295,16 +296,14 @@ Uint8List _buildWebShaderBundle({
   final uniformStructs = [
     sbg.ShaderUniformStructObjectBuilder(
       name: 'FrameInfo',
-      sizeInBytes: ShaderToyUniforms.totalUniformBufferSize,
+      sizeInBytes: CommonUniforms.totalUniformBufferSize,
       fields: frameInfoFields,
     ),
   ];
 
   // 4. Fragment Uniform Textures (iChannel0..3)
   final uniformTextures = channelIndices.map((ch) {
-    return sbg.ShaderUniformTextureObjectBuilder(
-      name: 'iChannel$ch',
-    );
+    return sbg.ShaderUniformTextureObjectBuilder(name: 'iChannel$ch');
   }).toList();
 
   // 5. Fragment BackendShader
@@ -316,18 +315,12 @@ Uint8List _buildWebShaderBundle({
     uniformTextures: uniformTextures,
   );
 
-  // 6. Root Bundle with QuadVertex and ShadertoyFragment
+  // 6. Root Bundle with QuadVertex and ShaderFragment
   final bundleObj = sbg.ShaderBundleObjectBuilder(
     formatVersion: 2,
     shaders: [
-      sbg.ShaderObjectBuilder(
-        name: 'QuadVertex',
-        openglEs: vertBackend,
-      ),
-      sbg.ShaderObjectBuilder(
-        name: 'ShadertoyFragment',
-        openglEs: fragBackend,
-      ),
+      sbg.ShaderObjectBuilder(name: 'QuadVertex', openglEs: vertBackend),
+      sbg.ShaderObjectBuilder(name: 'ShaderFragment', openglEs: fragBackend),
     ],
   );
 
@@ -347,7 +340,10 @@ String _cleanWebGlShaderError(String raw) {
     '',
   );
   logPart = logPart.replaceFirst(
-    RegExp(r'^Exception:\s*Failed to link shader program:\s*', multiLine: false),
+    RegExp(
+      r'^Exception:\s*Failed to link shader program:\s*',
+      multiLine: false,
+    ),
     '',
   );
 
@@ -374,7 +370,8 @@ Future<CompileResult> runImpellerCompile({
 }) async {
   try {
     final userCode = rawUserGlsl ?? wrappedFragGlsl;
-    final codeForChannels = (rawCommonGlsl != null && rawCommonGlsl.trim().isNotEmpty)
+    final codeForChannels =
+        (rawCommonGlsl != null && rawCommonGlsl.trim().isNotEmpty)
         ? '$rawCommonGlsl\n$userCode'
         : userCode;
 
@@ -385,7 +382,7 @@ Future<CompileResult> runImpellerCompile({
       }
     }
 
-    final fragGlslWeb = _wrapShadertoyGlslWeb(
+    final fragGlslWeb = _wrapShaderGlslWeb(
       userGlsl: userCode,
       commonGlsl: rawCommonGlsl,
       declaredChannels: declaredChannels,
@@ -403,11 +400,13 @@ Future<CompileResult> runImpellerCompile({
       final byteData = ByteData.sublistView(bundleBytes);
       final lib = await gpu.loadShaderLibraryFromBytesAsync(byteData);
       if (lib == null) {
-        return const CompileResult.error('Failed to parse shader library on Web.');
+        return const CompileResult.error(
+          'Failed to parse shader library on Web.',
+        );
       }
 
       final vert = lib['QuadVertex'];
-      final frag = lib['ShadertoyFragment'];
+      final frag = lib['ShaderFragment'];
       if (vert != null && frag != null) {
         gpu.gpuContext.createRenderPipeline(vert, frag);
       }
