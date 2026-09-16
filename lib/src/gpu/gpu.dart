@@ -3,6 +3,7 @@
 // On Web, this provides the WebGL2 implementation with synchronous Texture.asImage().
 // ignore_for_file: implementation_imports
 import 'dart:math' as math;
+
 import 'package:flutter_scene/src/gpu/gpu.dart';
 
 export 'package:flutter_scene/src/gpu/gpu.dart';

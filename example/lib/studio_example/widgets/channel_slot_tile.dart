@@ -137,7 +137,11 @@ class ChannelSlotTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     child: const Padding(
                       padding: EdgeInsets.all(4),
-                      child: Icon(Icons.settings, size: 15, color: Colors.white70),
+                      child: Icon(
+                        Icons.settings,
+                        size: 15,
+                        color: Colors.white70,
+                      ),
                     ),
                   ),
                 ),

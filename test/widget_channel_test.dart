@@ -56,8 +56,9 @@ void main() {
       expect(uvCenter, equals(const Offset(0.5, 0.5)));
       expect(channel.isUvInside(uvCenter), isTrue);
 
-      final uvBottomRight =
-          channel.mapViewportUvToWidgetUv(const Offset(1.0, 1.0));
+      final uvBottomRight = channel.mapViewportUvToWidgetUv(
+        const Offset(1.0, 1.0),
+      );
       expect(uvBottomRight, equals(const Offset(1.0, 1.0)));
       expect(channel.isUvInside(uvBottomRight), isTrue);
 
@@ -129,8 +130,9 @@ void main() {
       expect(uv, equals(const Offset(0.5, 0.5)));
       expect(channel.isUvInside(uv), isTrue);
 
-      final uvOutside =
-          channel.mapViewportUvToWidgetUv(const Offset(0.75, 0.75));
+      final uvOutside = channel.mapViewportUvToWidgetUv(
+        const Offset(0.75, 0.75),
+      );
       expect(uvOutside, equals(const Offset(1.5, 1.5)));
       expect(channel.isUvInside(uvOutside), isFalse);
 

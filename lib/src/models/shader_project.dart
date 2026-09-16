@@ -86,12 +86,14 @@ class ShaderProject {
       return ShaderProject.parseJsonString(jsonString);
     }
     try {
-      final jsonString =
-          await effectiveBundle.loadString('shaders/$assetPathOrName');
+      final jsonString = await effectiveBundle.loadString(
+        'shaders/$assetPathOrName',
+      );
       return ShaderProject.parseJsonString(jsonString);
     } catch (_) {
-      final jsonString =
-          await effectiveBundle.loadString('assets/examples/$assetPathOrName');
+      final jsonString = await effectiveBundle.loadString(
+        'assets/examples/$assetPathOrName',
+      );
       return ShaderProject.parseJsonString(jsonString);
     }
   }

@@ -49,9 +49,7 @@ class PassTabsBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: const BoxDecoration(
         color: Color(0xFF14141A),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFD98200), width: 2),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFD98200), width: 2)),
       ),
       child: Row(
         children: [
@@ -77,8 +75,9 @@ class PassTabsBar extends StatelessWidget {
                   PassType.bufferD,
                 ];
                 final existing = passes.map((p) => p.type).toSet();
-                final available =
-                    addableTypes.where((t) => !existing.contains(t)).toList();
+                final available = addableTypes
+                    .where((t) => !existing.contains(t))
+                    .toList();
 
                 if (available.isEmpty) {
                   return [
@@ -86,10 +85,7 @@ class PassTabsBar extends StatelessWidget {
                       enabled: false,
                       child: Text(
                         'All tabs added',
-                        style: TextStyle(
-                          color: Colors.white38,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: Colors.white38, fontSize: 13),
                       ),
                     ),
                   ];
@@ -204,10 +200,7 @@ class PassTabsBar extends StatelessWidget {
               side: const BorderSide(color: Color(0xFF383842)),
               padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
-            icon: Icon(
-              showInputs ? Icons.expand_less : Icons.tune,
-              size: 16,
-            ),
+            icon: Icon(showInputs ? Icons.expand_less : Icons.tune, size: 16),
             label: const Text('Inputs', style: TextStyle(fontSize: 12)),
             onPressed: onToggleInputs,
           ),
@@ -218,16 +211,12 @@ class PassTabsBar extends StatelessWidget {
           IconButton(
             iconSize: 20,
             icon: Icon(
-              isPlaying
-                  ? Icons.pause_circle_filled
-                  : Icons.play_circle_fill,
+              isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
               color: isPlaying
                   ? const Color(0xFFFBBF24)
                   : const Color(0xFF4ADE80),
             ),
-            tooltip: isPlaying
-                ? 'Pause Shader (Space)'
-                : 'Play Shader (Space)',
+            tooltip: isPlaying ? 'Pause Shader (Space)' : 'Play Shader (Space)',
             onPressed: onTogglePlay,
           ),
 

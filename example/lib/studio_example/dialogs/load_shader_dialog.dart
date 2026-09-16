@@ -126,15 +126,12 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
   Future<List<_JsonFileInfo>> _scanAssets() async {
     try {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-      final jsonAssets = manifest
-          .listAssets()
-          .where((key) {
-            final lower = key.toLowerCase();
-            return (lower.startsWith('shaders/') ||
-                    lower.startsWith('assets/shaders/')) &&
-                lower.endsWith('.json');
-          })
-          .toList();
+      final jsonAssets = manifest.listAssets().where((key) {
+        final lower = key.toLowerCase();
+        return (lower.startsWith('shaders/') ||
+                lower.startsWith('assets/shaders/')) &&
+            lower.endsWith('.json');
+      }).toList();
 
       jsonAssets.sort((a, b) {
         final nameA = a.split('/').last.toLowerCase();
@@ -285,8 +282,9 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
       } else if (item.isAsset && item.assetPath != null) {
         project = await ShaderProject.loadFromAsset(item.assetPath!);
       } else if (item.file != null) {
-        project =
-            ShaderProject.parseJsonString(await item.file!.readAsString());
+        project = ShaderProject.parseJsonString(
+          await item.file!.readAsString(),
+        );
       } else {
         throw Exception(
           'No file or asset path available for "${item.fileName}"',
@@ -741,11 +739,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: iconBoxBorder),
                           ),
-                          child: Icon(
-                            iconData,
-                            color: iconColor,
-                            size: 20,
-                          ),
+                          child: Icon(iconData, color: iconColor, size: 20),
                         ),
                         title: Row(
                           children: [
@@ -854,7 +848,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                                     style: TextStyle(
                                       color: isAsset
                                           ? const Color(0xFF38BDF8)
-                                              .withValues(alpha: 0.5)
+                                                .withValues(alpha: 0.5)
                                           : Colors.white24,
                                       fontSize: 10,
                                       fontFamily: 'monospace',

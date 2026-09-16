@@ -140,11 +140,7 @@ class _StudioCodeEditorState extends State<StudioCodeEditor> {
               children: [
                 const Padding(
                   padding: EdgeInsets.only(top: 2),
-                  child: Icon(
-                    Icons.error,
-                    color: Color(0xFFEF4444),
-                    size: 14,
-                  ),
+                  child: Icon(Icons.error, color: Color(0xFFEF4444), size: 14),
                 ),
                 const SizedBox(width: 8),
                 Expanded(

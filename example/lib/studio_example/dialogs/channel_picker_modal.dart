@@ -54,101 +54,116 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
           children: [
             Column(
               children: [
-            // Modal Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Color(0xFF2A2A38))),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.input, size: 18, color: Color(0xFFFF5500)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Select Input for iChannel${widget.slotIndex}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                // Modal Header
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFF2A2A38)),
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    iconSize: 18,
-                    icon: const Icon(Icons.close, color: Colors.white54),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-
-            // Tabs
-            TabBar(
-              controller: _tabController,
-              indicatorColor: const Color(0xFFFF5500),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white54,
-              tabs: const [
-                Tab(icon: Icon(Icons.image, size: 16), text: 'Textures (2D)'),
-                Tab(
-                  icon: Icon(Icons.music_note, size: 16),
-                  text: 'Audio (SoLoud)',
-                ),
-                Tab(icon: Icon(Icons.mic, size: 16), text: 'Mic (Recorder)'),
-                Tab(icon: Icon(Icons.layers, size: 16), text: 'Buffers'),
-                Tab(icon: Icon(Icons.keyboard, size: 16), text: 'Keyboard'),
-              ],
-            ),
-
-            // Tab Views
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildTexturesTab(),
-                  _buildAudioTab(),
-                  _buildMicTab(),
-                  _buildBuffersTab(),
-                  _buildKeyboardTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if (_isLoading)
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(
-                      color: Color(0xFF00E5FF),
-                    ),
-                    if (_loadingMessage != null) ...[
-                      const SizedBox(height: 14),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.input,
+                        size: 18,
+                        color: Color(0xFFFF5500),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        _loadingMessage!,
+                        'Select Input for iChannel${widget.slotIndex}',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const Spacer(),
+                      IconButton(
+                        iconSize: 18,
+                        icon: const Icon(Icons.close, color: Colors.white54),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                     ],
+                  ),
+                ),
+
+                // Tabs
+                TabBar(
+                  controller: _tabController,
+                  indicatorColor: const Color(0xFFFF5500),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white54,
+                  tabs: const [
+                    Tab(
+                      icon: Icon(Icons.image, size: 16),
+                      text: 'Textures (2D)',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.music_note, size: 16),
+                      text: 'Audio (SoLoud)',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.mic, size: 16),
+                      text: 'Mic (Recorder)',
+                    ),
+                    Tab(icon: Icon(Icons.layers, size: 16), text: 'Buffers'),
+                    Tab(icon: Icon(Icons.keyboard, size: 16), text: 'Keyboard'),
                   ],
                 ),
-              ),
+
+                // Tab Views
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildTexturesTab(),
+                      _buildAudioTab(),
+                      _buildMicTab(),
+                      _buildBuffersTab(),
+                      _buildKeyboardTab(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-      ],
-    ),
-  ),
-);
+            if (_isLoading)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          color: Color(0xFF00E5FF),
+                        ),
+                        if (_loadingMessage != null) ...[
+                          const SizedBox(height: 14),
+                          Text(
+                            _loadingMessage!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildAudioTab() {
@@ -546,8 +561,8 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
     final filteredTextures = _selectedTextureCategory == 'All'
         ? allTextures
         : allTextures
-            .where((t) => t.category == _selectedTextureCategory)
-            .toList();
+              .where((t) => t.category == _selectedTextureCategory)
+              .toList();
 
     const categories = [
       'All',
@@ -584,16 +599,17 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
                             });
                           },
                           backgroundColor: const Color(0xFF22222E),
-                          selectedColor:
-                              const Color(0xFF38BDF8).withValues(alpha: 0.25),
+                          selectedColor: const Color(0xFF38BDF8)
+                              .withValues(alpha: 0.25),
                           checkmarkColor: const Color(0xFF38BDF8),
                           labelStyle: TextStyle(
                             color: isSelected
                                 ? const Color(0xFF38BDF8)
                                 : Colors.white70,
                             fontSize: 12,
-                            fontWeight:
-                                isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                           side: BorderSide(
                             color: isSelected
@@ -778,10 +794,7 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
               style: const TextStyle(color: Colors.white, fontSize: 13),
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: const TextStyle(
-                  color: Colors.white30,
-                  fontSize: 13,
-                ),
+                hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
                 filled: true,
                 fillColor: const Color(0xFF14141C),
                 contentPadding: const EdgeInsets.symmetric(
@@ -867,9 +880,7 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
         if (mounted) {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to decode image from ${file.name}'),
-            ),
+            SnackBar(content: Text('Failed to decode image from ${file.name}')),
           );
         }
         return;
@@ -882,9 +893,8 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking texture: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error picking texture: $e')));
       }
     }
   }
@@ -908,10 +918,7 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
           ? uri.pathSegments.last
           : 'Web Texture';
 
-      final channel = TextureChannel(
-        name: fileName,
-        src: url,
-      );
+      final channel = TextureChannel(name: fileName, src: url);
       final img = await channel.loadImage();
       if (img == null) {
         if (mounted) {
@@ -968,10 +975,7 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
         await SoLoud.instance.disposeAllSources();
       }
 
-      final channel = SoLoudAudioChannel(
-        audioName: file.name,
-        src: path,
-      );
+      final channel = SoLoudAudioChannel(audioName: file.name, src: path);
       await channel.initAudio();
 
       widget.onSelectChannel(channel);
@@ -981,9 +985,9 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading audio file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading audio file: $e')));
       }
     }
   }
@@ -1011,10 +1015,7 @@ class _ChannelPickerModalState extends State<ChannelPickerModal>
         await SoLoud.instance.disposeAllSources();
       }
 
-      final channel = SoLoudAudioChannel(
-        audioName: audioName,
-        src: url,
-      );
+      final channel = SoLoudAudioChannel(audioName: audioName, src: url);
       await channel.initAudio();
 
       widget.onSelectChannel(channel);

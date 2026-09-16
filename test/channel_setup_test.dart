@@ -23,95 +23,96 @@ void main() {
     expect(kbd.wrap, equals(ChannelWrap.clamp));
   });
 
-  test('ShaderProject JSON import defaults filter to mipmap when unspecified', () {
-    final json = {
-      'Shader': {
-        'info': {'id': 'test', 'name': 'Test'},
-        'renderpass': [
-          {
-            'type': 'image',
-            'code': 'void mainImage(out vec4 fragColor, in vec2 fragCoord) {}',
-            'inputs': [
-              {
-                'channel': 0,
-                'ctype': 'texture',
-                'src': 'assets/2d_texture/london.jpg',
-                'sampler': {'wrap': 'repeat', 'vflip': 'true'},
-              },
-              {
-                'channel': 1,
-                'ctype': 'keyboard',
-                'sampler': {'wrap': 'clamp'},
-              },
-            ],
-            'outputs': [],
-          },
-        ],
-      },
-    };
-
-    final project = ShaderProject.fromJson(json);
-    final pass = project.imagePass!;
-    expect(pass.getChannel(0)!.filter, equals(ChannelFilter.mipmap));
-    expect(pass.getChannel(1)!.filter, equals(ChannelFilter.nearest));
-  });
-
   test(
-    'ShaderController updates channel settings and flipY works',
-    () async {
-      final controller = ShaderController();
-      final tex = TextureChannel(
-        filter: ChannelFilter.nearest,
-        wrap: ChannelWrap.clamp,
-        vflip: false,
-      );
-      controller.activePass!.setChannel(0, tex);
+    'ShaderProject JSON import defaults filter to mipmap when unspecified',
+    () {
+      final json = {
+        'Shader': {
+          'info': {'id': 'test', 'name': 'Test'},
+          'renderpass': [
+            {
+              'type': 'image',
+              'code':
+                  'void mainImage(out vec4 fragColor, in vec2 fragCoord) {}',
+              'inputs': [
+                {
+                  'channel': 0,
+                  'ctype': 'texture',
+                  'src': 'assets/2d_texture/london.jpg',
+                  'sampler': {'wrap': 'repeat', 'vflip': 'true'},
+                },
+                {
+                  'channel': 1,
+                  'ctype': 'keyboard',
+                  'sampler': {'wrap': 'clamp'},
+                },
+              ],
+              'outputs': [],
+            },
+          ],
+        },
+      };
 
-      expect(tex.filter, equals(ChannelFilter.nearest));
-      expect(tex.wrap, equals(ChannelWrap.clamp));
-      expect(tex.vflip, isFalse);
-
-      await controller.updateChannelSettings(
-        0,
-        filter: ChannelFilter.mipmap,
-        wrap: ChannelWrap.repeat,
-        vflip: true,
-      );
-
-      expect(tex.filter, equals(ChannelFilter.mipmap));
-      expect(tex.wrap, equals(ChannelWrap.repeat));
-      expect(tex.vflip, isTrue);
-
-      // Test row inversion for vertical flip: 2x2 image
-      // Row 0: [1, 2, 3, 4], [5, 6, 7, 8]
-      // Row 1: [9, 10, 11, 12], [13, 14, 15, 16]
-      final original = Uint8List.fromList([
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-      ]);
-      final flipped = ShaderController.flipY(original, 2, 2);
-      expect(
-        flipped,
-        equals([9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8]),
-      );
-
-      controller.dispose();
+      final project = ShaderProject.fromJson(json);
+      final pass = project.imagePass!;
+      expect(pass.getChannel(0)!.filter, equals(ChannelFilter.mipmap));
+      expect(pass.getChannel(1)!.filter, equals(ChannelFilter.nearest));
     },
   );
+
+  test('ShaderController updates channel settings and flipY works', () async {
+    final controller = ShaderController();
+    final tex = TextureChannel(
+      filter: ChannelFilter.nearest,
+      wrap: ChannelWrap.clamp,
+      vflip: false,
+    );
+    controller.activePass!.setChannel(0, tex);
+
+    expect(tex.filter, equals(ChannelFilter.nearest));
+    expect(tex.wrap, equals(ChannelWrap.clamp));
+    expect(tex.vflip, isFalse);
+
+    await controller.updateChannelSettings(
+      0,
+      filter: ChannelFilter.mipmap,
+      wrap: ChannelWrap.repeat,
+      vflip: true,
+    );
+
+    expect(tex.filter, equals(ChannelFilter.mipmap));
+    expect(tex.wrap, equals(ChannelWrap.repeat));
+    expect(tex.vflip, isTrue);
+
+    // Test row inversion for vertical flip: 2x2 image
+    // Row 0: [1, 2, 3, 4], [5, 6, 7, 8]
+    // Row 1: [9, 10, 11, 12], [13, 14, 15, 16]
+    final original = Uint8List.fromList([
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+    ]);
+    final flipped = ShaderController.flipY(original, 2, 2);
+    expect(
+      flipped,
+      equals([9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8]),
+    );
+
+    controller.dispose();
+  });
 
   testWidgets(
     'ChannelSetupDialog shows VFlip for TextureChannel and hides for BufferChannel',

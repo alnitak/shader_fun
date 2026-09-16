@@ -70,11 +70,7 @@ class ChannelAssets {
       fileName: 'blue_noise.png',
       category: 'Noise',
     ),
-    TextureInfo(
-      name: 'Bayer Matrix',
-      fileName: 'bayer.png',
-      category: 'Noise',
-    ),
+    TextureInfo(name: 'Bayer Matrix', fileName: 'bayer.png', category: 'Noise'),
     TextureInfo(
       name: 'Grey Noise Medium',
       fileName: 'grey_noise_medium.png',
@@ -117,18 +113,10 @@ class ChannelAssets {
       fileName: 'organic_4.jpg',
       category: 'Organic',
     ),
-    TextureInfo(
-      name: 'Lichen',
-      fileName: 'lichen.jpg',
-      category: 'Organic',
-    ),
+    TextureInfo(name: 'Lichen', fileName: 'lichen.jpg', category: 'Organic'),
 
     // Surface
-    TextureInfo(
-      name: 'Wood Grain',
-      fileName: 'wood.jpg',
-      category: 'Surface',
-    ),
+    TextureInfo(name: 'Wood Grain', fileName: 'wood.jpg', category: 'Surface'),
     TextureInfo(
       name: 'Rock Tiles',
       fileName: 'rock_tiles.jpg',
@@ -139,11 +127,7 @@ class ChannelAssets {
       fileName: 'rusty_metal.jpg',
       category: 'Surface',
     ),
-    TextureInfo(
-      name: 'Pebbles',
-      fileName: 'pobbles.png',
-      category: 'Surface',
-    ),
+    TextureInfo(name: 'Pebbles', fileName: 'pobbles.png', category: 'Surface'),
 
     // Abstract
     TextureInfo(
@@ -163,25 +147,13 @@ class ChannelAssets {
     ),
 
     // Misc
-    TextureInfo(
-      name: 'Stars & Space',
-      fileName: 'stars.jpg',
-      category: 'Misc',
-    ),
+    TextureInfo(name: 'Stars & Space', fileName: 'stars.jpg', category: 'Misc'),
     TextureInfo(
       name: 'London Street',
       fileName: 'london.jpg',
       category: 'Misc',
     ),
-    TextureInfo(
-      name: 'Nyancat',
-      fileName: 'nyancat.png',
-      category: 'Misc',
-    ),
-    TextureInfo(
-      name: 'Font Atlas',
-      fileName: 'font_1.png',
-      category: 'Misc',
-    ),
+    TextureInfo(name: 'Nyancat', fileName: 'nyancat.png', category: 'Misc'),
+    TextureInfo(name: 'Font Atlas', fileName: 'font_1.png', category: 'Misc'),
   ];
 }
