@@ -7,7 +7,7 @@ import 'package:shader_fun/shader_fun.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('ShaderToyUniforms', () {
+  group('CommonUniforms', () {
     test('initializes with valid defaults and pack to Float32List', () {
       final uniforms = CommonUniforms(
         resolution: const Size(1920, 1080),
@@ -68,28 +68,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   }
 
   group('ShaderProject JSON Format', () {
-    test(
-      'serializes and deserializes correctly matching ShaderToy JSON structure',
-      () {
-        final original = createRaymarchingTestProject();
-        final jsonMap = original.toJson();
+    test('serializes and deserializes correctly matching JSON structure', () {
+      final original = createRaymarchingTestProject();
+      final jsonMap = original.toJson();
 
-        expect(jsonMap.containsKey('Shader'), isTrue);
-        final shader = jsonMap['Shader'] as Map<String, dynamic>;
-        expect(shader['info']['id'], '4slGD4');
-        expect(shader['info']['name'], 'Raymarching Primitives');
-        expect(shader['renderpass'] is List, isTrue);
+      expect(jsonMap.containsKey('Shader'), isTrue);
+      final shader = jsonMap['Shader'] as Map<String, dynamic>;
+      expect(shader['info']['id'], '4slGD4');
+      expect(shader['info']['name'], 'Raymarching Primitives');
+      expect(shader['renderpass'] is List, isTrue);
 
-        final jsonString = original.toJsonString();
-        final parsed = ShaderProject.parseJsonString(jsonString);
+      final jsonString = original.toJsonString();
+      final parsed = ShaderProject.parseJsonString(jsonString);
 
-        expect(parsed.id, '4slGD4');
-        expect(parsed.name, 'Raymarching Primitives');
-        expect(parsed.passes.length, original.passes.length);
-        expect(parsed.passes.first.type, PassType.image);
-        expect(parsed.passes.first.code, contains('mainImage'));
-      },
-    );
+      expect(parsed.id, '4slGD4');
+      expect(parsed.name, 'Raymarching Primitives');
+      expect(parsed.passes.length, original.passes.length);
+      expect(parsed.passes.first.type, PassType.image);
+      expect(parsed.passes.first.code, contains('mainImage'));
+    });
 
     test('multi-pass feedback project serializes channels and passes', () {
       final project = createFeedbackTestProject();
@@ -136,7 +133,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     });
   });
 
-  group('ShaderToyController', () {
+  group('ShaderController', () {
     test('manages playback state and pass navigation', () async {
       final project = createFeedbackTestProject();
       final controller = ShaderController(
@@ -372,7 +369,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(project.passes.first.channels[2]?.type, ChannelType.texture);
     });
 
-    test('ShaderToyController manages channels and source code', () {
+    test('ShaderController manages channels and source code', () {
       final controller = ShaderController();
       controller.setImagePassCode(
         'void mainImage(out vec4 c, in vec2 u) { c = vec4(1.0); }',
@@ -388,7 +385,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       controller.dispose();
     });
 
-    test('ShaderToyController supports package:listen ChangeNotifier and ValueNotifiers', () {
+    test('ShaderController supports package:listen ChangeNotifier and ValueNotifiers', () {
       final controller = ShaderController();
       int controllerNotifications = 0;
       int isPlayingNotifications = 0;

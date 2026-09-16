@@ -188,7 +188,7 @@ class CompositorRenderer {
       );
     canvas.drawRect(ui.Rect.fromLTWH(0, 0, w, h), skyPaint);
 
-    // Perspective Ground Grid (like ShaderToy primitives plane)
+    // Perspective Ground Grid (like shader primitives plane)
     final horizonY = cy + my * 40.0;
     final groundPaint = ui.Paint()
       ..color = const ui.Color(0x33446688)

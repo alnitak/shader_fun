@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-/// Manages keyboard input state for ShaderToy shaders adhering to Shadertoy's
+/// Manages keyboard input state for shaders adhering to Shadertoy's
 /// 256x3 keyboard texture layout:
 /// - Row 0 (Shadertoy / OpenGL bottom row): Key down / held state (0 or 255)
 /// - Row 1: Key press / click trigger (255 for one frame, then 0)

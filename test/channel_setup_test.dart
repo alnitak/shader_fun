@@ -23,7 +23,7 @@ void main() {
     expect(kbd.wrap, equals(ChannelWrap.clamp));
   });
 
-  test('ShaderToyJson defaults filter to mipmap when unspecified', () {
+  test('ShaderProject JSON import defaults filter to mipmap when unspecified', () {
     final json = {
       'Shader': {
         'info': {'id': 'test', 'name': 'Test'},
@@ -57,7 +57,7 @@ void main() {
   });
 
   test(
-    'ShaderToyController updates channel settings and flipY works',
+    'ShaderController updates channel settings and flipY works',
     () async {
       final controller = ShaderController();
       final tex = TextureChannel(

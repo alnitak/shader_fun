@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 import 'dart:ui';
 
-/// Container for all standard ShaderToy uniforms passed to shaders.
+/// Container for all standard shader uniforms passed to shaders.
 ///
-/// Encapsulates the runtime variables accessible in Shadertoy GLSL code
+/// Encapsulates the runtime variables accessible in GLSL code
 /// (`iResolution`, `iTime`, `iTimeDelta`, `iFrame`, `iFrameRate`, `iMouse`,
 /// `iDate`, `iSampleRate`, `iChannelTime`, `iChannelResolution`).
 class CommonUniforms {
@@ -198,7 +198,7 @@ class CommonUniforms {
     return data;
   }
 
-  /// Standard ShaderToy uniform block size in bytes (iResolution, iTime, etc.).
+  /// Standard uniform block size in bytes (iResolution, iTime, etc.).
   static const int standardUniformsSizeBytes = 144;
 
   /// Maximum number of generic vec4 custom uniform registers (16 vec4s = 64 floats = 256 bytes by default).

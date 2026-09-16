@@ -4,7 +4,7 @@ import 'package:shader_fun/shader_fun.dart';
 import 'package:shader_fun/src/core/keyboard_state.dart';
 
 void main() {
-  group('ShaderToyKeyboardState', () {
+  group('ShaderKeyboardState', () {
     test('maps standard keys to JavaScript keyCodes', () {
       expect(
         ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.backspace),

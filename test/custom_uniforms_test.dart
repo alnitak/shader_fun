@@ -7,7 +7,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Custom Uniforms', () {
-    test('ShaderToyUniforms buffer constants and size consistency', () {
+    test('CommonUniforms buffer constants and size consistency', () {
       expect(
         CommonUniforms.customUniformsSizeBytes,
         CommonUniforms.maxCustomUniformSlots * 16,
@@ -19,7 +19,7 @@ void main() {
       );
     });
 
-    test('ShaderToyUniforms stores and packs custom uniform types', () {
+    test('CommonUniforms stores and packs custom uniform types', () {
       final uniforms = CommonUniforms();
 
       uniforms.setCustomUniform('progress', 0.75);
@@ -79,7 +79,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(wrapped, contains('// uniform float progress;'));
     });
 
-    test('ShaderToyController setUniform updates uniforms without error', () {
+    test('ShaderController setUniform updates uniforms without error', () {
       final project = ShaderProject(
         name: 'Uniform Test',
         passes: [

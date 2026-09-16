@@ -6,6 +6,8 @@ A high-performance Flutter package for running, writing, and experimenting with 
 
 ---
 
+---
+
 ## Features
 
 - **Interactive Viewport (`ShaderViewport`)**:
@@ -189,7 +191,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
 ### 2. Loading a Project from JSON
 
-You can save any shader from to a `.json` file and load it directly:
+You can save any shader project to a `.json` file and load it directly:
 
 ```dart
 import 'dart:convert';
@@ -215,7 +217,7 @@ final pass = project.imagePass!;
 // 1. Static 2D Texture Image
 pass.channels[0] = TextureChannel(
   source: 'assets/textures/wood.png',
-  vflip: true, // Flips vertically to match OpenGL/Shadertoy conventions
+  vflip: true, // Flips vertically to match texture coordinate conventions
   filter: TextureFilter.linear,
   wrap: TextureWrap.repeat,
 );
@@ -282,7 +284,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 }
 ```
 
-2. **Set uniform values dynamically via `ShaderToyController`**:
+2. **Set uniform values dynamically via `ShaderController`**:
 ```dart
 // Supports double/num (float/int), Offset/Size (vec2), Color (vec4), and List<num>:
 controller.setUniform('progress', animation.value);
@@ -296,9 +298,9 @@ controller.setUniform('glowColor', Colors.cyanAccent);
 
 #### Capacity & GPU Memory Pagination
 
-- **Default Capacity**: By default, `ShaderToyUniforms.maxCustomUniformSlots = 16` generic `vec4` registers (64 floats = 256 bytes) are reserved for custom uniforms.
+- **Default Capacity**: By default, `CommonUniforms.maxCustomUniformSlots = 16` generic `vec4` registers (64 floats = 256 bytes) are reserved for custom uniforms.
 - **Hardware Alignment & Pagination**: Sizing the custom uniform space to 256 bytes aligns with standard GPU driver suballocation pagination (for example, `minUniformBufferOffsetAlignment` on Vulkan and Metal is typically 256 bytes). Even allocating a single 4-byte float still consumes a 256B/4KB physical page in GPU VRAM.
-- **Single-Step Scaling**: If your project requires more custom uniforms, updating `ShaderToyUniforms.maxCustomUniformSlots` (e.g. to `32` or `64`) is the **only step required**. All GLSL wrappers, native Impeller buffers, WebGL reflection structs, and `ShaderToyUniforms.totalUniformBufferSize` dynamically scale together automatically without any code changes across renderers or compilers.
+- **Single-Step Scaling**: If your project requires more custom uniforms, updating `CommonUniforms.maxCustomUniformSlots` (e.g. to `32` or `64`) is the **only step required**. All GLSL wrappers, native Impeller buffers, WebGL reflection structs, and `CommonUniforms.totalUniformBufferSize` dynamically scale together automatically without any code changes across renderers or compilers.
 
 ---
 
@@ -306,7 +308,7 @@ controller.setUniform('glowColor', Colors.cyanAccent);
 
 The package includes two feature-packed example applications in the `example` folder:
 
-### 1. Shadertoy Studio (`example/lib/studio_example/main.dart`)
+### 1. Shader Studio (`example/lib/studio_example/main.dart`)
 
 An in-depth interactive GLSL workstation and IDE:
 
