@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "shader_fun main",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "debug",
+            "cwd": "example",
+            "program": "lib/main.dart"
+        },
+        {
             "name": "shader_fun widget example",
             "request": "launch",
             "type": "dart",

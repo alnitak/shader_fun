@@ -30,3 +30,4 @@ flutter:
     - assets/audio/
     - assets/2d_texture/
     - flutter_scene_generated/
+    - shaders/

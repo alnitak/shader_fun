@@ -75,17 +75,25 @@ class ShaderProject {
   /// Loads a [ShaderProject] from a Flutter asset using [rootBundle] or a provided [bundle].
   ///
   /// [assetPathOrName] can be a simple file name (e.g. `'raymarching_primitives.json'`)
-  /// or a full asset path (e.g. `'assets/examples/raymarching_primitives.json'`).
+  /// or a full asset path (e.g. `'assets/examples/raymarching_primitives.json'` or `'shaders/Heartfelt.json'`).
   static Future<ShaderProject> loadFromAsset(
     String assetPathOrName, {
     AssetBundle? bundle,
   }) async {
-    final path = assetPathOrName.startsWith('assets/')
-        ? assetPathOrName
-        : 'assets/examples/$assetPathOrName';
     final effectiveBundle = bundle ?? rootBundle;
-    final jsonString = await effectiveBundle.loadString(path);
-    return ShaderProject.parseJsonString(jsonString);
+    if (assetPathOrName.contains('/')) {
+      final jsonString = await effectiveBundle.loadString(assetPathOrName);
+      return ShaderProject.parseJsonString(jsonString);
+    }
+    try {
+      final jsonString =
+          await effectiveBundle.loadString('shaders/$assetPathOrName');
+      return ShaderProject.parseJsonString(jsonString);
+    } catch (_) {
+      final jsonString =
+          await effectiveBundle.loadString('assets/examples/$assetPathOrName');
+      return ShaderProject.parseJsonString(jsonString);
+    }
   }
 
   ShaderPass? getPass(PassType type) {

@@ -6,22 +6,27 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shader_fun/shader_fun.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Metadata wrapper for a Shader JSON file discovered in the folder.
+/// Metadata wrapper for a Shader JSON file discovered in the folder or assets.
 class _JsonFileInfo {
   _JsonFileInfo({
-    required this.file,
+    this.file,
+    this.assetPath,
     required this.fileName,
     this.project,
     this.errorMessage,
   });
 
-  final File file;
+  final File? file;
+  final String? assetPath;
   final String fileName;
   final ShaderProject? project;
   final String? errorMessage;
+
+  bool get isAsset => assetPath != null;
 }
 
 /// Dialog for loading shaders from the last used folder, disk, or raw JSON.
@@ -57,8 +62,8 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     _tabController = TabController(length: 2, vsync: this);
     _lifecycleListener = AppLifecycleListener(
       onResume: () {
-        if (mounted && _currentFolderPath != null) {
-          _scanFolder(_currentFolderPath!);
+        if (mounted) {
+          _scanFolder(_currentFolderPath);
         }
       },
     );
@@ -94,15 +99,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
         }
       }
 
-      if (folder != null) {
-        await _scanFolder(folder);
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoadingFolder = false;
-          });
-        }
-      }
+      await _scanFolder(folder);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -125,90 +122,135 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     }
   }
 
-  Future<void> _scanFolder(String folderPath) async {
-    if (kIsWeb) {
-      if (mounted) {
-        setState(() {
-          _currentFolderPath = folderPath;
-          _folderFiles = [];
-          _isLoadingFolder = false;
-        });
-      }
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoadingFolder = true;
-        _currentFolderPath = folderPath;
-        _generalError = null;
-      });
-    }
-
-    final dir = Directory(folderPath);
-    if (!dir.existsSync()) {
-      if (mounted) {
-        setState(() {
-          _folderFiles = [];
-          _isLoadingFolder = false;
-          _generalError = 'Folder does not exist: $folderPath';
-        });
-      }
-      return;
-    }
-
-    _setupDirWatcher(dir);
-
+  /// Scans application assets for JSON shader files.
+  Future<List<_JsonFileInfo>> _scanAssets() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kLastJsonFolderKey, folderPath);
-
-      final entities = dir
-          .listSync(followLinks: true)
-          .where((f) => f is File || f is Link)
-          .where((f) => f.path.toLowerCase().endsWith('.json'))
-          .map((f) => File(f.path))
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final jsonAssets = manifest
+          .listAssets()
+          .where((key) {
+            final lower = key.toLowerCase();
+            return (lower.startsWith('shaders/') ||
+                    lower.startsWith('assets/shaders/')) &&
+                lower.endsWith('.json');
+          })
           .toList();
 
-      entities.sort((a, b) {
-        final nameA = a.uri.pathSegments.last.toLowerCase();
-        final nameB = b.uri.pathSegments.last.toLowerCase();
+      jsonAssets.sort((a, b) {
+        final nameA = a.split('/').last.toLowerCase();
+        final nameB = b.split('/').last.toLowerCase();
         return nameA.compareTo(nameB);
       });
 
-      final List<_JsonFileInfo> filesInfo = [];
-      for (final file in entities) {
-        final fileName = file.uri.pathSegments.last;
+      final List<_JsonFileInfo> assetsInfo = [];
+      for (final assetPath in jsonAssets) {
+        final fileName = assetPath.split('/').last;
         try {
-          final content = await file.readAsString();
-          final project = ShaderProject.parseJsonString(content);
-          filesInfo.add(
-            _JsonFileInfo(file: file, fileName: fileName, project: project),
+          final project = await ShaderProject.loadFromAsset(assetPath);
+          assetsInfo.add(
+            _JsonFileInfo(
+              assetPath: assetPath,
+              fileName: fileName,
+              project: project,
+            ),
           );
         } catch (e) {
-          filesInfo.add(
+          assetsInfo.add(
             _JsonFileInfo(
-              file: file,
+              assetPath: assetPath,
               fileName: fileName,
               errorMessage: e.toString(),
             ),
           );
         }
       }
-
-      if (mounted) {
-        setState(() {
-          _folderFiles = filesInfo;
-          _isLoadingFolder = false;
-        });
-      }
+      return assetsInfo;
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingFolder = false;
-          _generalError = 'Error scanning folder "$folderPath": $e';
-        });
+      return [];
+    }
+  }
+
+  Future<void> _scanFolder([String? folderPath]) async {
+    if (mounted) {
+      setState(() {
+        _isLoadingFolder = true;
+        if (folderPath != null) {
+          _currentFolderPath = folderPath;
+        }
+        _generalError = null;
+      });
+    }
+
+    final assetsInfo = await _scanAssets();
+    final List<_JsonFileInfo> folderFilesInfo = [];
+
+    if (!kIsWeb && _currentFolderPath != null) {
+      final dir = Directory(_currentFolderPath!);
+      if (!dir.existsSync()) {
+        if (mounted) {
+          setState(() {
+            _folderFiles = assetsInfo;
+            _isLoadingFolder = false;
+            _generalError = 'Folder does not exist: $_currentFolderPath';
+          });
+        }
+        return;
       }
+
+      _setupDirWatcher(dir);
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_kLastJsonFolderKey, _currentFolderPath!);
+
+        final entities = dir
+            .listSync(followLinks: true)
+            .where((f) => f is File || f is Link)
+            .where((f) => f.path.toLowerCase().endsWith('.json'))
+            .map((f) => File(f.path))
+            .toList();
+
+        entities.sort((a, b) {
+          final nameA = a.uri.pathSegments.last.toLowerCase();
+          final nameB = b.uri.pathSegments.last.toLowerCase();
+          return nameA.compareTo(nameB);
+        });
+
+        for (final file in entities) {
+          final fileName = file.uri.pathSegments.last;
+          try {
+            final content = await file.readAsString();
+            final project = ShaderProject.parseJsonString(content);
+            folderFilesInfo.add(
+              _JsonFileInfo(file: file, fileName: fileName, project: project),
+            );
+          } catch (e) {
+            folderFilesInfo.add(
+              _JsonFileInfo(
+                file: file,
+                fileName: fileName,
+                errorMessage: e.toString(),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _folderFiles = assetsInfo;
+            _isLoadingFolder = false;
+            _generalError = 'Error scanning folder "$_currentFolderPath": $e';
+          });
+        }
+        return;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _folderFiles = [...assetsInfo, ...folderFilesInfo];
+        _isLoadingFolder = false;
+      });
     }
   }
 
@@ -237,9 +279,19 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
     });
 
     try {
-      final project =
-          item.project ??
-          ShaderProject.parseJsonString(await item.file.readAsString());
+      final ShaderProject project;
+      if (item.project != null) {
+        project = item.project!;
+      } else if (item.isAsset && item.assetPath != null) {
+        project = await ShaderProject.loadFromAsset(item.assetPath!);
+      } else if (item.file != null) {
+        project =
+            ShaderProject.parseJsonString(await item.file!.readAsString());
+      } else {
+        throw Exception(
+          'No file or asset path available for "${item.fileName}"',
+        );
+      }
       if (mounted) {
         widget.onLoadProject(project);
         Navigator.of(context).pop();
@@ -613,6 +665,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                   itemBuilder: (context, index) {
                     final item = _folderFiles[index];
                     final isInvalid = item.errorMessage != null;
+                    final isAsset = item.isAsset;
                     final proj = item.project;
                     final title = proj != null && proj.name.isNotEmpty
                         ? proj.name
@@ -621,6 +674,8 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                         ? 'Invalid JSON file'
                         : proj?.description.isNotEmpty == true
                         ? proj!.description
+                        : isAsset
+                        ? 'Bundled asset: ${item.assetPath}'
                         : 'Shader project in ${item.fileName}';
                     final passCount = proj?.passes.length ?? 0;
                     final usesAudio = proj?.usesAudio ?? false;
@@ -630,15 +685,47 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                     final usesKeys = proj?.usesKeys ?? false;
                     final isSelected = _loadingFile == item.fileName;
 
+                    final Color cardBg = isInvalid
+                        ? const Color(0xFF20202A)
+                        : isAsset
+                        ? const Color(0xFF131D33)
+                        : const Color(0xFF20202A);
+                    final Color borderColor = isInvalid
+                        ? const Color(0xFF7F1D1D)
+                        : isAsset
+                        ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                        : const Color(0xFF2E2E3C);
+                    final Color iconBoxBg = isInvalid
+                        ? const Color(0xFFF87171).withValues(alpha: 0.12)
+                        : isAsset
+                        ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                        : const Color(0xFF00E5FF).withValues(alpha: 0.12);
+                    final Color iconBoxBorder = isInvalid
+                        ? const Color(0xFFF87171).withValues(alpha: 0.3)
+                        : isAsset
+                        ? const Color(0xFF38BDF8).withValues(alpha: 0.4)
+                        : const Color(0xFF00E5FF).withValues(alpha: 0.3);
+                    final Color iconColor = isInvalid
+                        ? const Color(0xFFF87171)
+                        : isAsset
+                        ? const Color(0xFF38BDF8)
+                        : const Color(0xFF00E5FF);
+                    final IconData iconData = isInvalid
+                        ? Icons.warning_amber_rounded
+                        : isAsset
+                        ? Icons.extension_outlined
+                        : Icons.auto_awesome;
+                    final Color btnBg = isInvalid
+                        ? const Color(0xFF383848)
+                        : isAsset
+                        ? const Color(0xFF38BDF8)
+                        : const Color(0xFF00E5FF);
+
                     return Card(
-                      color: const Color(0xFF20202A),
+                      color: cardBg,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: isInvalid
-                              ? const Color(0xFF7F1D1D)
-                              : const Color(0xFF2E2E3C),
-                        ),
+                        side: BorderSide(color: borderColor),
                       ),
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
@@ -650,39 +737,58 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: isInvalid
-                                ? const Color(0xFFF87171)
-                                      .withValues(alpha: 0.12)
-                                : const Color(0xFF00E5FF)
-                                      .withValues(alpha: 0.12),
+                            color: iconBoxBg,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isInvalid
-                                  ? const Color(0xFFF87171)
-                                        .withValues(alpha: 0.3)
-                                  : const Color(0xFF00E5FF)
-                                        .withValues(alpha: 0.3),
-                            ),
+                            border: Border.all(color: iconBoxBorder),
                           ),
                           child: Icon(
-                            isInvalid
-                                ? Icons.warning_amber_rounded
-                                : Icons.auto_awesome,
-                            color: isInvalid
-                                ? const Color(0xFFF87171)
-                                : const Color(0xFF00E5FF),
+                            iconData,
+                            color: iconColor,
                             size: 20,
                           ),
                         ),
-                        title: Text(
-                          title,
-                          style: TextStyle(
-                            color: isInvalid
-                                ? const Color(0xFFF87171)
-                                : Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  color: isInvalid
+                                      ? const Color(0xFFF87171)
+                                      : Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            if (isAsset)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF38BDF8)
+                                      .withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFF38BDF8)
+                                        .withValues(alpha: 0.4),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'ASSET',
+                                  style: TextStyle(
+                                    color: Color(0xFF38BDF8),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,6 +801,8 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                               style: TextStyle(
                                 color: isInvalid
                                     ? const Color(0xFFFCA5A5)
+                                    : isAsset
+                                    ? const Color(0xFF94A3B8)
                                     : Colors.white54,
                                 fontSize: 12,
                               ),
@@ -705,7 +813,9 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                                 if (!isInvalid) ...[
                                   _buildFeatureBadge(
                                     '$passCount pass${passCount > 1 ? 'es' : ''}',
-                                    const Color(0xFF00E5FF),
+                                    isAsset
+                                        ? const Color(0xFF38BDF8)
+                                        : const Color(0xFF00E5FF),
                                   ),
                                   if (usesAudio)
                                     _buildFeatureBadge(
@@ -736,11 +846,16 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                                 ],
                                 Expanded(
                                   child: Text(
-                                    item.fileName,
+                                    isAsset
+                                        ? (item.assetPath ?? item.fileName)
+                                        : item.fileName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white24,
+                                    style: TextStyle(
+                                      color: isAsset
+                                          ? const Color(0xFF38BDF8)
+                                              .withValues(alpha: 0.5)
+                                          : Colors.white24,
                                       fontSize: 10,
                                       fontFamily: 'monospace',
                                     ),
@@ -752,9 +867,7 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                         ),
                         trailing: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: isInvalid
-                                ? const Color(0xFF383848)
-                                : const Color(0xFF00E5FF),
+                            backgroundColor: btnBg,
                             foregroundColor: isInvalid
                                 ? Colors.white38
                                 : Colors.black,

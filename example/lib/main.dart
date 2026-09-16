@@ -90,20 +90,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
 
-    // Wide bass calculation across sub-bass and mid-bass (~30 Hz to ~250 Hz)
-    float b1 = texture(iChannel0, vec2(0.010, 0.25)).r;
-    float b2 = texture(iChannel0, vec2(0.020, 0.25)).r;
-    float bassMax = max(b1, b2);
-    float bassAvg = (b1 + b2) * 0.2;
-    float bass = mix(bassAvg, bassMax, 0.7);
-
-    float high = texture(iChannel0, vec2(0.60, 0.25)).r;
+    float bass = texture(iChannel0, vec2(0.005, 0.25)).r;
 
     // Pinch effect reacting to frequencies
     vec2 c = uv - 0.5;
     float d = length(c);
-    float pinch = bass * 0.4 * (1.0 - smoothstep(0.0, 0.30, d))
-                + high * 0.1 * (1.0 - smoothstep(0.0, 0.20, d));
+    float pinch = bass * (1.0 - smoothstep(0.0, 0.3, d));
 
     vec2 distortedUv = clamp(0.5 + c * (1.0 + pinch), 0.0, 1.0);
     fragColor = texture(iChannel1, distortedUv);

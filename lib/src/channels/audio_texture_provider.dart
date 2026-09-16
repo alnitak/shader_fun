@@ -207,7 +207,7 @@ class SoLoudAudioChannel extends AudioChannel {
         kind: sl.VisualizationKind.waveAndFft,
         channel: sl.VisualizationChannel.merged,
       );
-      soloud.setFftSmoothing(0.8);
+      soloud.setFftSmoothing(0.4);
 
       _vizSubscription?.cancel();
       _vizSubscription = soloud.audioVisualizationEvents.listen((data) {
@@ -357,7 +357,7 @@ class MicAudioChannel extends AudioChannel {
         kind: rec.VisualizationKind.waveAndFft,
         channel: rec.VisualizationChannel.merged,
       );
-      recorder.setFftSmoothing(0.8);
+      recorder.setFftSmoothing(0.4);
 
       _vizSubscription?.cancel();
       _vizSubscription = recorder.audioVisualizationEvents.listen(
