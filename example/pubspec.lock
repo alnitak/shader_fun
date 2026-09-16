@@ -58,7 +58,7 @@ packages:
     source: hosted
     version: "1.1.3"
   code_assets:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: code_assets
       sha256: cfd4f5f575a49c5f10ca856e9846073f1e6c3ee94912377eea5f6cefc5272941
@@ -214,23 +214,26 @@ packages:
   flutter_recorder:
     dependency: transitive
     description:
-      path: "../../flutter_recorder"
-      relative: true
-    source: path
+      name: flutter_recorder
+      sha256: "22a1b32c5735e434d5c28c8d25b9a4b723423757d834a08125f6e4286e02edd8"
+      url: "https://pub.dev"
+    source: hosted
     version: "2.0.4"
   flutter_scene:
     dependency: transitive
     description:
-      path: "../../../tmp/flutter_scene/packages/flutter_scene"
-      relative: true
-    source: path
+      name: flutter_scene
+      sha256: "1cc32b5ed0d05296c1f7958e63168a750c05c2373d6769ad9b9eaa973b2f97fe"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.23.0"
   flutter_soloud:
     dependency: transitive
     description:
-      path: "../../flutter_soloud"
-      relative: true
-    source: path
+      name: flutter_soloud
+      sha256: "08d92c1c447d8162d531c7a2e1deebdc03fff308bb37460c39069e6d0c8ab0e1"
+      url: "https://pub.dev"
+    source: hosted
     version: "5.1.1"
   flutter_test:
     dependency: "direct dev"
@@ -515,11 +518,12 @@ packages:
     source: hosted
     version: "1.1.1"
   scene:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "../../../tmp/flutter_scene/packages/scene"
-      relative: true
-    source: path
+      name: scene
+      sha256: f14dd23ea3858041b644ec4824eca5cae817b42aca03c5ed2efcf1afa003d554
+      url: "https://pub.dev"
+    source: hosted
     version: "0.3.0"
   shader_fun:
     dependency: "direct main"

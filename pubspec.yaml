@@ -11,12 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_recorder: # ^2.0.3
-    path: ../flutter_recorder
-  flutter_scene: #^0.23.0
-    path: ../../tmp/flutter_scene/packages/flutter_scene
-  flutter_soloud: # ^5.0.2
-    path: ../flutter_soloud
+  flutter_recorder: ^2.0.4
+    # path: ../flutter_recorder
+  flutter_scene: ^0.23.0
+    # path: ../../tmp/flutter_scene/packages/flutter_scene
+  flutter_soloud: ^5.1.1
+    # path: ../flutter_soloud
   flat_buffers: ^25.9.23
   image: 4.10.1
   listen: ^1.0.1
@@ -29,8 +29,7 @@ dev_dependencies:
   hooks: ^2.2.0
 
 dependency_overrides:
-  scene:
-    path: ../../tmp/flutter_scene/packages/scene
+  code_assets: ^2.0.0
 
 flutter:
   assets:

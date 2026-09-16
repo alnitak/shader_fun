@@ -21,8 +21,7 @@ dev_dependencies:
   hooks: ^2.2.0
 
 dependency_overrides:
-  scene:
-    path: ../../../tmp/flutter_scene/packages/scene
+  code_assets: ^2.0.0
 
 flutter:
   uses-material-design: true

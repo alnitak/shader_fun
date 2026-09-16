@@ -8,9 +8,7 @@ This package is an evolution of [shader_buffers](https://pub.dev/packages/shader
 
 ---
 <img width="406" height="720" alt="Clip 3" src="https://github.com/user-attachments/assets/bfee07b5-c837-400e-a166-cecccc6d6998" />
-
 <img width="406" height="720" alt="Clip 4" src="https://github.com/user-attachments/assets/c7b259e9-43fb-467b-9679-22ce7f951a86" />
-
 <img width="690" height="720" alt="widgets" src="https://github.com/user-attachments/assets/1eb20bb8-b2bb-42e6-b54d-4cc26061b465" />
 
 ---
