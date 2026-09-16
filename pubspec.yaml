@@ -1,6 +1,6 @@
 name: shader_fun
 description: "A new Flutter package project."
-version: 0.0.1
+version: 0.1.0
 publish_to: 'none'
 homepage:
 
@@ -18,7 +18,7 @@ dependencies:
   flutter_soloud: # ^5.0.2
     path: ../flutter_soloud
   flat_buffers: ^25.9.23
-  image: 4.9.2
+  image: 4.10.1
   listen: ^1.0.1
   vector_math: ^2.4.2
 

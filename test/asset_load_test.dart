@@ -1,7 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/shader_fun.dart';
-import 'package:shader_fun/src/channels/shader_channel.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

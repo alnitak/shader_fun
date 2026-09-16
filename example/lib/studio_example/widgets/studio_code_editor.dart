@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Synchronized code editor with line number gutter, compilation status banner, and character count.
-class StudioCodeEditor extends StatelessWidget {
+class StudioCodeEditor extends StatefulWidget {
   const StudioCodeEditor({
     super.key,
     required this.codeController,
@@ -27,8 +27,41 @@ class StudioCodeEditor extends StatelessWidget {
   final String? lastError;
   final ValueChanged<String> onCodeChanged;
 
+  @override
+  State<StudioCodeEditor> createState() => _StudioCodeEditorState();
+}
+
+class _StudioCodeEditorState extends State<StudioCodeEditor> {
+  late final TextEditingController _lineNumbersController;
+
+  static String _generateLineNumbers(int count) {
+    return List.generate(count, (i) => '${i + 1}').join('\n');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _lineNumbersController = TextEditingController(
+      text: _generateLineNumbers(widget.lineCount),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant StudioCodeEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.lineCount != oldWidget.lineCount) {
+      _lineNumbersController.text = _generateLineNumbers(widget.lineCount);
+    }
+  }
+
+  @override
+  void dispose() {
+    _lineNumbersController.dispose();
+    super.dispose();
+  }
+
   Widget _buildLineNumberGutter(BuildContext context) {
-    final gutterWidth = lineCount >= 1000 ? 52.0 : 44.0;
+    final gutterWidth = widget.lineCount >= 1000 ? 52.0 : 44.0;
 
     return Container(
       width: gutterWidth,
@@ -36,31 +69,25 @@ class StudioCodeEditor extends StatelessWidget {
         color: Color(0xFF14141A),
         border: Border(right: BorderSide(color: Color(0xFF22222A), width: 1)),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: ListView.builder(
-          controller: gutterScrollController,
-          physics: const ClampingScrollPhysics(),
-          padding: EdgeInsets.zero,
-          itemExtent: fontSize * 1.45,
-          itemCount: lineCount,
-          itemBuilder: (context, i) {
-            return Container(
-              height: fontSize * 1.45,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 8),
-              child: Text(
-                '${i + 1}',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: fontSize * 0.9,
-                  color: Colors.white.withValues(alpha: 0.35),
-                  height: 1.45,
-                ),
-              ),
-            );
-          },
+      child: TextField(
+        controller: _lineNumbersController,
+        scrollController: widget.gutterScrollController,
+        readOnly: true,
+        enableInteractiveSelection: false,
+        canRequestFocus: false,
+        showCursor: false,
+        maxLines: null,
+        expands: true,
+        textAlign: TextAlign.right,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: widget.fontSize,
+          color: Colors.white.withValues(alpha: 0.35),
+        ),
+        decoration: const InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.fromLTRB(0, 12, 8, 12),
         ),
       ),
     );
@@ -80,22 +107,22 @@ class StudioCodeEditor extends StatelessWidget {
                 _buildLineNumberGutter(context),
                 Expanded(
                   child: TextField(
-                    controller: codeController,
-                    scrollController: editorScrollController,
+                    controller: widget.codeController,
+                    scrollController: widget.editorScrollController,
                     maxLines: null,
                     expands: true,
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: fontSize,
+                      fontSize: widget.fontSize,
                       color: const Color(0xFFE2E8F0),
-                      height: 1.45,
                     ),
                     cursorColor: const Color(0xFFFF5500),
                     decoration: const InputDecoration(
+                      isDense: true,
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.all(12),
                     ),
-                    onChanged: onCodeChanged,
+                    onChanged: widget.onCodeChanged,
                   ),
                 ),
               ],
@@ -104,7 +131,7 @@ class StudioCodeEditor extends StatelessWidget {
         ),
 
         // Error banner directly below the editor when code is broken
-        if (!compileSuccess && hasError)
+        if (!widget.compileSuccess && widget.hasError)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: const Color(0xFF2E0F14),
@@ -122,7 +149,7 @@ class StudioCodeEditor extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: SelectableText(
-                    '❌ Shader error:\n$lastError',
+                    '❌ Shader error:\n${widget.lastError}',
                     style: const TextStyle(
                       color: Color(0xFFFCA5A5),
                       fontSize: 11,
@@ -143,26 +170,26 @@ class StudioCodeEditor extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                compileSuccess ? Icons.check_circle : Icons.error,
+                widget.compileSuccess ? Icons.check_circle : Icons.error,
                 size: 13,
-                color: compileSuccess
+                color: widget.compileSuccess
                     ? const Color(0xFF4ADE80)
                     : const Color(0xFFEF4444),
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Tooltip(
-                  message: lastError ?? compileStatus,
+                  message: widget.lastError ?? widget.compileStatus,
                   child: Text(
-                    compileStatus,
+                    widget.compileStatus,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: compileSuccess
+                      color: widget.compileSuccess
                           ? const Color(0xFF4ADE80)
                           : const Color(0xFFEF4444),
                       fontSize: 11,
                       fontFamily: 'monospace',
-                      fontWeight: compileSuccess
+                      fontWeight: widget.compileSuccess
                           ? FontWeight.normal
                           : FontWeight.bold,
                     ),
@@ -171,7 +198,7 @@ class StudioCodeEditor extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                'Chars: ${codeController.text.length}  |  Lines: ${codeController.text.split('\n').length}',
+                'Chars: ${widget.codeController.text.length}  |  Lines: ${widget.codeController.text.split('\n').length}',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.4),
                   fontSize: 11,
