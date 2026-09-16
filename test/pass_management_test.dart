@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 void main() {
-  group('ShaderToyProject dynamic pass management', () {
+  group('ShaderProject dynamic pass management', () {
     test('adds and removes tabs while keeping Image permanent', () {
       final project = ShaderProject.empty();
       expect(project.passes.length, 1);

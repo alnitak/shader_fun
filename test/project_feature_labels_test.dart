@@ -5,7 +5,7 @@ import 'package:shader_fun/src/core/shader_pass.dart';
 import 'package:shader_fun/src/models/shader_project.dart';
 
 void main() {
-  group('ShaderToyProject Feature Detection Labels', () {
+  group('ShaderProject Feature Detection Labels', () {
     test('detects mouse usage when iMouse is referenced in GLSL code', () {
       final projectWithMouse = ShaderProject(
         passes: [

@@ -67,7 +67,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     );
   }
 
-  group('ShaderToyProject JSON Format', () {
+  group('ShaderProject JSON Format', () {
     test(
       'serializes and deserializes correctly matching ShaderToy JSON structure',
       () {
@@ -318,7 +318,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(ImpellerCompiler.shaderUsesChannel(code, 3), isFalse);
     });
 
-    test('ShaderToyProject serializes and restores src for URLs, local paths, and assets', () {
+    test('ShaderProject serializes and restores src for URLs, local paths, and assets', () {
       final project = ShaderProject(
         name: 'Source Test',
         passes: [
@@ -350,7 +350,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(ch2.src, '/Users/deimos/Music/song.wav');
     });
 
-    test('ShaderToyProject parses concise settings JSON format', () {
+    test('ShaderProject parses concise settings JSON format', () {
       final jsonMap = {
         'name': 'Concise Shader',
         'imageCode': 'void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(1.0); }',

@@ -8,7 +8,7 @@ A high-performance Flutter package for running, writing, and experimenting with 
 
 ## Features
 
-- **Interactive Viewport (`ShaderToyViewport`)**:
+- **Interactive Viewport (`ShaderViewport`)**:
   - Embedded Flutter widget that renders shaders with GPU acceleration.
   - Interactive pointer/touch input handling for `iMouse` (drag, click, hold).
   - Built-in on-screen playback control toolbar (Play, Pause, Stop, Rewind, Step forward, FPS monitor, Resolution scaling, and Fullscreen toggle).
@@ -139,12 +139,12 @@ class ShaderScreen extends StatefulWidget {
 }
 
 class _ShaderScreenState extends State<ShaderScreen> {
-  late final ShaderToyController _controller;
+  late final ShaderController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = ShaderToyController();
+    _controller = ShaderController();
 
     // Compile and run a basic Shadertoy GLSL fragment shader:
     _controller.compilePass(
@@ -176,7 +176,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       body: Center(
         child: AspectRatio(
           aspectRatio: 16 / 9,
-          child: ShaderToyViewport(
+          child: ShaderViewport(
             controller: _controller,
             showControls: true, // Shows play/pause toolbar overlay
           ),
@@ -196,9 +196,9 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:shader_fun/shader_fun.dart';
 
-Future<void> loadShadertoyJson(ShaderToyController controller, String assetPath) async {
+Future<void> loadShaderJson(ShaderController controller, String assetPath) async {
   final jsonString = await rootBundle.loadString(assetPath);
-  final project = ShaderToyProject.fromJson(jsonDecode(jsonString));
+  final project = ShaderProject.fromJson(jsonDecode(jsonString));
 
   await controller.loadProject(project);
   controller.play();
