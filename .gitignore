@@ -31,5 +31,6 @@ migrate_working_dir/
 /coverage/
 
 .agents
+.config/
 # Widget Preview related
 .widget_preview/
