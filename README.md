@@ -4,6 +4,8 @@ A high-performance Flutter package for running, writing, and experimenting with 
 
 `shader_fun` brings the rich ecosystem of [Shadertoy](https://www.shadertoy.com) to Flutter: full-screen quad rendering, all classic Shadertoy uniform variables, multi-pass ping-pong buffers, and rich channel inputs including 2D textures, audio playback, microphone frequency visualizers, buffer loops, and keyboard interaction.
 
+This package is an evolution of [shader_buffers](https://pub.dev/packages/shader_buffers) and makes use of [flutter_gpu](https://api.flutter.dev/flutter/flutter_gpu/), [flutter_scene](https://pub.dev/packages/flutter_scene), [flutter_soloud](https://pub.dev/packages/flutter_soloud), and [flutter_recorder](https://pub.dev/packages/flutter_recorder).
+
 ---
 <img width="406" height="720" alt="Clip 3" src="https://github.com/user-attachments/assets/bfee07b5-c837-400e-a166-cecccc6d6998" />
 
