@@ -11,8 +11,8 @@ import 'package:flutter/services.dart';
 /// - Metal Row 0: Toggle state (Shadertoy Row 2)
 /// - Metal Row 1: Key press trigger (Shadertoy Row 1)
 /// - Metal Row 2: Key down state (Shadertoy Row 0)
-class ShaderToyKeyboardState {
-  ShaderToyKeyboardState() {
+class ShaderKeyboardState {
+  ShaderKeyboardState() {
     _initPixelData();
   }
 

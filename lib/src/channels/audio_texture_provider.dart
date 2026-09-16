@@ -9,13 +9,13 @@ import 'package:listen/listen.dart' as listen;
 
 import 'shader_channel.dart';
 
-/// ShaderToy standard audio texture size: 1024 columns x 2 rows.
-/// Row 0 (y = 0 / 0.25): FFT frequency spectrum (1024 bins, 0.0 to 1.0)
-/// Row 1 (y = 1 / 0.75): Waveform amplitude (1024 samples, 0.0 to 1.0)
-const int kAudioTextureWidth = 1024;
+/// ShaderToy standard audio texture size: 512 columns x 2 rows.
+/// Row 0 (y = 0 / 0.25): FFT frequency spectrum (512 bins, 0.0 to 1.0)
+/// Row 1 (y = 1 / 0.75): Waveform amplitude (512 samples, 0.0 to 1.0)
+const int kAudioTextureWidth = 512;
 const int kAudioTextureHeight = 2;
 
-/// Abstract base class for ShaderToy audio channels.
+/// Abstract base class for audio channels.
 /// Implements [listen.ChangeNotifier] to dispatch updates when audio data changes.
 abstract class AudioChannel extends ShaderChannel with listen.ChangeNotifier {
   AudioChannel({
@@ -116,7 +116,7 @@ abstract class AudioChannel extends ShaderChannel with listen.ChangeNotifier {
         final idx = (i * step).toInt().clamp(0, newWave.length - 1);
         final s = newWave[idx];
         // miniaudio / flutter_recorder wave samples are [-1.0, 1.0].
-        // ShaderToy audio texture stores waveform amplitude normalized to [0.0, 1.0], centered at 0.5.
+        // Audio texture stores waveform amplitude normalized to [0.0, 1.0], centered at 0.5.
         _waveData[i] = ((s + 1.0) * 0.5).clamp(0.0, 1.0);
       }
     }
@@ -127,7 +127,7 @@ abstract class AudioChannel extends ShaderChannel with listen.ChangeNotifier {
     }
   }
 
-  /// Converts the 1024x2 pixel buffer to a ui.Image for sampling.
+  /// Converts the 512x2 pixel buffer to a ui.Image for sampling.
   Future<ui.Image> toUiImage() async {
     if (_cachedTextureImage != null && !_textureDirty) {
       return _cachedTextureImage!;
@@ -203,11 +203,11 @@ class SoLoudAudioChannel extends AudioChannel {
 
       soloud.setVisualizationEnabled(
         true,
-        windowSize: 1024,
+        windowSize: kAudioTextureWidth,
         kind: sl.VisualizationKind.waveAndFft,
         channel: sl.VisualizationChannel.merged,
       );
-      soloud.setFftSmoothing(0.6);
+      soloud.setFftSmoothing(0.4);
 
       _vizSubscription?.cancel();
       _vizSubscription = soloud.audioVisualizationEvents.listen((data) {
@@ -246,7 +246,7 @@ class SoLoudAudioChannel extends AudioChannel {
         _isPlaying = true;
         soloud.setVisualizationEnabled(
           true,
-          windowSize: 1024,
+          windowSize: kAudioTextureWidth,
           kind: sl.VisualizationKind.waveAndFft,
           channel: sl.VisualizationChannel.merged,
         );
@@ -353,11 +353,11 @@ class MicAudioChannel extends AudioChannel {
 
       recorder.setVisualizationEnabled(
         true,
-        windowSize: 1024,
+        windowSize: kAudioTextureWidth,
         kind: rec.VisualizationKind.waveAndFft,
         channel: rec.VisualizationChannel.merged,
       );
-      recorder.setFftSmoothing(0.6);
+      recorder.setFftSmoothing(0.4);
 
       _vizSubscription?.cancel();
       _vizSubscription = recorder.audioVisualizationEvents.listen(

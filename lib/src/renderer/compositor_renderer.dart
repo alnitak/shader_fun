@@ -3,15 +3,12 @@ import 'dart:ui' as ui;
 
 import '../channels/audio_texture_provider.dart';
 import '../core/shader_pass.dart';
-import '../core/shadertoy_uniforms.dart';
+import '../core/common_uniforms.dart';
 import 'shader_code_evaluator.dart';
 
 /// Canvas-based compositor renderer for multi-pass simulation and fallback rendering.
 class CompositorRenderer {
-  CompositorRenderer({
-    this.width = 800,
-    this.height = 450,
-  });
+  CompositorRenderer({this.width = 800, this.height = 450});
 
   int width;
   int height;
@@ -27,7 +24,7 @@ class CompositorRenderer {
 
   /// Renders a frame using the Canvas compositor.
   Future<ui.Image> renderFrame({
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required List<ShaderPass> passes,
     AudioChannel? activeAudioChannel,
   }) async {
@@ -67,7 +64,7 @@ class CompositorRenderer {
   Future<void> _renderProceduralShader({
     required ui.Canvas canvas,
     required ui.Size size,
-    required ShaderToyUniforms uniforms,
+    required CommonUniforms uniforms,
     required ShaderPass pass,
     AudioChannel? audio,
   }) async {
@@ -84,17 +81,20 @@ class CompositorRenderer {
       return;
     }
 
-    final isPresetRaymarching = pass.name == 'Raymarching Primitives' ||
+    final isPresetRaymarching =
+        pass.name == 'Raymarching Primitives' ||
         (lower.contains('sdsphere') && lower.contains('sdplane'));
 
-    final isPresetAudio = pass.name == 'Audio Visualizer' ||
+    final isPresetAudio =
+        pass.name == 'Audio Visualizer' ||
         pass.name == 'Audio Reactive Waves' ||
         lower.contains('createtunnel');
 
-    final isPresetFeedback = pass.name == 'Feedback Trails' ||
-        lower.contains('feedbackpass');
+    final isPresetFeedback =
+        pass.name == 'Feedback Trails' || lower.contains('feedbackpass');
 
-    final isPresetCosine = pass.name == 'Cosine Fractal' ||
+    final isPresetCosine =
+        pass.name == 'Cosine Fractal' ||
         (lower.contains('palette') && lower.contains('exp(-d0)'));
 
     if (isPresetRaymarching) {
@@ -135,11 +135,13 @@ class CompositorRenderer {
     );
     pb.pushStyle(ui.TextStyle(color: const ui.Color(0xFFFF8844)));
     pb.addText('Flutter GPU Offline\n');
-    pb.pushStyle(ui.TextStyle(
-      color: const ui.Color(0xFF94A3B8),
-      fontSize: 12,
-      fontWeight: ui.FontWeight.normal,
-    ));
+    pb.pushStyle(
+      ui.TextStyle(
+        color: const ui.Color(0xFF94A3B8),
+        fontSize: 12,
+        fontWeight: ui.FontWeight.normal,
+      ),
+    );
     pb.addText(
       'Custom compiled GLSL requires the Impeller rendering backend.\n'
       'Restart the app with Impeller enabled to execute shaders on the GPU.',
@@ -156,7 +158,7 @@ class CompositorRenderer {
   void _renderRaymarchingPrimitives(
     ui.Canvas canvas,
     ui.Size size,
-    ShaderToyUniforms uniforms,
+    CommonUniforms uniforms,
     String code,
   ) {
     final w = size.width;
@@ -195,7 +197,11 @@ class CompositorRenderer {
     for (int i = -10; i <= 10; i++) {
       final startX = cx + i * (w / 10.0) * 0.15;
       final endX = cx + i * (w / 8.0) * 1.6 + mx * 50.0;
-      canvas.drawLine(ui.Offset(startX, horizonY), ui.Offset(endX, h), groundPaint);
+      canvas.drawLine(
+        ui.Offset(startX, horizonY),
+        ui.Offset(endX, h),
+        groundPaint,
+      );
     }
     for (double y = horizonY + 5; y < h; y += (y - horizonY) * 0.25 + 3.0) {
       canvas.drawLine(ui.Offset(0, y), ui.Offset(w, y), groundPaint);
@@ -206,17 +212,31 @@ class CompositorRenderer {
 
     for (int i = 0; i < config.spheres.length; i++) {
       final sphere = config.spheres[i];
-      final sphereRadius = (baseRadius * sphere.radius).clamp(5.0, math.min(w, h) * 0.5);
+      final sphereRadius = (baseRadius * sphere.radius).clamp(
+        5.0,
+        math.min(w, h) * 0.5,
+      );
       final isPrimary = i == 0;
 
       final sphereCenter = isPrimary
           ? ui.Offset(
-              cx + mx * 80.0 + math.sin(t * 1.5) * 40.0 + sphere.center.dx * 30.0,
-              cy - 20.0 + my * 60.0 + math.sin(t * 2.0) * 15.0 - (sphere.center.dy - 1.0) * 40.0,
+              cx +
+                  mx * 80.0 +
+                  math.sin(t * 1.5) * 40.0 +
+                  sphere.center.dx * 30.0,
+              cy -
+                  20.0 +
+                  my * 60.0 +
+                  math.sin(t * 2.0) * 15.0 -
+                  (sphere.center.dy - 1.0) * 40.0,
             )
           : ui.Offset(
-              cx + (sphere.center.dx * 70.0) + math.cos(t * 2.5 + i) * (sphereRadius * 1.5),
-              cy + (sphere.center.dy * 20.0) + math.sin(t * 2.5 + i) * (sphereRadius * 0.8),
+              cx +
+                  (sphere.center.dx * 70.0) +
+                  math.cos(t * 2.5 + i) * (sphereRadius * 1.5),
+              cy +
+                  (sphere.center.dy * 20.0) +
+                  math.sin(t * 2.5 + i) * (sphereRadius * 0.8),
             );
 
       // Shadow on plane
@@ -244,7 +264,7 @@ class CompositorRenderer {
           sphereRadius * 1.3,
           [
             const ui.Color(0xFFFFEEAA), // Specular highlight
-            sphereColor,                // Dynamic diffuse color from GLSL code
+            sphereColor, // Dynamic diffuse color from GLSL code
             ui.Color.fromARGB(
               255,
               (sphereColor.r * 255.0 * 0.6).round(),
@@ -263,7 +283,7 @@ class CompositorRenderer {
   void _renderAudioVisualizer(
     ui.Canvas canvas,
     ui.Size size,
-    ShaderToyUniforms uniforms,
+    CommonUniforms uniforms,
     AudioChannel? audio,
     String code,
   ) {
@@ -280,19 +300,15 @@ class CompositorRenderer {
 
     // Background cosmic vortex with dynamic colors from code
     final bgPaint = ui.Paint()
-      ..shader = ui.Gradient.radial(
-        ui.Offset(cx, cy),
-        math.max(w, h) * 0.7,
-        [
-          ui.Color.fromARGB(
-            255,
-            (30 + math.sin(t + config.palettePhaseR) * 20).toInt().clamp(0, 255),
-            (math.cos(t + config.palettePhaseG) * 15).abs().toInt().clamp(0, 255),
-            (40 + math.sin(t + config.palettePhaseB) * 25).toInt().clamp(0, 255),
-          ),
-          const ui.Color(0xFF08060D),
-        ],
-      );
+      ..shader = ui.Gradient.radial(ui.Offset(cx, cy), math.max(w, h) * 0.7, [
+        ui.Color.fromARGB(
+          255,
+          (30 + math.sin(t + config.palettePhaseR) * 20).toInt().clamp(0, 255),
+          (math.cos(t + config.palettePhaseG) * 15).abs().toInt().clamp(0, 255),
+          (40 + math.sin(t + config.palettePhaseB) * 25).toInt().clamp(0, 255),
+        ),
+        const ui.Color(0xFF08060D),
+      ]);
     canvas.drawRect(ui.Rect.fromLTWH(0, 0, w, h), bgPaint);
 
     // Audio reactive rings driven by parsed tunnel frequency and bass
@@ -325,7 +341,8 @@ class CompositorRenderer {
       final sampleIdx = ((i / pointCount) * 512).toInt().clamp(0, 511);
       final amp = (wave != null && sampleIdx < wave.length)
           ? (wave[sampleIdx] - 0.5) * (config.waveAmplitudeMultiplier * 3.3)
-          : math.sin(i * 0.2 + t * 10.0) * (config.waveAmplitudeMultiplier * 0.6);
+          : math.sin(i * 0.2 + t * 10.0) *
+                (config.waveAmplitudeMultiplier * 0.6);
       final py = cy + amp * 120.0;
 
       if (i == 0) {
@@ -356,14 +373,16 @@ class CompositorRenderer {
   void _renderFeedbackTrails(
     ui.Canvas canvas,
     ui.Size size,
-    ShaderToyUniforms uniforms,
+    CommonUniforms uniforms,
     String code,
   ) {
     final w = size.width;
     final h = size.height;
 
     final speedMatch = RegExp(r'([0-9.]+)\s*\*\s*iTime').firstMatch(code);
-    final speed = speedMatch != null ? (double.tryParse(speedMatch.group(1)!) ?? 1.8) : 1.8;
+    final speed = speedMatch != null
+        ? (double.tryParse(speedMatch.group(1)!) ?? 1.8)
+        : 1.8;
     final t = uniforms.time * speed;
 
     final colors = ShaderCodeEvaluator.extractVec3Colors(code);
@@ -380,11 +399,10 @@ class CompositorRenderer {
       final hue = (p * 20.0 + t * 30.0) % 360.0;
       final col = primaryColor ?? _hslToColor(hue, 1.0, 0.55);
 
-      trailPaint.shader = ui.Gradient.radial(
-        ui.Offset(px, py),
-        55.0,
-        [col, col.withValues(alpha: 0.0)],
-      );
+      trailPaint.shader = ui.Gradient.radial(ui.Offset(px, py), 55.0, [
+        col,
+        col.withValues(alpha: 0.0),
+      ]);
       canvas.drawCircle(ui.Offset(px, py), 55.0, trailPaint);
     }
 
@@ -408,7 +426,7 @@ class CompositorRenderer {
   void _renderCosineFractal(
     ui.Canvas canvas,
     ui.Size size,
-    ShaderToyUniforms uniforms,
+    CommonUniforms uniforms,
     String code,
   ) {
     final w = size.width;
@@ -417,7 +435,9 @@ class CompositorRenderer {
     final cy = h / 2.0;
 
     final speedMatch = RegExp(r'([0-9.]+)\s*\*\s*iTime').firstMatch(code);
-    final speed = speedMatch != null ? (double.tryParse(speedMatch.group(1)!) ?? 0.8) : 0.8;
+    final speed = speedMatch != null
+        ? (double.tryParse(speedMatch.group(1)!) ?? 0.8)
+        : 0.8;
     final t = uniforms.time * speed;
 
     final colors = ShaderCodeEvaluator.extractVec3Colors(code);
@@ -432,9 +452,14 @@ class CompositorRenderer {
       final py = cy + math.sin(angle) * dist;
 
       // Inigo Quilez palette formula
-      final r = (0.5 + 0.5 * math.cos(6.28318 * (norm * 1.0 + t * 0.2))).clamp(0.0, 1.0);
-      final g = (0.5 + 0.5 * math.cos(6.28318 * (norm * 1.0 + t * 0.2 + 0.33))).clamp(0.0, 1.0);
-      final b = (0.5 + 0.5 * math.cos(6.28318 * (norm * 1.0 + t * 0.2 + 0.67))).clamp(0.0, 1.0);
+      final r = (0.5 + 0.5 * math.cos(6.28318 * (norm * 1.0 + t * 0.2))).clamp(
+        0.0,
+        1.0,
+      );
+      final g = (0.5 + 0.5 * math.cos(6.28318 * (norm * 1.0 + t * 0.2 + 0.33)))
+          .clamp(0.0, 1.0);
+      final b = (0.5 + 0.5 * math.cos(6.28318 * (norm * 1.0 + t * 0.2 + 0.67)))
+          .clamp(0.0, 1.0);
 
       final paint = ui.Paint()
         ..color = ui.Color.fromARGB(

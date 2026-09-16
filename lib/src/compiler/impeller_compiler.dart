@@ -1,6 +1,7 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+
+import '../core/common_uniforms.dart';
+import 'compile_process.dart';
 
 /// Result of an `impellerc` shader compilation.
 class CompileResult {
@@ -17,119 +18,25 @@ class CompileResult {
   final String? errorMessage;
 }
 
-/// Compiler service that wraps Shadertoy GLSL code into modern Vulkan GLSL 4.60,
+/// Represents a user-declared or injected custom uniform mapping.
+class CustomUniformDeclaration {
+  const CustomUniformDeclaration({
+    required this.name,
+    required this.type,
+    required this.slot,
+  });
+
+  final String name;
+  final String type; // 'float', 'int', 'vec2', 'vec3', 'vec4'
+  final int slot;
+}
+
+/// Compiler service that wraps shader GLSL code into modern Vulkan GLSL 4.60,
 /// generates full-screen quad vertex shader geometry, and invokes `impellerc`
 /// to produce Flutter GPU `.shaderbundle` binaries or extract compilation errors.
 class ImpellerCompiler {
-  static String? _cachedImpellercPath;
-
   /// Locates the `impellerc` offline compiler binary from system PATH or Flutter SDK cache.
-  static String? findImpellerc() {
-    try {
-      if (_cachedImpellercPath != null &&
-          File(_cachedImpellercPath!).existsSync()) {
-        return _cachedImpellercPath;
-      }
-    } catch (_) {}
-
-    // 1. Check environment variables
-    try {
-      final flutterRoot = Platform.environment['FLUTTER_ROOT'];
-      if (flutterRoot != null) {
-        final candidate = _findInFlutterRoot(flutterRoot);
-        if (candidate != null) {
-          _cachedImpellercPath = candidate;
-          return candidate;
-        }
-      }
-    } catch (_) {}
-
-    // 2. Check system PATH via 'which' or 'where'
-    try {
-      final whichCmd = Platform.isWindows ? 'where' : 'which';
-      final result = Process.runSync(whichCmd, ['flutter']);
-      if (result.exitCode == 0) {
-        final flutterPath = result.stdout.toString().trim().split('\n').first;
-        // flutter is typically in <flutter_dir>/bin/flutter
-        final flutterDir = File(flutterPath).parent.parent.path;
-        final candidate = _findInFlutterRoot(flutterDir);
-        if (candidate != null) {
-          _cachedImpellercPath = candidate;
-          return candidate;
-        }
-      }
-    } catch (_) {}
-
-    // 3. Fallback common developer directories on macOS / Linux / Windows
-    final commonPaths = [
-      '/Volumes/NVME/dev/flutter',
-      Platform.environment['HOME'] != null
-          ? '${Platform.environment['HOME']}/development/flutter'
-          : null,
-      Platform.environment['HOME'] != null
-          ? '${Platform.environment['HOME']}/flutter'
-          : null,
-    ];
-
-    for (final dir in commonPaths) {
-      if (dir == null) continue;
-      try {
-        if (Directory(dir).existsSync()) {
-          final candidate = _findInFlutterRoot(dir);
-          if (candidate != null) {
-            _cachedImpellercPath = candidate;
-            return candidate;
-          }
-        }
-      } catch (_) {}
-    }
-
-    return null;
-  }
-
-  static String? _findInFlutterRoot(String flutterRoot) {
-    final exeName = Platform.isWindows ? 'impellerc.exe' : 'impellerc';
-
-    // 1. Check known host architecture subdirectories directly to avoid directory listing
-    final hostArchs = [
-      'darwin-arm64',
-      'darwin-x64',
-      'windows-x64',
-      'linux-x64',
-      'linux-arm64',
-    ];
-
-    for (final arch in hostArchs) {
-      try {
-        final candidateFile = File(
-          '$flutterRoot/bin/cache/artifacts/engine/$arch/$exeName',
-        );
-        if (candidateFile.existsSync()) {
-          return candidateFile.path;
-        }
-      } catch (_) {}
-    }
-
-    // 2. Fallback to directory listing if allowed
-    try {
-      final engineArtifacts = Directory(
-        '$flutterRoot/bin/cache/artifacts/engine',
-      );
-      if (engineArtifacts.existsSync()) {
-        final subdirs = engineArtifacts.listSync();
-        for (final entity in subdirs) {
-          if (entity is Directory) {
-            final file = File('${entity.path}/$exeName');
-            if (file.existsSync()) {
-              return file.path;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    return null;
-  }
+  static String? findImpellerc() => findImpellercBinary();
 
   /// The full-screen quad vertex shader source.
   static const String quadVertexShader = '''#version 460 core
@@ -150,14 +57,77 @@ void main() {
     return RegExp('\\biChannel$channelIndex\\b').hasMatch(clean);
   }
 
-  /// Wraps user Shadertoy GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
-  /// Wraps user-provided Shadertoy GLSL code with Flutter GPU (Impeller) compatible
-  /// uniforms (std140 FrameInfo uniform block at set 0, binding 0), optional
-  /// samplers, macros, and standard main() entry point.
+  static final _customUniformRegex = RegExp(
+    r'^\s*uniform\s+(float|int|vec2|vec3|vec4)\s+([a-zA-Z0-9_]+)\s*;',
+    multiLine: true,
+  );
+
+  static const _builtInUniformNames = {
+    'iResolution',
+    'iTime',
+    'iTimeDelta',
+    'iFrameRate',
+    'iFrame',
+    'iMouse',
+    'iDate',
+    'iSampleRate',
+    'iChannelResolution',
+    'iChannelTime',
+    'iChannel0',
+    'iChannel1',
+    'iChannel2',
+    'iChannel3',
+  };
+
+  /// Extracts user-declared custom uniforms from GLSL code.
+  /// Looks for top-level `uniform <type> <name>;` lines where type is
+  /// `float`, `int`, `vec2`, `vec3`, or `vec4`.
+  static List<CustomUniformDeclaration> extractCustomUniforms(
+    String glsl, {
+    Map<String, int>? existingSlots,
+  }) {
+    final uniforms = <CustomUniformDeclaration>[];
+    final assignedSlots = <int>{...?existingSlots?.values};
+    final seen = <String>{};
+
+    int getNextSlot(String name) {
+      if (existingSlots != null && existingSlots.containsKey(name)) {
+        return existingSlots[name]!;
+      }
+      for (int i = 0; i < CommonUniforms.maxCustomUniformSlots; i++) {
+        if (!assignedSlots.contains(i)) {
+          assignedSlots.add(i);
+          return i;
+        }
+      }
+      return 0;
+    }
+
+    for (final match in _customUniformRegex.allMatches(glsl)) {
+      final type = match.group(1)!;
+      final name = match.group(2)!;
+      if (_builtInUniformNames.contains(name) || seen.contains(name)) {
+        continue;
+      }
+      seen.add(name);
+      final slot = getNextSlot(name);
+      uniforms.add(
+        CustomUniformDeclaration(name: name, type: type, slot: slot),
+      );
+    }
+    return uniforms;
+  }
+
+  /// Wraps user shader GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// optional samplers, macros, and standard main() entry point.
   /// If [commonGlsl] is provided, it is prepended so shared functions/structs
   /// are accessible to the pass.
   /// Uses `#line 1` so compiler error lines match the user's source lines.
-  static String wrapShadertoyGlsl(String userGlsl, {String? commonGlsl}) {
+  static String wrapShaderGlsl(
+    String userGlsl, {
+    String? commonGlsl,
+    Map<String, int>? customUniformSlots,
+  }) {
     final sb = StringBuffer();
     sb.writeln('''#version 460 core
 
@@ -171,12 +141,62 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
     vec4 iDate;
     float iSampleRate;
     vec3 iChannelResolution[4];
+    // ${CommonUniforms.maxCustomUniformSlots} vec4 registers = ${CommonUniforms.customUniformsSizeBytes} bytes reserved for custom uniforms.
+    // Total FrameInfo buffer size: ${CommonUniforms.totalUniformBufferSize} bytes.
+    // Controlled globally via [ShaderUniforms.maxCustomUniformSlots] and [ShaderUniforms.totalUniformBufferSize].
+    vec4 iCustom[${CommonUniforms.maxCustomUniformSlots}];
 };
 ''');
 
     final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
         ? '$commonGlsl\n$userGlsl'
         : userGlsl;
+
+    final declaredCustoms = extractCustomUniforms(
+      codeForChannels,
+      existingSlots: customUniformSlots,
+    );
+
+    final handledNames = <String>{};
+    for (final u in declaredCustoms) {
+      handledNames.add(u.name);
+      switch (u.type) {
+        case 'float':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].x)');
+        case 'int':
+          sb.writeln('#define ${u.name} (int(iCustom[${u.slot}].x))');
+        case 'vec2':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xy)');
+        case 'vec3':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xyz)');
+        case 'vec4':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}])');
+      }
+    }
+
+    if (customUniformSlots != null) {
+      for (final entry in customUniformSlots.entries) {
+        if (!handledNames.contains(entry.key) &&
+            !_builtInUniformNames.contains(entry.key)) {
+          sb.writeln('#define ${entry.key} (iCustom[${entry.value}].x)');
+        }
+      }
+    }
+
+    String sanitizeUniforms(String code) {
+      return code.replaceAllMapped(_customUniformRegex, (m) {
+        final name = m.group(2)!;
+        if (_builtInUniformNames.contains(name)) {
+          return m.group(0)!;
+        }
+        return '// ${m.group(0)}';
+      });
+    }
+
+    final sanitizedUserGlsl = sanitizeUniforms(userGlsl);
+    final sanitizedCommonGlsl = commonGlsl != null
+        ? sanitizeUniforms(commonGlsl)
+        : null;
 
     final declaredChannels = <int>[];
     for (int i = 0; i < 4; i++) {
@@ -193,10 +213,10 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 
     if (declaredChannels.isNotEmpty) {
       // In Vulkan and Metal, render target textures have (0, 0) at the top-left,
-      // whereas Shadertoy and OpenGL use bottom-left conventions.
+      // whereas shader and OpenGL use bottom-left conventions.
       // Sampling offscreen buffer textures with hardware UVs would invert the Y
       // axis on every pass/frame, causing alternating ping-pong flip flickering.
-      // These wrappers invert Y so that sampling is always consistent with Shadertoy.
+      // These wrappers invert Y so that sampling is always consistent with shader.
       sb.writeln('''
 vec4 st_texture(sampler2D s, vec2 uv) {
     return texture(s, vec2(uv.x, 1.0 - uv.y));
@@ -231,14 +251,14 @@ vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
 #define pow st_pow
 ''');
 
-    if (commonGlsl != null && commonGlsl.trim().isNotEmpty) {
+    if (sanitizedCommonGlsl != null && sanitizedCommonGlsl.trim().isNotEmpty) {
       sb.writeln('// Common Tab source');
-      sb.writeln(commonGlsl);
+      sb.writeln(sanitizedCommonGlsl);
       sb.writeln();
     }
 
     sb.writeln('''#line 1
-$userGlsl
+$sanitizedUserGlsl
 
 void main() {
     vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
@@ -262,84 +282,31 @@ void main() {
     return sb.toString();
   }
 
-  /// Compiles a Shadertoy GLSL code string using `impellerc`.
-  /// If [commonGlsl] is specified, it is injected before [shadertoyGlsl].
+  /// Compiles a shader GLSL code string using `impellerc`.
+  /// If [commonGlsl] is specified, it is injected before [shaderGlsl].
   /// Returns [CompileResult.success] with the compiled `.shaderbundle` bytes,
   /// or [CompileResult.error] with the exact compiler diagnostics from `stderr`.
   static Future<CompileResult> compile({
-    required String shadertoyGlsl,
+    required String shaderGlsl,
     String? commonGlsl,
     String? customImpellercPath,
-  }) async {
-    final impellerc = customImpellercPath ?? findImpellerc();
-    if (impellerc == null) {
-      return const CompileResult.error(
-        'Could not locate "impellerc" compiler binary in Flutter SDK. '
-        'Please ensure Flutter is installed and on PATH.',
-      );
-    }
-
-    final tempDir = await Directory.systemTemp.createTemp('shadertoy_compile_');
-    try {
-      final vertFile = File('${tempDir.path}/quad.vert');
-      final fragFile = File('${tempDir.path}/shadertoy.frag');
-      final bundleFile = File('${tempDir.path}/output.shaderbundle');
-
-      await vertFile.writeAsString(quadVertexShader);
-      await fragFile.writeAsString(
-        wrapShadertoyGlsl(shadertoyGlsl, commonGlsl: commonGlsl),
-      );
-
-      final manifestJson = json.encode({
-        'QuadVertex': {'type': 'vertex', 'file': vertFile.path},
-        'ShadertoyFragment': {'type': 'fragment', 'file': fragFile.path},
-      });
-
-      // Target platform flag
-      final String platformFlag;
-      if (Platform.isMacOS) {
-        platformFlag = '--metal-desktop';
-      } else if (Platform.isIOS) {
-        platformFlag = '--metal-ios';
-      } else {
-        platformFlag = '--vulkan';
-      }
-
-      final result = await Process.run(impellerc, [
-        platformFlag,
-        '--gles-language-version=300',
-        '--shader-bundle=$manifestJson',
-        '--sl=${bundleFile.path}',
-        '--verbose',
-      ], workingDirectory: tempDir.path);
-
-      if (result.exitCode != 0) {
-        final stderr = result.stderr.toString().trim();
-        final stdout = result.stdout.toString().trim();
-        final rawMsg = stderr.isNotEmpty ? stderr : stdout;
-
-        return CompileResult.error(_cleanCompilerError(rawMsg));
-      }
-
-      if (!await bundleFile.exists()) {
-        return const CompileResult.error(
-          'impellerc succeeded but output.shaderbundle was not produced.',
-        );
-      }
-
-      final bytes = await bundleFile.readAsBytes();
-      return CompileResult.success(bytes);
-    } catch (e) {
-      return CompileResult.error('Compilation exception: $e');
-    } finally {
-      try {
-        await tempDir.delete(recursive: true);
-      } catch (_) {}
-    }
+    Map<String, int>? customUniformSlots,
+  }) {
+    return runImpellerCompile(
+      quadVertexShader: quadVertexShader,
+      wrappedFragGlsl: wrapShaderGlsl(
+        shaderGlsl,
+        commonGlsl: commonGlsl,
+        customUniformSlots: customUniformSlots,
+      ),
+      customImpellercPath: customImpellercPath,
+      rawUserGlsl: shaderGlsl,
+      rawCommonGlsl: commonGlsl,
+    );
   }
 
   /// Cleans and formats raw impellerc stderr for human-friendly UI display.
-  static String _cleanCompilerError(String raw) {
+  static String cleanCompilerError(String raw) {
     final lines = raw.split('\n');
     final cleaned = <String>[];
 

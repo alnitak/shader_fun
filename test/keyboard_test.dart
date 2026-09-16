@@ -6,27 +6,78 @@ import 'package:shader_fun/src/core/keyboard_state.dart';
 void main() {
   group('ShaderToyKeyboardState', () {
     test('maps standard keys to JavaScript keyCodes', () {
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.backspace), 8);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.tab), 9);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.enter), 13);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.numpadEnter), 13);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.shift), 16);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.shiftLeft), 16);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.control), 17);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.alt), 18);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.space), 32);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowLeft), 37);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowUp), 38);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowRight), 39);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowDown), 40);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.keyA), 65);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.keyZ), 90);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.digit0), 48);
-      expect(ShaderToyKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.digit9), 57);
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.backspace),
+        8,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.tab),
+        9,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.enter),
+        13,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.numpadEnter),
+        13,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.shift),
+        16,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.shiftLeft),
+        16,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.control),
+        17,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.alt),
+        18,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.space),
+        32,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowLeft),
+        37,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowUp),
+        38,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowRight),
+        39,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.arrowDown),
+        40,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.keyA),
+        65,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.keyZ),
+        90,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.digit0),
+        48,
+      );
+      expect(
+        ShaderKeyboardState.logicalKeyToKeyCode(LogicalKeyboardKey.digit9),
+        57,
+      );
     });
 
     test('tracks key-down, key-press, and key-toggle states across frames', () {
-      final kb = ShaderToyKeyboardState();
+      final kb = ShaderKeyboardState();
       expect(kb.hasActiveInput, isFalse);
 
       // 1. Press Backspace (keyCode 8)
@@ -105,7 +156,8 @@ void main() {
             {
               'name': 'Image',
               'type': 'image',
-              'code': 'void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }',
+              'code':
+                  'void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }',
               'inputs': [
                 {
                   'id': 33,
@@ -117,14 +169,14 @@ void main() {
                     'wrap': 'clamp',
                     'vflip': 'false',
                   },
-                }
+                },
               ],
-            }
+            },
           ],
-        }
+        },
       };
 
-      final project = ShaderToyProject.fromJson(json);
+      final project = ShaderProject.fromJson(json);
       final pass = project.getPass(PassType.image);
       expect(pass, isNotNull);
 

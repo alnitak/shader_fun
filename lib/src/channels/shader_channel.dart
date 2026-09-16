@@ -1,9 +1,11 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_scene/scene.dart';
+
+import 'channel_file_loader.dart';
 
 import 'raw_image_decoder.dart';
 
@@ -14,7 +16,7 @@ enum ChannelFilter { linear, nearest, mipmap }
 enum ChannelWrap { clamp, repeat }
 
 /// The type of input connected to an iChannel slot.
-enum ChannelType { texture, buffer, audio, mic, cubeMap, keyboard }
+enum ChannelType { texture, buffer, audio, mic, cubeMap, keyboard, widget }
 
 /// Configuration and state for an iChannel input slot (0..3).
 abstract class ShaderChannel {
@@ -96,29 +98,9 @@ class TextureChannel extends ShaderChannel {
 
       if (rawBytes == null && src != null && src!.isNotEmpty) {
         final path = src!;
-        if (path.startsWith('http://') || path.startsWith('https://')) {
-          // HTTP / HTTPS URL
-          final uri = Uri.parse(path);
-          final client = HttpClient();
-          final request = await client.getUrl(uri);
-          final response = await request.close();
-          final builder = BytesBuilder();
-          await for (final chunk in response) {
-            builder.add(chunk);
-          }
-          client.close();
-          rawBytes = builder.toBytes();
-        } else if (path.startsWith('file://') ||
-            path.startsWith('/') ||
-            RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path)) {
-          // Local filesystem file
-          final cleanPath = path.startsWith('file://')
-              ? Uri.parse(path).toFilePath()
-              : path;
-          final file = File(cleanPath);
-          if (await file.exists()) {
-            rawBytes = await file.readAsBytes();
-          }
+        final loaded = await loadFileOrHttpBytes(path);
+        if (loaded != null) {
+          rawBytes = loaded;
         } else {
           // Flutter Asset bundle with filesystem fallback
           try {
@@ -131,13 +113,7 @@ class TextureChannel extends ShaderChannel {
               '../example/$path',
               'assets/$path',
             ];
-            for (final cand in candidates) {
-              final f = File(cand);
-              if (f.existsSync()) {
-                rawBytes = f.readAsBytesSync();
-                break;
-              }
-            }
+            rawBytes = tryLoadFilesystemCandidates(candidates);
           }
         }
       }
@@ -244,4 +220,179 @@ class KeyboardChannel extends ShaderChannel {
 
   @override
   ui.Size get resolution => const ui.Size(256, 3);
+}
+
+/// Live interactive Flutter widget channel that rasterizes an arbitrary Flutter
+/// [Widget] subtree into a GPU texture each frame via `flutter_scene`'s
+/// [WidgetTexture] pipeline.
+///
+/// The resulting texture is bound to the pass's `sampler2D iChannel` slot and
+/// can be sampled in GLSL just like any 2D texture. Synthetic pointer events
+/// (clicks, drags, touches, and mouse wheel scrolls) are forwarded to the child
+/// widget when [interactive] is true.
+///
+/// ### Dual-Mode Operation
+///
+/// 1. **Automatic Percentile Mapping (`autoRender = true`)**:
+///    - The widget is assumed to occupy a sub-rectangle of the viewport defined by
+///      [horizontalPercentile] and [verticalPercentile] (ranges between `0.0` and `1.0`).
+///    - For example, `horizontalPercentile: (0.1, 0.9)` and `verticalPercentile: (0.0, 1.0)`
+///      places the widget centered with 10% side margins.
+///    - Hit-testing and pointer forwarding are automatically calculated by remapping
+///      viewport coordinates falling within that bounding box to the widget's
+///      internal texture UV space `[0.0, 1.0]`.
+///
+/// 2. **Custom / Freeform Mode (`autoRender = false`)**:
+///    - The user controls texture sampling entirely in their GLSL shader code
+///      (e.g., via `texture(iChannel0, distortedUv)`).
+///    - The [horizontalPercentile] and [verticalPercentile] bounds are ignored.
+///    - Pointer events can be transformed using [uvTransform] to match the shader's
+///      geometric distortions, or default to a 1:1 viewport-to-widget coordinate mapping.
+///
+/// ### Deep Dive: `uvTransform`
+///
+/// When [autoRender] is `false`, the shader might distort, scale, rotate, or project
+/// the widget texture onto arbitrary geometry. [uvTransform] is the mathematical
+/// **forward function** mapping normalized viewport coordinates `(u, v)` (where
+/// `(0, 0)` is top-left and `(1, 1)` is bottom-right) into the widget's internal
+/// texture UV coordinates `(u_w, v_w)`:
+///
+/// ```dart
+/// // Example: The shader draws the widget at half size centered on screen:
+/// // GLSL: vec2 widgetUv = (uv - vec2(0.25)) * 2.0;
+/// // In Dart, provide the identical mapping so gestures hit the correct controls:
+/// uvTransform: (viewportUv) => (viewportUv - const Offset(0.25, 0.25)) * 2.0,
+/// ```
+///
+/// If [uvTransform] returns an offset outside `[0.0, 1.0]`, the pointer event is
+/// ignored because it fell outside the active widget surface. If [uvTransform] is null,
+/// a default 1:1 mapping `(u, v) -> (u, v)` across the full viewport is applied.
+///
+/// ### Creative Use Cases
+///
+/// - **Interactive Screen & Page Transitions**:
+///   Place Page A on `iChannel0` and Page B on `iChannel1`. A single GLSL shader can
+///   perform liquid cross-dissolves, page curls, burn-away fire wipes, or
+///   slicing transitions while both pages remain live Flutter widget trees.
+/// - **Exploding / Shattering Buttons**:
+///   Trigger a particle shockwave or voronoi shatter shader over an interactive button
+///   when clicked, using [horizontalPercentile] and [verticalPercentile] to anchor the
+///   explosion epicenter.
+/// - **3D Spatial UI & Holograms**:
+///   Raymarch curved holographic displays, spherical control panels, or in-game arcade
+///   screens in GLSL while Flutter handles state, logic, and buttons.
+/// - **Stylized Post-Processing**:
+///   Apply CRT phosphor curvature and scanlines, water ripple refractions, magnifying glass
+///   distortion, or frosted-glass dispersion over standard Flutter forms and dashboards.
+class WidgetChannel extends ShaderChannel {
+  WidgetChannel({
+    required this.child,
+    this.name = 'Widget',
+    this.width = 800.0,
+    this.height = 450.0,
+    this.pixelRatio = 1.0,
+    this.autoRender = true,
+    this.horizontalPercentile = const (0.0, 1.0),
+    this.verticalPercentile = const (0.0, 1.0),
+    this.interactive = true,
+    this.uvTransform,
+    super.filter = ChannelFilter.linear,
+    super.wrap = ChannelWrap.clamp,
+    super.vflip = false,
+  });
+
+  /// The Flutter widget tree to rasterize into a live GPU texture.
+  final Widget child;
+
+  /// Display name of the channel in the studio/inspector UI.
+  final String name;
+
+  /// Logical width in points for layout and rasterization of [child].
+  final double width;
+
+  /// Logical height in points for layout and rasterization of [child].
+  final double height;
+
+  /// Pixel ratio applied during rasterization. Higher values yield sharper
+  /// textures on HiDPI displays.
+  final double pixelRatio;
+
+  /// When true, the widget is automatically placed within the viewport
+  /// according to [horizontalPercentile] and [verticalPercentile].
+  ///
+  /// When false, the widget texture is supplied as raw input to the shader,
+  /// leaving full layout and distortion control to GLSL. [horizontalPercentile]
+  /// and [verticalPercentile] are ignored in this mode.
+  final bool autoRender;
+
+  /// Horizontal start and end percentiles `(min, max)` within `[0.0, 1.0]`.
+  /// Only used when [autoRender] is true.
+  final (double start, double end) horizontalPercentile;
+
+  /// Vertical start and end percentiles `(min, max)` within `[0.0, 1.0]`.
+  /// Only used when [autoRender] is true.
+  final (double start, double end) verticalPercentile;
+
+  /// Whether pointer events (taps, drags, mouse wheel scrolls) should be
+  /// forwarded to the underlying widget tree.
+  bool interactive;
+
+  /// Optional UV transformation mapping normalized viewport coordinates `[0.0, 1.0]`
+  /// to normalized widget texture coordinates `[0.0, 1.0]`.
+  ///
+  /// Only used when [autoRender] is false. If null, a 1:1 identity mapping is assumed.
+  final Offset Function(Offset viewportUv)? uvTransform;
+
+  /// Controller managing GPU texture captures and synthetic pointer dispatch.
+  final WidgetTextureController textureController = WidgetTextureController();
+
+  @override
+  ChannelType get type => ChannelType.widget;
+
+  @override
+  ui.Size get resolution => ui.Size(width * pixelRatio, height * pixelRatio);
+
+  /// Maps a normalized viewport UV coordinate `[0.0, 1.0]` into the normalized
+  /// texture coordinate `[0.0, 1.0]` for this widget.
+  ///
+  /// Takes [autoRender], [horizontalPercentile], [verticalPercentile],
+  /// [uvTransform], and [vflip] into account.
+  Offset? mapViewportUvToWidgetUv(Offset viewportUv) {
+    if (autoRender) {
+      final hSpan = horizontalPercentile.$2 - horizontalPercentile.$1;
+      final vSpan = verticalPercentile.$2 - verticalPercentile.$1;
+      if (hSpan == 0 || vSpan == 0) return null;
+
+      final uWidget = (viewportUv.dx - horizontalPercentile.$1) / hSpan;
+      final topOnScreen = 1.0 - verticalPercentile.$2;
+      var vWidget = (viewportUv.dy - topOnScreen) / vSpan;
+      if (vflip) {
+        vWidget = 1.0 - vWidget;
+      }
+      return Offset(uWidget, vWidget);
+    } else {
+      var widgetUv = uvTransform != null
+          ? uvTransform!(viewportUv)
+          : viewportUv;
+      if (vflip) {
+        widgetUv = Offset(widgetUv.dx, 1.0 - widgetUv.dy);
+      }
+      return widgetUv;
+    }
+  }
+
+  /// Returns true if [widgetUv] lies within the normalized widget bounds `[0.0, 1.0]`.
+  bool isUvInside(Offset? widgetUv) {
+    if (widgetUv == null) return false;
+    return widgetUv.dx >= 0.0 &&
+        widgetUv.dx <= 1.0 &&
+        widgetUv.dy >= 0.0 &&
+        widgetUv.dy <= 1.0;
+  }
+
+  @override
+  void dispose() {
+    textureController.dispose();
+    super.dispose();
+  }
 }

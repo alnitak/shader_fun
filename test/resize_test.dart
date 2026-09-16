@@ -2,22 +2,23 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:shader_fun/src/controller/shadertoy_controller.dart';
-import 'package:shader_fun/src/models/shadertoy_json.dart';
-import 'package:shader_fun/src/widgets/shadertoy_viewport.dart';
-
+import 'package:shader_fun/src/controller/shader_controller.dart';
+import 'package:shader_fun/src/models/shader_project.dart';
+import 'package:shader_fun/src/widgets/shader_viewport.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('resizing controller does not freeze playback or null ticker', (tester) async {
-    final project = ShaderToyProject.empty();
-    late ShaderToyController controller;
+  testWidgets('resizing controller does not freeze playback or null ticker', (
+    tester,
+  ) async {
+    final project = ShaderProject.empty();
+    late ShaderController controller;
 
     await tester.pumpWidget(
       TestHarness(
         onInit: (vsync) {
-          controller = ShaderToyController(
+          controller = ShaderController(
             initialProject: project,
             vsync: vsync,
             autoPlay: true,
@@ -45,9 +46,11 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('switching viewport layout across 900px does not kill ticker', (tester) async {
-    final project = ShaderToyProject.empty();
-    late ShaderToyController controller;
+  testWidgets('switching viewport layout across 900px does not kill ticker', (
+    tester,
+  ) async {
+    final project = ShaderProject.empty();
+    late ShaderController controller;
 
     Widget buildStudio(double width) {
       return MaterialApp(
@@ -57,7 +60,7 @@ void main() {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
-              final viewport = ShaderToyViewport(controller: controller);
+              final viewport = ShaderViewport(controller: controller);
               if (isWide) {
                 return Row(
                   children: [
@@ -79,11 +82,7 @@ void main() {
       );
     }
 
-
-    controller = ShaderToyController(
-      initialProject: project,
-      autoPlay: true,
-    );
+    controller = ShaderController(initialProject: project, autoPlay: true);
 
     await tester.pumpWidget(buildStudio(1000));
     for (int i = 0; i < 5; i++) {
@@ -117,75 +116,81 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('parent-owned vsync controller does not lose ticker when viewport unmounts', (tester) async {
-    final project = ShaderToyProject.empty();
-    late ShaderToyController controller;
+  testWidgets(
+    'parent-owned vsync controller does not lose ticker when viewport unmounts',
+    (tester) async {
+      final project = ShaderProject.empty();
+      late ShaderController controller;
 
-    Widget buildApp(double width) {
-      return MaterialApp(
-        home: StudioTestWidget(
-          width: width,
-          onInit: (c) => controller = c,
-          project: project,
-        ),
+      Widget buildApp(double width) {
+        return MaterialApp(
+          home: StudioTestWidget(
+            width: width,
+            onInit: (c) => controller = c,
+            project: project,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(buildApp(1000));
+      for (int i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.isPlaying, isTrue);
+      final f1 = controller.frame;
+      expect(f1, greaterThan(0));
+
+      // Now resize below 900
+      await tester.pumpWidget(buildApp(800));
+      for (int i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+
+      expect(controller.isPlaying, isTrue);
+      expect(controller.frame, greaterThan(f1));
+
+      // Try pressing pause and play
+      controller.pause();
+      expect(controller.isPlaying, isFalse);
+      final fPaused = controller.frame;
+      await tester.pump(const Duration(milliseconds: 32));
+      expect(controller.frame, equals(fPaused));
+
+      controller.play();
+      expect(controller.isPlaying, isTrue);
+      for (int i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.frame, greaterThan(fPaused));
+    },
+  );
+
+  testWidgets(
+    'resizing controller updates resolution without resetting playback or crashing',
+    (tester) async {
+      final project = ShaderProject.empty();
+      final controller = ShaderController(
+        initialProject: project,
+        initialResolution: const Size(640, 360),
       );
-    }
 
-    await tester.pumpWidget(buildApp(1000));
-    for (int i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-    expect(controller.isPlaying, isTrue);
-    final f1 = controller.frame;
-    expect(f1, greaterThan(0));
+      expect(controller.resolution, equals(const Size(640, 360)));
 
-    // Now resize below 900
-    await tester.pumpWidget(buildApp(800));
-    for (int i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
-    }
+      controller.resize(const Size(960, 540));
+      expect(controller.resolution, equals(const Size(960, 540)));
 
-    expect(controller.isPlaying, isTrue);
-    expect(controller.frame, greaterThan(f1));
+      controller.resize(const Size(1280, 720));
+      expect(controller.resolution, equals(const Size(1280, 720)));
 
-    // Try pressing pause and play
-    controller.pause();
-    expect(controller.isPlaying, isFalse);
-    final fPaused = controller.frame;
-    await tester.pump(const Duration(milliseconds: 32));
-    expect(controller.frame, equals(fPaused));
-
-    controller.play();
-    expect(controller.isPlaying, isTrue);
-    for (int i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-    expect(controller.frame, greaterThan(fPaused));
-  });
-
-  testWidgets('resizing controller updates resolution without resetting playback or crashing', (tester) async {
-    final project = ShaderToyProject.empty();
-    final controller = ShaderToyController(
-      initialProject: project,
-      initialResolution: const Size(640, 360),
-    );
-
-    expect(controller.resolution, equals(const Size(640, 360)));
-
-    controller.resize(const Size(960, 540));
-    expect(controller.resolution, equals(const Size(960, 540)));
-
-    controller.resize(const Size(1280, 720));
-    expect(controller.resolution, equals(const Size(1280, 720)));
-
-    controller.dispose();
-  });
+      controller.dispose();
+    },
+  );
 }
 
 class StudioTestWidget extends StatefulWidget {
   final double width;
-  final ValueChanged<ShaderToyController> onInit;
-  final ShaderToyProject project;
+  final ValueChanged<ShaderController> onInit;
+  final ShaderProject project;
 
   const StudioTestWidget({
     super.key,
@@ -200,12 +205,12 @@ class StudioTestWidget extends StatefulWidget {
 
 class _StudioTestWidgetState extends State<StudioTestWidget>
     with SingleTickerProviderStateMixin {
-  late final ShaderToyController _controller;
+  late final ShaderController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = ShaderToyController(
+    _controller = ShaderController(
       initialProject: widget.project,
       vsync: this,
       autoPlay: true,
@@ -228,7 +233,7 @@ class _StudioTestWidgetState extends State<StudioTestWidget>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
-          final viewport = ShaderToyViewport(controller: _controller);
+          final viewport = ShaderViewport(controller: _controller);
           if (isWide) {
             return Row(
               children: [
@@ -265,7 +270,8 @@ class TestHarness extends StatefulWidget {
   State<TestHarness> createState() => _TestHarnessState();
 }
 
-class _TestHarnessState extends State<TestHarness> with TickerProviderStateMixin {
+class _TestHarnessState extends State<TestHarness>
+    with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();

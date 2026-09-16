@@ -1,13 +1,15 @@
+// ignore_for_file: avoid_print
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter_gpu/gpu.dart' as gpu;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shader_fun/src/channels/shader_channel.dart';
 import 'package:shader_fun/src/compiler/impeller_compiler.dart';
 import 'package:shader_fun/src/core/shader_pass.dart';
-import 'package:shader_fun/src/core/shadertoy_uniforms.dart';
-import 'package:shader_fun/src/models/shadertoy_json.dart';
+import 'package:shader_fun/src/core/common_uniforms.dart';
+import 'package:shader_fun/src/gpu/gpu.dart' as gpu;
+import 'package:shader_fun/src/models/shader_project.dart';
 import 'package:shader_fun/src/renderer/gpu_renderer.dart';
 
 void main() {
@@ -15,11 +17,12 @@ void main() {
     final file = File('example/shaders/Floating_Mountains.json');
     expect(file.existsSync(), isTrue);
     final content = file.readAsStringSync();
-    final project =
-        ShaderToyProject.fromJson(jsonDecode(content) as Map<String, dynamic>);
+    final project = ShaderProject.fromJson(
+      jsonDecode(content) as Map<String, dynamic>,
+    );
 
     final pass = project.imagePass!;
-    final wrapped = ImpellerCompiler.wrapShadertoyGlsl(pass.code);
+    final wrapped = ImpellerCompiler.wrapShaderGlsl(pass.code);
     final tmpDir = Directory.systemTemp.createTempSync('mountains_msl_');
     final fragFile = File('${tmpDir.path}/mountains.frag');
     fragFile.writeAsStringSync(wrapped);
@@ -34,8 +37,10 @@ void main() {
       '--reflection-json=${tmpDir.path}/mountains.json',
     ]);
     expect(proc.exitCode, 0, reason: proc.stderr.toString());
-    File('/Volumes/NVME/Users/deimos/.gemini/antigravity-ide/brain/60d2733e-fc8c-4e0c-bd5d-4788764dab77/scratch/mountains_gen.metal').writeAsStringSync(metalFile.readAsStringSync());
-    final res = await ImpellerCompiler.compile(shadertoyGlsl: pass.code);
+    File(
+      '/Volumes/NVME/Users/deimos/.gemini/antigravity-ide/brain/60d2733e-fc8c-4e0c-bd5d-4788764dab77/scratch/mountains_gen.metal',
+    ).writeAsStringSync(metalFile.readAsStringSync());
+    final res = await ImpellerCompiler.compile(shaderGlsl: pass.code);
     expect(res.isSuccess, isTrue, reason: res.errorMessage);
   });
 
@@ -46,22 +51,30 @@ void main() {
 
   test('Render Floating Mountains frame', () async {
     final file = File('example/shaders/Floating_Mountains.json');
-    final project = ShaderToyProject.fromJson(jsonDecode(file.readAsStringSync()) as Map<String, dynamic>);
+    final project = ShaderProject.fromJson(
+      jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
+    );
     final pass = project.imagePass!;
     var testCode = pass.code;
 
-    final res = await ImpellerCompiler.compile(shadertoyGlsl: testCode);
+    final res = await ImpellerCompiler.compile(shaderGlsl: testCode);
     expect(res.isSuccess, isTrue, reason: res.errorMessage);
 
     final renderer = FlutterGpuRenderer(width: 320, height: 180);
     if (!renderer.isGpuAvailable) {
       return;
     }
-    final loaded = await renderer.loadShaderBundle(res.bundleBytes!, passType: PassType.image, activeCode: testCode);
+    final loaded = await renderer.loadShaderBundle(
+      res.bundleBytes!,
+      passType: PassType.image,
+      activeCode: testCode,
+    );
     expect(loaded, isTrue);
 
     // Load textures using TextureChannel (with raw PNG decoding and asset filesystem fallback)
-    final noiseChannel = TextureChannel(src: 'assets/2d_texture/rgba_noise_medium.png');
+    final noiseChannel = TextureChannel(
+      src: 'assets/2d_texture/rgba_noise_medium.png',
+    );
     await noiseChannel.loadImage();
     expect(noiseChannel.rawRgbaBytes, isNotNull);
     renderer.uploadTextureChannel(
@@ -71,7 +84,9 @@ void main() {
       noiseChannel.imageHeight!,
     );
 
-    final metalChannel = TextureChannel(src: 'assets/2d_texture/rusty_metal.jpg');
+    final metalChannel = TextureChannel(
+      src: 'assets/2d_texture/rusty_metal.jpg',
+    );
     await metalChannel.loadImage();
     expect(metalChannel.rawRgbaBytes, isNotNull);
     renderer.uploadTextureChannel(
@@ -81,7 +96,7 @@ void main() {
       metalChannel.imageHeight!,
     );
 
-    final uniforms = ShaderToyUniforms(
+    final uniforms = CommonUniforms(
       resolution: const ui.Size(320, 180),
       time: 30.0,
       timeDelta: 1.0 / 60.0,
@@ -102,15 +117,19 @@ void main() {
       int totalPixels = list.length ~/ 4;
       double rSum = 0, gSum = 0, bSum = 0;
       for (int i = 0; i < list.length; i += 4) {
-        if (list[i] > 10 || list[i+1] > 10 || list[i+2] > 10) {
+        if (list[i] > 10 || list[i + 1] > 10 || list[i + 2] > 10) {
           nonZero++;
         }
         rSum += list[i];
-        gSum += list[i+1];
-        bSum += list[i+2];
+        gSum += list[i + 1];
+        bSum += list[i + 2];
       }
-      print('Non-black pixels: $nonZero / $totalPixels (${(nonZero / totalPixels * 100).toStringAsFixed(1)}%)');
-      print('Average RGB: (${(rSum/totalPixels).toStringAsFixed(1)}, ${(gSum/totalPixels).toStringAsFixed(1)}, ${(bSum/totalPixels).toStringAsFixed(1)})');
+      print(
+        'Non-black pixels: $nonZero / $totalPixels (${(nonZero / totalPixels * 100).toStringAsFixed(1)}%)',
+      );
+      print(
+        'Average RGB: (${(rSum / totalPixels).toStringAsFixed(1)}, ${(gSum / totalPixels).toStringAsFixed(1)}, ${(bSum / totalPixels).toStringAsFixed(1)})',
+      );
       expect(nonZero / totalPixels, greaterThan(0.90));
     }
   });

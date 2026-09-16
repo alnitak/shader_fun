@@ -9,6 +9,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.0"
+  archive:
+    dependency: transitive
+    description:
+      name: archive
+      sha256: ace891da0862b0e4cabbb064ee3fd87b2728b898949fdb366d83fe98342c9f19
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.0"
   args:
     dependency: transitive
     description:
@@ -81,6 +89,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
+  data_assets:
+    dependency: transitive
+    description:
+      name: data_assets
+      sha256: "8bfdbf25ec8a0f4b5a3c993042c4ab9996ba354f0b03d40f4e360f3730d71cae"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.20.0"
   dbus:
     dependency: transitive
     description:
@@ -161,6 +177,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.0"
+  flat_buffers:
+    dependency: transitive
+    description:
+      name: flat_buffers
+      sha256: "7c1de2d6eb5f3e61e5c50040841109f509deaaf2b12ec0d57b92456d9ea50345"
+      url: "https://pub.dev"
+    source: hosted
+    version: "25.9.23"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -171,6 +195,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_gpu_shaders:
+    dependency: transitive
+    description:
+      name: flutter_gpu_shaders
+      sha256: "1e8c5438c24e79629f5688c7b5dfd2b7cf09b36b443a806bc8c083cd8c04644a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.2"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -185,14 +217,21 @@ packages:
       path: "../../flutter_recorder"
       relative: true
     source: path
-    version: "2.0.3"
+    version: "2.0.4"
+  flutter_scene:
+    dependency: transitive
+    description:
+      path: "../../../tmp/flutter_scene/packages/flutter_scene"
+      relative: true
+    source: path
+    version: "0.23.0"
   flutter_soloud:
     dependency: transitive
     description:
       path: "../../flutter_soloud"
       relative: true
     source: path
-    version: "5.0.2"
+    version: "5.1.1"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -212,7 +251,7 @@ packages:
     source: hosted
     version: "2.2.0"
   hooks:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: hooks
       sha256: eaac480a35ec0814146c2c48d96aaa829e0e44a7662c88ae84c9edf4bc35651f
@@ -235,6 +274,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
+  image:
+    dependency: transitive
+    description:
+      name: image
+      sha256: "1976370a4df3091bb0f72409c187ad1f9132a818bc6b95ca59c0bae1c75c688e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.9.2"
   jni:
     dependency: transitive
     description:
@@ -435,6 +482,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
+  posix:
+    dependency: transitive
+    description:
+      name: posix
+      sha256: bc1bad54ad2b735816e31f8d4600cfde6c7839975085ddfbca48b6c9f7c4044e
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.5.2"
   process:
     dependency: transitive
     description:
@@ -459,6 +514,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
+  scene:
+    dependency: "direct overridden"
+    description:
+      path: "../../../tmp/flutter_scene/packages/scene"
+      relative: true
+    source: path
+    version: "0.3.0"
   shader_fun:
     dependency: "direct main"
     description:
@@ -647,6 +709,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.4"
+  yaml_edit:
+    dependency: transitive
+    description:
+      name: yaml_edit
+      sha256: "07c9e63ba42519745182b88ca12264a7ba2484d8239958778dfe4d44fe760488"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.4"
 sdks:
   dart: ">=3.13.2 <4.0.0"
-  flutter: ">=3.44.0"
+  flutter: ">=3.47.0"

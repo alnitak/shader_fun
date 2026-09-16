@@ -1,5 +1,5 @@
-import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shader_fun/src/gpu/gpu.dart' as gpu;
 
 void main() {
   test('check if r32g32b32a32Float is supported', () {
