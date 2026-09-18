@@ -62,8 +62,7 @@ Add `shader_fun` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  shader_fun:
-    path: ../shader_fun # or from git / pub
+  shader_fun: ^0.1.0
 ```
 
 ### Web Setup
