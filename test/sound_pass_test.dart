@@ -66,6 +66,79 @@ void main() {
       expect(result.bundleBytes!.isNotEmpty, isTrue);
     });
 
+    test('Loads GPU_sound2.json and compiles Flight of the Bumblebee', () async {
+      final file = File('example/shaders/GPU_sound2.json');
+      expect(file.existsSync(), isTrue, reason: 'GPU_sound2.json must exist');
+
+      final project = ShaderProject.fromJson(
+        jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
+      );
+
+      expect(project.passes.length, 2);
+      expect(project.hasSoundPass, isTrue);
+
+      final soundPass = project.soundPass!;
+      final result = await ImpellerCompiler.compile(
+        shaderGlsl: soundPass.code,
+        passType: PassType.sound,
+      );
+
+      expect(
+        result.isSuccess,
+        isTrue,
+        reason: 'Compilation failed: ${result.errorMessage}',
+      );
+      expect(result.bundleBytes, isNotNull);
+    });
+
+    test('Loads GPU_sound3.json and compiles Piano Flight of the Bumblebee with Common pass', () async {
+      final file = File('example/shaders/GPU_sound3.json');
+      expect(file.existsSync(), isTrue, reason: 'GPU_sound3.json must exist');
+
+      final project = ShaderProject.fromJson(
+        jsonDecode(file.readAsStringSync()) as Map<String, dynamic>,
+      );
+
+      expect(project.passes.length, 3);
+      expect(project.hasSoundPass, isTrue);
+      expect(project.commonPass, isNotNull);
+      expect(project.commonPass!.type, PassType.common);
+
+      final commonCode = project.commonPass!.code;
+      expect(commonCode, contains('getPatternNote'));
+      expect(commonCode, contains('getMeasurePatternId'));
+      expect(commonCode, contains('isBlackKey'));
+
+      // Verify Sound pass compiles with Common pass prepended
+      final soundPass = project.soundPass!;
+      final soundResult = await ImpellerCompiler.compile(
+        shaderGlsl: soundPass.code,
+        commonGlsl: commonCode,
+        passType: PassType.sound,
+      );
+
+      expect(
+        soundResult.isSuccess,
+        isTrue,
+        reason: 'Sound compilation failed: ${soundResult.errorMessage}',
+      );
+      expect(soundResult.bundleBytes, isNotNull);
+
+      // Verify Image pass compiles with Common pass prepended
+      final imagePass = project.passes.firstWhere((p) => p.type.isImage);
+      final imgResult = await ImpellerCompiler.compile(
+        shaderGlsl: imagePass.code,
+        commonGlsl: commonCode,
+        passType: PassType.image,
+      );
+      expect(
+        imgResult.isSuccess,
+        isTrue,
+        reason: 'Image Pass compilation failed: ${imgResult.errorMessage}',
+      );
+      expect(imgResult.bundleBytes, isNotNull);
+    });
+
     test('SoundPassEngine initializes and handles lifecycle safely', () {
       final engine = SoundPassEngine();
       expect(engine.isStreaming, isFalse);
