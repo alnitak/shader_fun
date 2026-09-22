@@ -3,7 +3,7 @@ import 'package:listen/listen.dart' as listen;
 import '../channels/shader_channel.dart';
 
 /// Supported render pass types.
-enum PassType { image, bufferA, bufferB, bufferC, bufferD, common }
+enum PassType { image, bufferA, bufferB, bufferC, bufferD, common, sound }
 
 extension PassTypeExtension on PassType {
   String get displayName {
@@ -20,6 +20,8 @@ extension PassTypeExtension on PassType {
         return 'Buffer D';
       case PassType.common:
         return 'Common';
+      case PassType.sound:
+        return 'Sound';
     }
   }
 
@@ -28,6 +30,10 @@ extension PassTypeExtension on PassType {
       this == PassType.bufferB ||
       this == PassType.bufferC ||
       this == PassType.bufferD;
+
+  bool get isImage => this == PassType.image;
+  bool get isCommon => this == PassType.common;
+  bool get isSound => this == PassType.sound;
 }
 
 /// Represents an individual rendering pass in a project.

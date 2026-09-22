@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../core/common_uniforms.dart';
+import '../core/shader_pass.dart';
 import 'compile_process.dart';
 
 /// Result of an `impellerc` shader compilation.
@@ -282,6 +283,163 @@ void main() {
     return sb.toString();
   }
 
+  /// Wraps user sound shader GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// optional samplers, macros, and standard main() entry point for PassType.sound.
+  /// Generates sample coordinates:
+  /// samp = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * 256.0 + iBlockOffset * iSampleRate
+  /// time = float(samp) / iSampleRate
+  static String wrapSoundShaderGlsl(
+    String userGlsl, {
+    String? commonGlsl,
+    Map<String, int>? customUniformSlots,
+    int textureWidth = 256,
+  }) {
+    final sb = StringBuffer();
+    sb.writeln('''#version 460 core
+
+layout(std140, set = 0, binding = 0) uniform FrameInfo {
+    vec3 iResolution;
+    float iTime;
+    float iTimeDelta;
+    float iFrameRate;
+    int iFrame;
+    vec4 iMouse;
+    vec4 iDate;
+    float iSampleRate;
+    vec3 iChannelResolution[4];
+    vec4 iCustom[${CommonUniforms.maxCustomUniformSlots}];
+};
+
+#define iBlockOffset iTime
+''');
+
+    final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+        ? '$commonGlsl\n$userGlsl'
+        : userGlsl;
+
+    final declaredCustoms = extractCustomUniforms(
+      codeForChannels,
+      existingSlots: customUniformSlots,
+    );
+
+    final handledNames = <String>{};
+    for (final u in declaredCustoms) {
+      handledNames.add(u.name);
+      switch (u.type) {
+        case 'float':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].x)');
+        case 'int':
+          sb.writeln('#define ${u.name} (int(iCustom[${u.slot}].x))');
+        case 'vec2':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xy)');
+        case 'vec3':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xyz)');
+        case 'vec4':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}])');
+      }
+    }
+
+    if (customUniformSlots != null) {
+      for (final entry in customUniformSlots.entries) {
+        if (!handledNames.contains(entry.key) &&
+            !_builtInUniformNames.contains(entry.key)) {
+          sb.writeln('#define ${entry.key} (iCustom[${entry.value}].x)');
+        }
+      }
+    }
+
+    String sanitizeUniforms(String code) {
+      return code.replaceAllMapped(_customUniformRegex, (m) {
+        final name = m.group(2)!;
+        if (_builtInUniformNames.contains(name)) {
+          return m.group(0)!;
+        }
+        return '// ${m.group(0)}';
+      });
+    }
+
+    final sanitizedUserGlsl = sanitizeUniforms(userGlsl);
+    final sanitizedCommonGlsl = commonGlsl != null
+        ? sanitizeUniforms(commonGlsl)
+        : null;
+
+    final declaredChannels = <int>[];
+    for (int i = 0; i < 4; i++) {
+      if (shaderUsesChannel(codeForChannels, i)) {
+        declaredChannels.add(i);
+        sb.writeln(
+          'layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;',
+        );
+      }
+    }
+
+    sb.writeln('layout(location = 0) out vec4 fragColor;');
+    sb.writeln();
+
+    if (declaredChannels.isNotEmpty) {
+      sb.writeln('''
+vec4 st_texture(sampler2D s, vec2 uv) {
+    return texture(s, vec2(uv.x, 1.0 - uv.y));
+}
+vec4 st_textureLod(sampler2D s, vec2 uv, float lod) {
+    return textureLod(s, vec2(uv.x, 1.0 - uv.y), lod);
+}
+vec4 st_texelFetch(sampler2D s, ivec2 p, int lod) {
+    return texelFetch(s, ivec2(p.x, textureSize(s, lod).y - 1 - p.y), lod);
+}
+#define texture st_texture
+#define textureLod st_textureLod
+#define texelFetch st_texelFetch
+''');
+    }
+
+    sb.writeln('''
+float st_pow(float x, float y) { return pow(max(0.0, x), y); }
+vec2 st_pow(vec2 x, vec2 y) { return pow(max(vec2(0.0), x), y); }
+vec3 st_pow(vec3 x, vec3 y) { return pow(max(vec3(0.0), x), y); }
+vec4 st_pow(vec4 x, vec4 y) { return pow(max(vec4(0.0), x), y); }
+vec2 st_pow(vec2 x, float y) { return pow(max(vec2(0.0), x), vec2(y)); }
+vec3 st_pow(vec3 x, float y) { return pow(max(vec3(0.0), x), vec3(y)); }
+vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
+#define pow st_pow
+''');
+
+    if (sanitizedCommonGlsl != null && sanitizedCommonGlsl.trim().isNotEmpty) {
+      sb.writeln('// Common Tab source');
+      sb.writeln(sanitizedCommonGlsl);
+      sb.writeln();
+    }
+
+    sb.writeln('''#line 1
+$sanitizedUserGlsl
+''');
+
+    final cleanCode = sanitizedUserGlsl.replaceAll(_commentRegex, '');
+    final bool takesSamp = RegExp(r'\bmainSound\s*\(\s*(in\s+)?int\b').hasMatch(cleanCode);
+    final callMainSound = takesSamp ? 'mainSound(samp, time)' : 'mainSound(time)';
+
+    sb.writeln('''
+void main() {
+    float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * ${textureWidth.toDouble()};
+    int samp = int(pixelIndex + iBlockOffset * iSampleRate);
+    float time = float(samp) / iSampleRate;
+
+    vec2 sound = $callMainSound;
+    fragColor = vec4(sound.x, sound.y, 0.0, 1.0);
+''');
+
+    if (declaredChannels.isNotEmpty) {
+      sb.writeln('    if (iResolution.x < 0.0) {');
+      for (final ch in declaredChannels) {
+        sb.writeln('        fragColor += texture(iChannel$ch, vec2(0.0));');
+      }
+      sb.writeln('    }');
+    }
+
+    sb.writeln('}');
+    return sb.toString();
+  }
+
   /// Compiles a shader GLSL code string using `impellerc`.
   /// If [commonGlsl] is specified, it is injected before [shaderGlsl].
   /// Returns [CompileResult.success] with the compiled `.shaderbundle` bytes,
@@ -291,14 +449,22 @@ void main() {
     String? commonGlsl,
     String? customImpellercPath,
     Map<String, int>? customUniformSlots,
+    PassType passType = PassType.image,
   }) {
+    final wrapped = passType == PassType.sound
+        ? wrapSoundShaderGlsl(
+            shaderGlsl,
+            commonGlsl: commonGlsl,
+            customUniformSlots: customUniformSlots,
+          )
+        : wrapShaderGlsl(
+            shaderGlsl,
+            commonGlsl: commonGlsl,
+            customUniformSlots: customUniformSlots,
+          );
     return runImpellerCompile(
       quadVertexShader: quadVertexShader,
-      wrappedFragGlsl: wrapShaderGlsl(
-        shaderGlsl,
-        commonGlsl: commonGlsl,
-        customUniformSlots: customUniformSlots,
-      ),
+      wrappedFragGlsl: wrapped,
       customImpellercPath: customImpellercPath,
       rawUserGlsl: shaderGlsl,
       rawCommonGlsl: commonGlsl,

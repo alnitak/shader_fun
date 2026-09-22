@@ -39,6 +39,8 @@ class PassTabsBar extends StatelessWidget {
       case PassType.bufferC:
       case PassType.bufferD:
         return Icons.layers;
+      case PassType.sound:
+        return Icons.volume_up;
     }
   }
 
@@ -73,6 +75,7 @@ class PassTabsBar extends StatelessWidget {
                   PassType.bufferB,
                   PassType.bufferC,
                   PassType.bufferD,
+                  PassType.sound,
                 ];
                 final existing = passes.map((p) => p.type).toSet();
                 final available = addableTypes

@@ -901,12 +901,173 @@ class FlutterGpuRenderer {
     }
   }
 
+  gpu.Texture? _soundTexture;
+
+  /// Renders a single sound chunk for [PassType.sound] at [blockOffset] (in seconds).
+  /// Returns raw stereo 32-bit float PCM bytes suitable for SoLoud.addAudioDataStream,
+  /// or null if rendering or readback is unavailable.
+  Future<Uint8List?> renderSoundPass({
+    required ShaderPass soundPass,
+    required double blockOffset,
+    required double sampleRate,
+    int width = 256,
+    int height = 256,
+  }) async {
+    if (!_isGpuAvailable) _initGpuResources();
+    if (!_isGpuAvailable) return null;
+
+    final pipelineInfo = _passPipelines[PassType.sound];
+    if (pipelineInfo == null) return null;
+
+    try {
+      if (_soundTexture == null ||
+          _soundTexture!.width != width ||
+          _soundTexture!.height != height) {
+        final supportsFloat32 = gpu.gpuContext.supportsTextureFormat(
+          gpu.PixelFormat.r32g32b32a32Float,
+          renderTarget: true,
+          shaderRead: true,
+        );
+        final format = supportsFloat32
+            ? gpu.PixelFormat.r32g32b32a32Float
+            : gpu.PixelFormat.r8g8b8a8UNormInt;
+
+        _soundTexture = gpu.gpuContext.createTexture(
+          gpu.StorageMode.devicePrivate,
+          width,
+          height,
+          format: format,
+          enableRenderTargetUsage: true,
+          enableShaderReadUsage: true,
+        );
+      }
+
+      final soundTex = _soundTexture;
+      if (soundTex == null) return null;
+
+      final renderTarget = gpu.RenderTarget.singleColor(
+        gpu.ColorAttachment(
+          texture: soundTex,
+          loadAction: gpu.LoadAction.clear,
+          storeAction: gpu.StoreAction.store,
+        ),
+      );
+
+      final cmdBuffer = gpu.gpuContext.createCommandBuffer();
+      final renderPass = cmdBuffer.createRenderPass(renderTarget);
+      renderPass.setViewport(
+        gpu.Viewport(x: 0, y: 0, width: width, height: height),
+      );
+
+      renderPass.bindPipeline(pipelineInfo.pipeline);
+      if (_quadVertexBuffer == null) return null;
+      final quadView = gpu.BufferView(
+        _quadVertexBuffer!,
+        offsetInBytes: 0,
+        lengthInBytes: _quadVertexBuffer!.sizeInBytes,
+      );
+      renderPass.bindVertexBuffer(quadView);
+
+      // FrameInfo uniform buffer with time = blockOffset (#define iBlockOffset iTime)
+      // and sampleRate = sampleRate
+      final soundUniforms = CommonUniforms(
+        resolution: ui.Size(width.toDouble(), height.toDouble()),
+        time: blockOffset,
+        sampleRate: sampleRate,
+      );
+
+      final uniformByteData = _packUniformByteData(
+        uniforms: soundUniforms,
+        targetWidth: width.toDouble(),
+        targetHeight: height.toDouble(),
+        pass: soundPass,
+      );
+
+      final uniformDeviceBuffer = gpu.gpuContext.createDeviceBufferWithCopy(
+        ByteData.sublistView(uniformByteData),
+      );
+      final slot = pipelineInfo.fragmentShader.getUniformSlot('FrameInfo');
+      renderPass.bindUniform(
+        slot,
+        gpu.BufferView(
+          uniformDeviceBuffer,
+          offsetInBytes: 0,
+          lengthInBytes: uniformByteData.lengthInBytes,
+        ),
+      );
+
+      final fallbackTex = _getDefaultTexture();
+      if (fallbackTex == null) return null;
+
+      _bindPassChannels(
+        renderPass: renderPass,
+        fragmentShader: pipelineInfo.fragmentShader,
+        codeForChannels: pipelineInfo.code ?? soundPass.code,
+        pass: soundPass,
+        availableTextures: const {},
+        fallbackTex: fallbackTex,
+      );
+
+      renderPass.draw(6);
+      cmdBuffer.submit();
+
+      final uiImage = soundTex.asImage();
+      final byteData = await uiImage.toByteData(
+        format: ui.ImageByteFormat.rawExtendedRgba128,
+      );
+
+      if (byteData != null) {
+        final floatData = byteData.buffer.asFloat32List(
+          byteData.offsetInBytes,
+          byteData.lengthInBytes ~/ 4,
+        );
+        final stereoFloats = Float32List(width * height * 2);
+        for (
+          int p = 0, s = 0;
+          p < floatData.length && s < stereoFloats.length;
+          p += 4, s += 2
+        ) {
+          stereoFloats[s] = floatData[p];
+          stereoFloats[s + 1] = floatData[p + 1];
+        }
+        return stereoFloats.buffer.asUint8List();
+      }
+
+      // Fallback if rawExtendedRgba128 is not supported
+      final byteData8 = await uiImage.toByteData(
+        format: ui.ImageByteFormat.rawStraightRgba,
+      );
+      if (byteData8 != null) {
+        final u8Data = byteData8.buffer.asUint8List(
+          byteData8.offsetInBytes,
+          byteData8.lengthInBytes,
+        );
+        final stereoFloats = Float32List(width * height * 2);
+        for (
+          int p = 0, s = 0;
+          p < u8Data.length && s < stereoFloats.length;
+          p += 4, s += 2
+        ) {
+          stereoFloats[s] = (u8Data[p] / 127.5) - 1.0;
+          stereoFloats[s + 1] = (u8Data[p + 1] / 127.5) - 1.0;
+        }
+        return stereoFloats.buffer.asUint8List();
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Error rendering sound pass: $e');
+      return null;
+    }
+  }
+
   void dispose() {
     _clearPingPongBuffers();
-    _passPipelines.clear();
-    _textureChannels.clear();
     _swapchainColors.clear();
-    _swapchainCursor = 0;
+    _textureChannels.clear();
+    _textureChannelResolutions.clear();
+    _passPipelines.clear();
+    _soundTexture = null;
     _audioTexture = null;
     _keyboardTexture = null;
     _defaultTexture = null;

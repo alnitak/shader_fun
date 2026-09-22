@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart' as sl;
 import 'package:listen/listen.dart' as listen;
 
+import '../audio/sound_pass_engine.dart';
 import '../channels/audio_texture_provider.dart';
 import '../channels/shader_channel.dart';
 import '../compiler/impeller_compiler.dart';
@@ -68,6 +69,11 @@ class ShaderController
   bool _isDisposed = false;
   bool _isRendering = false;
   AudioChannel? _boundAudioChannel;
+  SoundPassEngine? _soundPassEngine;
+
+  /// Dedicated audio synthesis engine for [PassType.sound].
+  SoundPassEngine get soundPassEngine =>
+      _soundPassEngine ??= SoundPassEngine(renderer: _renderer.gpuRenderer);
 
   /// Fine-grained [listen.ValueNotifier] reactive state properties.
   final listen.ValueNotifier<bool> isPlayingNotifier;
@@ -159,6 +165,7 @@ class ShaderController
         final result = await ImpellerCompiler.compile(
           shaderGlsl: pass.code,
           commonGlsl: commonCode,
+          passType: pass.type,
           customUniformSlots: _uniforms.customSlots,
         );
         if (!result.isSuccess) {
@@ -181,6 +188,15 @@ class ShaderController
             activeCode: fullCode,
           );
         }
+      }
+
+      if (_project.hasSoundPass && _project.soundPass!.enabled && isPlaying) {
+        unawaited(
+          soundPassEngine.start(
+            soundPass: _project.soundPass!,
+            sampleRate: _uniforms.sampleRate,
+          ),
+        );
       }
 
       lastErrorNotifier.value = null;
@@ -226,6 +242,7 @@ class ShaderController
       final result = await ImpellerCompiler.compile(
         shaderGlsl: codeToCompile,
         commonGlsl: commonCode,
+        passType: targetPass?.type ?? PassType.image,
         customUniformSlots: _uniforms.customSlots,
       );
       if (!result.isSuccess) {
@@ -251,6 +268,17 @@ class ShaderController
           result.bundleBytes!,
           passType: targetPass?.type ?? PassType.image,
           activeCode: fullCode,
+        );
+      }
+
+      if (targetPass?.type == PassType.sound &&
+          isPlaying &&
+          (targetPass?.enabled ?? true)) {
+        unawaited(
+          soundPassEngine.start(
+            soundPass: targetPass!,
+            sampleRate: _uniforms.sampleRate,
+          ),
         );
       }
 
@@ -362,6 +390,9 @@ class ShaderController
       if (sl.SoLoud.instance.isInitialized) {
         await sl.SoLoud.instance.disposeAllSources();
       }
+    } catch (_) {}
+    try {
+      _soundPassEngine?.stop();
     } catch (_) {}
 
     for (final pass in _project.passes) {
@@ -626,6 +657,12 @@ class ShaderController
   Future<bool> removePass(PassType type) async {
     if (type == PassType.image) return false;
 
+    if (type == PassType.sound) {
+      try {
+        _soundPassEngine?.stop();
+      } catch (_) {}
+    }
+
     final success = _project.removePass(type);
     if (!success) return false;
 
@@ -715,6 +752,20 @@ class ShaderController
     if (audio is SoLoudAudioChannel) {
       audio.resume();
     }
+    if (_project.hasSoundPass && _project.soundPass!.enabled) {
+      if (soundPassEngine.isStreaming) {
+        if (soundPassEngine.isPaused) {
+          soundPassEngine.resume();
+        }
+      } else {
+        unawaited(
+          soundPassEngine.start(
+            soundPass: _project.soundPass!,
+            sampleRate: _uniforms.sampleRate,
+          ),
+        );
+      }
+    }
     notifyListeners();
   }
 
@@ -727,6 +778,7 @@ class ShaderController
     if (audio is SoLoudAudioChannel) {
       audio.pause();
     }
+    _soundPassEngine?.pause();
     notifyListeners();
   }
 
@@ -755,6 +807,20 @@ class ShaderController
     final audio = _findActiveAudioChannel();
     if (audio is SoLoudAudioChannel) {
       audio.seek(Duration.zero);
+    }
+    if (_project.hasSoundPass && _project.soundPass!.enabled) {
+      if (isPlaying) {
+        unawaited(
+          soundPassEngine.start(
+            soundPass: _project.soundPass!,
+            sampleRate: _uniforms.sampleRate,
+          ),
+        );
+      } else {
+        _soundPassEngine?.rewind();
+      }
+    } else {
+      _soundPassEngine?.stop();
     }
     renderSingleFrame();
     notifyListeners();
@@ -993,6 +1059,11 @@ class ShaderController
         if (ch is AudioChannel) return ch;
       }
     }
+    for (final pass in _project.passes) {
+      for (final ch in pass.channels) {
+        if (ch is AudioChannel) return ch;
+      }
+    }
     return null;
   }
 
@@ -1052,6 +1123,8 @@ class ShaderController
     lastErrorNotifier.dispose();
     activePassIndexNotifier.dispose();
     currentImageNotifier.dispose();
+    _soundPassEngine?.dispose();
+    _soundPassEngine = null;
     _renderer.dispose();
     for (final pass in _project.passes) {
       pass.dispose();

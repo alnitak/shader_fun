@@ -107,8 +107,10 @@ class ShaderProject {
 
   ShaderPass? get imagePass => getPass(PassType.image);
   ShaderPass? get commonPass => getPass(PassType.common);
+  ShaderPass? get soundPass => getPass(PassType.sound);
 
   bool hasPass(PassType type) => getPass(type) != null;
+  bool get hasSoundPass => soundPass != null;
 
   /// Whether any pass references `iMouse` in its shader code.
   bool get usesMouse {
@@ -118,13 +120,14 @@ class ShaderProject {
 
   /// Whether the project uses audio (audio/music channel, excluding mic).
   bool get usesAudio {
-    return passes.any(
-      (p) => p.channels.any(
-        (c) =>
-            c is SoLoudAudioChannel ||
-            (c is AudioChannel && c is! MicAudioChannel),
-      ),
-    );
+    return hasSoundPass ||
+        passes.any(
+          (p) => p.channels.any(
+            (c) =>
+                c is SoLoudAudioChannel ||
+                (c is AudioChannel && c is! MicAudioChannel),
+          ),
+        );
   }
 
   /// Whether any pass uses a microphone audio channel.
@@ -181,6 +184,13 @@ vec2 rot(vec2 p, float a) {
     fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
 }
 ''';
+      case PassType.sound:
+        return '''// Sound Pass - Audio synthesis in stereo [-1.0 .. 1.0]
+vec2 mainSound( int samp, float time ) {
+    // 440 Hz Sine wave (A4) with exponential decay
+    return vec2( sin(6.283185 * 440.0 * time) * exp(-3.0 * fract(time)) );
+}
+''';
     }
   }
 
@@ -227,6 +237,8 @@ vec2 rot(vec2 p, float a) {
           return 4;
         case PassType.image:
           return 5;
+        case PassType.sound:
+          return 6;
       }
     }
 
@@ -255,11 +267,6 @@ vec2 rot(vec2 p, float a) {
       final passTypeStr = rawPass['type']?.toString().toLowerCase() ?? 'image';
       final code = rawPass['code']?.toString() ?? '';
 
-      if (passTypeStr == 'sound') {
-        // Sound passes are ignored/unsupported without GPU audio
-        continue;
-      }
-
       PassType type;
       switch (passTypeStr) {
         case 'buffer':
@@ -282,6 +289,9 @@ vec2 rot(vec2 p, float a) {
           break;
         case 'common':
           type = PassType.common;
+          break;
+        case 'sound':
+          type = PassType.sound;
           break;
         case 'image':
         default:
@@ -541,6 +551,8 @@ vec2 rot(vec2 p, float a) {
         passTypeStr = 'buffer';
       } else if (pass.type == PassType.common) {
         passTypeStr = 'common';
+      } else if (pass.type == PassType.sound) {
+        passTypeStr = 'sound';
       }
 
       renderpassList.add({

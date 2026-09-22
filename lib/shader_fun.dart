@@ -1,5 +1,6 @@
 library;
 
+export 'src/audio/sound_pass_engine.dart';
 export 'src/channels/audio_texture_provider.dart';
 export 'src/channels/shader_channel.dart';
 export 'src/compiler/impeller_compiler.dart';
