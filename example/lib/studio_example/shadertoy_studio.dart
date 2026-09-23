@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:highlight/languages/glsl.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 import 'dialogs/channel_picker_modal.dart';
@@ -37,9 +38,7 @@ class ShaderToyStudio extends StatefulWidget {
 class _ShaderToyStudioState extends State<ShaderToyStudio>
     with SingleTickerProviderStateMixin {
   late final ShaderController _controller;
-  final TextEditingController _codeEditorController = TextEditingController();
-  final ScrollController _editorScrollController = ScrollController();
-  final ScrollController _gutterScrollController = ScrollController();
+  late final GlslCodeController _codeEditorController;
 
   bool _showInputs = false;
   bool _isFullscreen = false;
@@ -47,12 +46,13 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   bool _compileSuccess = true;
   final double _fontSize = 15.0;
   final GlobalKey _viewportKey = GlobalKey();
-  bool _isSyncingScroll = false;
-  int _cachedLineCount = 1;
 
   @override
   void initState() {
     super.initState();
+    _codeEditorController = GlslCodeController(
+      language: glsl,
+    );
     _controller = ShaderController(
       initialProject: widget.initialProject ?? ShaderProject.empty(),
       vsync: this,
@@ -62,46 +62,6 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
 
     _syncCodeWithActivePass();
     _controller.addListener(_onControllerUpdate);
-    _editorScrollController.addListener(_onEditorScroll);
-    _gutterScrollController.addListener(_onGutterScroll);
-    _codeEditorController.addListener(_onCodeChanged);
-  }
-
-  void _onEditorScroll() {
-    if (_isSyncingScroll) return;
-    if (_gutterScrollController.hasClients &&
-        _editorScrollController.hasClients) {
-      _isSyncingScroll = true;
-      final maxGutter = _gutterScrollController.position.maxScrollExtent;
-      final target = _editorScrollController.offset.clamp(0.0, maxGutter);
-      if ((_gutterScrollController.offset - target).abs() > 0.01) {
-        _gutterScrollController.jumpTo(target);
-      }
-      _isSyncingScroll = false;
-    }
-  }
-
-  void _onGutterScroll() {
-    if (_isSyncingScroll) return;
-    if (_editorScrollController.hasClients &&
-        _gutterScrollController.hasClients) {
-      _isSyncingScroll = true;
-      final maxEditor = _editorScrollController.position.maxScrollExtent;
-      final target = _gutterScrollController.offset.clamp(0.0, maxEditor);
-      if ((_editorScrollController.offset - target).abs() > 0.01) {
-        _editorScrollController.jumpTo(target);
-      }
-      _isSyncingScroll = false;
-    }
-  }
-
-  void _onCodeChanged() {
-    final count = _codeEditorController.text.split('\n').length;
-    if (count != _cachedLineCount) {
-      setState(() {
-        _cachedLineCount = count;
-      });
-    }
   }
 
   void _onControllerUpdate() {
@@ -118,26 +78,14 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
     final pass = _controller.activePass;
     if (pass != null && _codeEditorController.text != pass.code) {
       _codeEditorController.text = pass.code;
-      _cachedLineCount = pass.code.split('\n').length;
-      if (_editorScrollController.hasClients) {
-        _editorScrollController.jumpTo(0.0);
-      }
-      if (_gutterScrollController.hasClients) {
-        _gutterScrollController.jumpTo(0.0);
-      }
     }
   }
 
   @override
   void dispose() {
-    _editorScrollController.removeListener(_onEditorScroll);
-    _gutterScrollController.removeListener(_onGutterScroll);
-    _codeEditorController.removeListener(_onCodeChanged);
     _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     _codeEditorController.dispose();
-    _editorScrollController.dispose();
-    _gutterScrollController.dispose();
     super.dispose();
   }
 
@@ -303,10 +251,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
           Expanded(
             child: StudioCodeEditor(
               codeController: _codeEditorController,
-              editorScrollController: _editorScrollController,
-              gutterScrollController: _gutterScrollController,
               fontSize: _fontSize,
-              lineCount: _cachedLineCount,
               compileSuccess: _compileSuccess,
               compileStatus: _compileStatus,
               hasError: _controller.hasError,
