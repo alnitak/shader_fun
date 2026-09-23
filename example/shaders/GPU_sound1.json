@@ -1,8 +1,8 @@
 {
   "Shader": {
     "info": {
-      "id": "GPU_sound",
-      "name": "GPU Sound: Vivaldi Summer Presto",
+      "id": "GPU_sound1",
+      "name": "GPU Sound 1: Vivaldi Summer Presto",
       "username": "ShaderFun",
       "description": "Vivaldi's Summer (Presto) virtuosic violin and orchestral basso continuo synthesized in real-time on the GPU via PassType.sound.",
       "url": ""

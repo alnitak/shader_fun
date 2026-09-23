@@ -118,16 +118,20 @@ class ShaderProject {
     return passes.any((p) => mouseRegex.hasMatch(p.code));
   }
 
-  /// Whether the project uses audio (audio/music channel, excluding mic).
+  /// Whether any pass has an audio or music channel (excluding mic).
+  bool get usesAudioChannel {
+    return passes.any(
+      (p) => p.channels.any(
+        (c) =>
+            c is SoLoudAudioChannel ||
+            (c is AudioChannel && c is! MicAudioChannel),
+      ),
+    );
+  }
+
+  /// Whether the project uses audio (either GPU sound pass or audio/music channel, excluding mic).
   bool get usesAudio {
-    return hasSoundPass ||
-        passes.any(
-          (p) => p.channels.any(
-            (c) =>
-                c is SoLoudAudioChannel ||
-                (c is AudioChannel && c is! MicAudioChannel),
-          ),
-        );
+    return hasSoundPass || usesAudioChannel;
   }
 
   /// Whether any pass uses a microphone audio channel.

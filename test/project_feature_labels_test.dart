@@ -31,7 +31,7 @@ void main() {
       expect(projectWithoutMouse.usesMouse, isFalse);
     });
 
-    test('detects audio usage when SoLoudAudioChannel is present', () {
+    test('detects audio channel usage when SoLoudAudioChannel is present', () {
       final passWithAudioChannel = ShaderPass(
         name: 'Image',
         type: PassType.image,
@@ -40,7 +40,22 @@ void main() {
       passWithAudioChannel.setChannel(0, SoLoudAudioChannel());
       final projectWithAudio = ShaderProject(passes: [passWithAudioChannel]);
       expect(projectWithAudio.usesAudio, isTrue);
+      expect(projectWithAudio.usesAudioChannel, isTrue);
+      expect(projectWithAudio.hasSoundPass, isFalse);
       expect(projectWithAudio.usesMic, isFalse);
+    });
+
+    test('detects GPU sound when sound pass is present', () {
+      final soundPass = ShaderPass(
+        name: 'Sound',
+        type: PassType.sound,
+        code: 'vec2 mainSound(int samp, float time) { return vec2(0.0); }',
+      );
+      final projectWithSound = ShaderProject(passes: [soundPass]);
+      expect(projectWithSound.hasSoundPass, isTrue);
+      expect(projectWithSound.usesAudio, isTrue);
+      expect(projectWithSound.usesAudioChannel, isFalse);
+      expect(projectWithSound.usesMic, isFalse);
     });
 
     test('detects microphone usage when MicAudioChannel is present', () {
@@ -125,9 +140,42 @@ void main() {
       final project = ShaderProject.parseJsonString(jsonStr);
       expect(project.usesMouse, isTrue);
       expect(project.usesAudio, isTrue);
+      expect(project.usesAudioChannel, isTrue);
+      expect(project.hasSoundPass, isFalse);
       expect(project.usesMic, isTrue);
       expect(project.usesKeys, isTrue);
       expect(project.usesTextures, isTrue);
+    });
+
+    test('parses GPU sound pass correctly from JSON structure', () {
+      const jsonStr = '''
+      {
+        "Shader": {
+          "info": { "name": "GPU Sound Test" },
+          "renderpass": [
+            {
+              "name": "Image",
+              "type": "image",
+              "code": "void mainImage(out vec4 c, in vec2 f) { c = vec4(1.0); }",
+              "inputs": [],
+              "outputs": []
+            },
+            {
+              "name": "Sound",
+              "type": "sound",
+              "code": "vec2 mainSound(int samp, float time) { return vec2(0.0); }",
+              "inputs": [],
+              "outputs": []
+            }
+          ]
+        }
+      }
+      ''';
+
+      final project = ShaderProject.parseJsonString(jsonStr);
+      expect(project.hasSoundPass, isTrue);
+      expect(project.usesAudio, isTrue);
+      expect(project.usesAudioChannel, isFalse);
     });
   });
 }

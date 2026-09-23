@@ -676,7 +676,8 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                         ? 'Bundled asset: ${item.assetPath}'
                         : 'Shader project in ${item.fileName}';
                     final passCount = proj?.passes.length ?? 0;
-                    final usesAudio = proj?.usesAudio ?? false;
+                    final hasGpuSound = proj?.hasSoundPass ?? false;
+                    final usesAudio = proj?.usesAudioChannel ?? false;
                     final usesTextures = proj?.usesTextures ?? false;
                     final usesMouse = proj?.usesMouse ?? false;
                     final usesMic = proj?.usesMic ?? false;
@@ -811,6 +812,11 @@ class _LoadShaderDialogState extends State<LoadShaderDialog>
                                         ? const Color(0xFF38BDF8)
                                         : const Color(0xFF00E5FF),
                                   ),
+                                  if (hasGpuSound)
+                                    _buildFeatureBadge(
+                                      'GPU sound',
+                                      const Color(0xFFE040FB),
+                                    ),
                                   if (usesAudio)
                                     _buildFeatureBadge(
                                       'audio',
