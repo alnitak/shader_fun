@@ -186,7 +186,7 @@ void main() {
     float time = float(samp) / iSampleRate;
 
     vec2 sound = $callMainSound;
-    fragColor = vec4(sound.x, sound.y, 0.0, 1.0);
+    fragColor = vec4(sound.x * 0.5 + 0.5, sound.y * 0.5 + 0.5, 0.0, 1.0);
 ''');
   } else {
     sb.writeln('''

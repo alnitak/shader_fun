@@ -28,8 +28,8 @@ Future<Uint8List?> extractSoundPassPcmBytes(
       p < u8Data.length && s < stereoFloats.length;
       p += 4, s += 2
     ) {
-      stereoFloats[s] = (u8Data[p] / 127.5) - 1.0;
-      stereoFloats[s + 1] = (u8Data[p + 1] / 127.5) - 1.0;
+      stereoFloats[s] = (u8Data[p] / 255.0) * 2.0 - 1.0;
+      stereoFloats[s + 1] = (u8Data[p + 1] / 255.0) * 2.0 - 1.0;
     }
     return stereoFloats.buffer.asUint8List();
   }
