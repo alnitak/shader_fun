@@ -1,3 +1,4 @@
+import '../core/shader_pass.dart';
 import 'impeller_compiler.dart';
 
 Future<CompileResult> runImpellerCompile({
@@ -7,6 +8,7 @@ Future<CompileResult> runImpellerCompile({
   String? rawUserGlsl,
   String? rawCommonGlsl,
   Map<String, int>? customUniformSlots,
+  PassType passType = PassType.image,
 }) async {
   return const CompileResult.error(
     'Runtime shader compilation is not supported on this platform. '

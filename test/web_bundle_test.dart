@@ -65,4 +65,31 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(src.contains('#define texture2D texture'), isTrue);
     },
   );
+
+  test('Web sound shader bundle compiles with mainSound', () async {
+    const soundShader = '''
+vec2 mainSound(int samp, float time) {
+    return vec2(sin(6.2831 * 440.0 * time));
+}
+''';
+
+    final result = await runImpellerCompile(
+      quadVertexShader: '',
+      wrappedFragGlsl: '',
+      rawUserGlsl: soundShader,
+      rawCommonGlsl: null,
+      passType: PassType.sound,
+    );
+
+    expect(result.isSuccess, isTrue, reason: result.errorMessage);
+    expect(result.bundleBytes, isNotNull);
+
+    final bundle = sbg.ShaderBundle(result.bundleBytes!);
+    final frag = bundle.shaders!.firstWhere((s) => s.name == 'ShaderFragment');
+    final src = utf8.decode(frag.openglEs!.shader!);
+
+    expect(src.contains('#define iBlockOffset iTime'), isTrue);
+    expect(src.contains('mainSound(samp, time)'), isTrue);
+    expect(src.contains('mainImage'), isFalse);
+  });
 }

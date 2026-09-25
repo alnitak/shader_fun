@@ -7,6 +7,7 @@ import 'package:flutter_scene/src/gpu/web/shader_bundle_generated.dart' as sbg;
 import 'package:flat_buffers/flat_buffers.dart' as fb;
 
 import '../core/common_uniforms.dart';
+import '../core/shader_pass.dart';
 import '../gpu/gpu.dart' as gpu;
 
 import 'impeller_compiler.dart';
@@ -31,7 +32,18 @@ String _wrapShaderGlslWeb({
   String? commonGlsl,
   required List<int> declaredChannels,
   Map<String, int>? customUniformSlots,
+  PassType passType = PassType.image,
+  int soundTextureWidth = 256,
 }) {
+  final cleanUserCode = userGlsl.replaceAll(
+    RegExp(r'//.*$|/\*[\s\S]*?\*/', multiLine: true),
+    '',
+  );
+  final isSound = passType == PassType.sound ||
+      (passType != PassType.common &&
+          !cleanUserCode.contains('mainImage') &&
+          cleanUserCode.contains('mainSound'));
+
   final sb = StringBuffer();
   sb.writeln('''#version 300 es
 precision highp float;
@@ -52,6 +64,10 @@ layout(std140) uniform FrameInfo {
     vec4 iCustom[${CommonUniforms.maxCustomUniformSlots}];
 };
 ''');
+
+  if (isSound) {
+    sb.writeln('#define iBlockOffset iTime');
+  }
 
   final codeForUniforms = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
       ? '$commonGlsl\n$userGlsl'
@@ -154,10 +170,31 @@ vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
 
   sb.writeln('''#line 1
 $sanitizedUserGlsl
+''');
 
+  if (isSound) {
+    final bool takesSamp = RegExp(
+      r'\bmainSound\s*\(\s*(in\s+)?int\b',
+    ).hasMatch(cleanUserCode);
+    final callMainSound =
+        takesSamp ? 'mainSound(samp, time)' : 'mainSound(time)';
+
+    sb.writeln('''
+void main() {
+    float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * ${soundTextureWidth.toDouble()};
+    int samp = int(pixelIndex + iBlockOffset * iSampleRate);
+    float time = float(samp) / iSampleRate;
+
+    vec2 sound = $callMainSound;
+    fragColor = vec4(sound.x, sound.y, 0.0, 1.0);
+''');
+  } else {
+    sb.writeln('''
 void main() {
     vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
-    mainImage(fragColor, fragCoord);''');
+    mainImage(fragColor, fragCoord);
+''');
+  }
 
   sb.writeln('    if (iResolution.x < 0.0) {');
   sb.writeln('        fragColor += vec4(iTime);');
@@ -367,6 +404,7 @@ Future<CompileResult> runImpellerCompile({
   String? rawUserGlsl,
   String? rawCommonGlsl,
   Map<String, int>? customUniformSlots,
+  PassType passType = PassType.image,
 }) async {
   try {
     final userCode = rawUserGlsl ?? wrappedFragGlsl;
@@ -387,6 +425,7 @@ Future<CompileResult> runImpellerCompile({
       commonGlsl: rawCommonGlsl,
       declaredChannels: declaredChannels,
       customUniformSlots: customUniformSlots,
+      passType: passType,
     );
 
     final bundleBytes = _buildWebShaderBundle(

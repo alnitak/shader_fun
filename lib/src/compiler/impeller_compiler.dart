@@ -468,6 +468,8 @@ void main() {
       customImpellercPath: customImpellercPath,
       rawUserGlsl: shaderGlsl,
       rawCommonGlsl: commonGlsl,
+      customUniformSlots: customUniformSlots,
+      passType: passType,
     );
   }
 

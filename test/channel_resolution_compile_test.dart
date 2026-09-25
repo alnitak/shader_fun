@@ -37,9 +37,6 @@ void main() {
       '--reflection-json=${tmpDir.path}/mountains.json',
     ]);
     expect(proc.exitCode, 0, reason: proc.stderr.toString());
-    File(
-      '/Volumes/NVME/Users/deimos/.gemini/antigravity-ide/brain/60d2733e-fc8c-4e0c-bd5d-4788764dab77/scratch/mountains_gen.metal',
-    ).writeAsStringSync(metalFile.readAsStringSync());
     final res = await ImpellerCompiler.compile(shaderGlsl: pass.code);
     expect(res.isSuccess, isTrue, reason: res.errorMessage);
   });

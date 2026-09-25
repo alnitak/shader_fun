@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../core/shader_pass.dart';
 import 'impeller_compiler.dart';
 
 String? findImpellercBinary() {
@@ -90,6 +91,7 @@ Future<CompileResult> runImpellerCompile({
   String? rawUserGlsl,
   String? rawCommonGlsl,
   Map<String, int>? customUniformSlots,
+  PassType passType = PassType.image,
 }) async {
   final impellerc = customImpellercPath ?? ImpellerCompiler.findImpellerc();
   if (impellerc == null) {

@@ -8,6 +8,7 @@ import '../compiler/impeller_compiler.dart';
 import '../core/shader_pass.dart';
 import '../core/common_uniforms.dart';
 import '../gpu/gpu.dart' as gpu;
+import 'byte_format_helper.dart';
 
 /// Low-level multi-pass renderer powered by flutter_scene's cross-platform GPU pipeline.
 /// Executes compiled shader bundles on full-screen quad geometry and renders to swapchain [gpu.Texture]s.
@@ -1012,49 +1013,7 @@ class FlutterGpuRenderer {
       cmdBuffer.submit();
 
       final uiImage = soundTex.asImage();
-      final byteData = await uiImage.toByteData(
-        format: ui.ImageByteFormat.rawExtendedRgba128,
-      );
-
-      if (byteData != null) {
-        final floatData = byteData.buffer.asFloat32List(
-          byteData.offsetInBytes,
-          byteData.lengthInBytes ~/ 4,
-        );
-        final stereoFloats = Float32List(width * height * 2);
-        for (
-          int p = 0, s = 0;
-          p < floatData.length && s < stereoFloats.length;
-          p += 4, s += 2
-        ) {
-          stereoFloats[s] = floatData[p];
-          stereoFloats[s + 1] = floatData[p + 1];
-        }
-        return stereoFloats.buffer.asUint8List();
-      }
-
-      // Fallback if rawExtendedRgba128 is not supported
-      final byteData8 = await uiImage.toByteData(
-        format: ui.ImageByteFormat.rawStraightRgba,
-      );
-      if (byteData8 != null) {
-        final u8Data = byteData8.buffer.asUint8List(
-          byteData8.offsetInBytes,
-          byteData8.lengthInBytes,
-        );
-        final stereoFloats = Float32List(width * height * 2);
-        for (
-          int p = 0, s = 0;
-          p < u8Data.length && s < stereoFloats.length;
-          p += 4, s += 2
-        ) {
-          stereoFloats[s] = (u8Data[p] / 127.5) - 1.0;
-          stereoFloats[s + 1] = (u8Data[p + 1] / 127.5) - 1.0;
-        }
-        return stereoFloats.buffer.asUint8List();
-      }
-
-      return null;
+      return await extractSoundPassPcmBytes(uiImage, width, height);
     } catch (e) {
       debugPrint('Error rendering sound pass: $e');
       return null;
