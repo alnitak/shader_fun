@@ -23,6 +23,10 @@ const int kSoundChunkSizeBytes = kSoundChunkSamples * 2 * 4;
 /// Renders 256x256 audio textures on the GPU in 512 KB chunks (~1.486s at 44.1 kHz),
 /// extracts stereo 32-bit float PCM data, and streams the chunks to [SoLoud.instance.setBufferStream]
 /// with [BufferingType.released] for continuous, seamless, glitch-free audio output.
+///
+/// NOTE (Web): On Flutter Web (`dart:ui`), [ui.ImageByteFormat.rawExtendedRgba128] is not
+/// available yet. As a result, [ui.ImageByteFormat.rawStraightRgba] (8-bit UNorm) is used as
+/// a fallback, which can introduce background noise or distortion due to 8-bit quantization.
 class SoundPassEngine {
   SoundPassEngine({FlutterGpuRenderer? renderer})
     // ignore: prefer_initializing_formals

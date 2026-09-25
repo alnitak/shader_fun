@@ -2,6 +2,13 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 /// Extracts sound pass PCM bytes from a rendered [uiImage] on web platforms.
+///
+/// NOTE: On Flutter Web (`dart:ui`), [ui.ImageByteFormat.rawExtendedRgba128]
+/// is not available yet. As a result, [ui.ImageByteFormat.rawStraightRgba] (8-bit UNorm)
+/// is used as a fallback to extract audio data. Because 8-bit quantization only provides
+/// 256 discrete levels (~48 dB dynamic range), some background rustle/noise or distortion
+/// is expected on Web compared to native 32-bit floating-point execution until Flutter Web
+/// adds support for floating-point pixel buffer readouts.
 Future<Uint8List?> extractSoundPassPcmBytes(
   ui.Image uiImage,
   int width,
