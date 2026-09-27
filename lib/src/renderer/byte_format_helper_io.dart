@@ -1,12 +1,21 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-/// Extracts sound pass PCM bytes from a rendered [uiImage] on IO (native) platforms.
+import '../gpu/gpu.dart' as gpu;
+
+/// Extracts sound pass PCM bytes from a rendered [soundTexture] on IO (native) platforms.
 Future<Uint8List?> extractSoundPassPcmBytes(
-  ui.Image uiImage,
+  gpu.Texture soundTexture,
   int width,
   int height,
 ) async {
+  final ui.Image uiImage;
+  try {
+    uiImage = soundTexture.asImage();
+  } catch (_) {
+    return null;
+  }
+
   try {
     final byteData = await uiImage.toByteData(
       format: ui.ImageByteFormat.rawExtendedRgba128,

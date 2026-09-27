@@ -1012,8 +1012,7 @@ class FlutterGpuRenderer {
       renderPass.draw(6);
       cmdBuffer.submit();
 
-      final uiImage = soundTex.asImage();
-      return await extractSoundPassPcmBytes(uiImage, width, height);
+      return await extractSoundPassPcmBytes(soundTex, width, height);
     } catch (e) {
       debugPrint('Error rendering sound pass: $e');
       return null;
