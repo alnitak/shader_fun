@@ -895,7 +895,11 @@ class FlutterGpuRenderer {
       // 5. Submit presentation command buffer and snapshot texture to ui.Image
       presentationCommandBuffer.submit();
 
-      return presentationTexture.asImage();
+      if (kIsWeb) {
+        return await gpu.presentTextureAsImage(presentationTexture);
+      } else {
+        return presentationTexture.asImage();
+      }
     } catch (e) {
       debugPrint('GPU renderFrame error: $e');
       return null;

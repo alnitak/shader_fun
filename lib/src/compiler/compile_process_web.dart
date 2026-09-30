@@ -207,164 +207,272 @@ void main() {
   return sb.toString();
 }
 
+int _buildInput(
+  fb.Builder b, {
+  required String name,
+  required int location,
+  required int vecSize,
+  required int offset,
+}) {
+  final nameOffset = b.writeString(name);
+  b.startTable(9);
+  b.addOffset(0, nameOffset);
+  b.addUint32(1, location);
+  b.addUint32(2, 0); // set
+  b.addUint32(3, 0); // binding
+  b.addUint32(4, sbg.InputDataType.kFloat.value);
+  b.addUint32(5, 32); // bitWidth
+  b.addUint32(6, vecSize);
+  b.addUint32(7, 1); // columns
+  b.addUint32(8, offset);
+  return b.endTable();
+}
+
+int _buildField(
+  fb.Builder b, {
+  required String name,
+  required int offsetInBytes,
+  required int vecSize,
+  required int totalSizeInBytes,
+  sbg.UniformDataType type = sbg.UniformDataType.kFloat,
+  int columns = 1,
+  int arrayElements = 0,
+}) {
+  final nameOffset = b.writeString(name);
+  b.startTable(8);
+  b.addOffset(0, nameOffset);
+  b.addUint32(1, type.value);
+  b.addUint32(2, offsetInBytes);
+  b.addUint32(3, 4); // elementSizeInBytes
+  b.addUint32(4, totalSizeInBytes);
+  b.addUint32(5, arrayElements);
+  b.addUint32(6, vecSize);
+  b.addUint32(7, columns);
+  return b.endTable();
+}
+
+int _buildUniformStruct(
+  fb.Builder b, {
+  required String name,
+  required int sizeInBytes,
+  required List<int> fieldOffsets,
+}) {
+  final nameOffset = b.writeString(name);
+  final fieldsOffset = b.writeList(fieldOffsets);
+  b.startTable(6);
+  b.addOffset(0, nameOffset);
+  b.addUint32(1, 0); // extRes0
+  b.addUint32(2, 0); // set
+  b.addUint32(3, 0); // binding
+  b.addUint32(4, sizeInBytes);
+  b.addOffset(5, fieldsOffset);
+  return b.endTable();
+}
+
+int _buildTexture(fb.Builder b, {required String name, required int binding}) {
+  final nameOffset = b.writeString(name);
+  b.startTable(4);
+  b.addOffset(0, nameOffset);
+  b.addUint32(1, 0); // extRes0
+  b.addUint32(2, 0); // set
+  b.addUint32(3, binding);
+  return b.endTable();
+}
+
+int _buildBackendShader(
+  fb.Builder b, {
+  required sbg.ShaderStage stage,
+  required String entrypoint,
+  required Uint8List sourceBytes,
+  List<int>? inputOffsets,
+  List<int>? structOffsets,
+  List<int>? textureOffsets,
+}) {
+  final entrypointOffset = b.writeString(entrypoint);
+  final inputsOffset = inputOffsets != null ? b.writeList(inputOffsets) : null;
+  final structsOffset =
+      structOffsets != null ? b.writeList(structOffsets) : null;
+  final texturesOffset =
+      textureOffsets != null ? b.writeList(textureOffsets) : null;
+  final shaderOffset = b.writeListUint8(sourceBytes);
+
+  b.startTable(6);
+  b.addInt8(0, stage.value);
+  b.addOffset(1, entrypointOffset);
+  b.addOffset(2, inputsOffset);
+  b.addOffset(3, structsOffset);
+  b.addOffset(4, texturesOffset);
+  b.addOffset(5, shaderOffset);
+  return b.endTable();
+}
+
+int _buildShader(
+  fb.Builder b, {
+  required String name,
+  required int backendOffset,
+}) {
+  final nameOffset = b.writeString(name);
+  b.startTable(6);
+  b.addOffset(0, nameOffset);
+  b.addOffset(1, null); // metalIos
+  b.addOffset(2, null); // metalDesktop
+  b.addOffset(3, backendOffset); // openglEs
+  b.addOffset(4, null); // openglDesktop
+  b.addOffset(5, null); // vulkan
+  return b.endTable();
+}
+
 /// Builds an in-memory FlatBuffer .shaderbundle containing QuadVertex and
 /// ShaderFragment with reflection metadata for WebGL2.
+///
+/// Uses 32-bit field serializers rather than 64-bit to remain 100% compatible
+/// with `dart2js` on browsers (like Firefox) that do not support 64-bit `ByteData`
+/// accessors. `flutter_scene`'s Web shader library deserializer only reads 32 bits
+/// for reflection scalars, making this fully wire-compatible.
 Uint8List _buildWebShaderBundle({
   required String vertexGlsl,
   required String fragmentGlsl,
   required List<int> channelIndices,
 }) {
+  final b = fb.Builder();
   final vertBytes = Uint8List.fromList(utf8.encode(vertexGlsl));
   final fragBytes = Uint8List.fromList(utf8.encode(fragmentGlsl));
 
   // 1. Vertex inputs for QuadVertex: position attribute (location 0, vecSize 2)
-  final vertexInputs = [
-    sbg.ShaderInputObjectBuilder(
-      name: 'position',
-      location: 0,
-      vecSize: 2,
-      offset: 0,
-      type: sbg.InputDataType.kFloat,
-    ),
-  ];
+  final vertInputOffset = _buildInput(
+    b,
+    name: 'position',
+    location: 0,
+    vecSize: 2,
+    offset: 0,
+  );
 
   // 2. Vertex BackendShader
-  final vertBackend = sbg.BackendShaderObjectBuilder(
-    entrypoint: 'main',
+  final vertBackendOffset = _buildBackendShader(
+    b,
     stage: sbg.ShaderStage.kVertex,
-    shader: vertBytes,
-    inputs: vertexInputs,
+    entrypoint: 'main',
+    sourceBytes: vertBytes,
+    inputOffsets: [vertInputOffset],
+  );
+  final vertShaderOffset = _buildShader(
+    b,
+    name: 'QuadVertex',
+    backendOffset: vertBackendOffset,
   );
 
   // 3. Fragment Uniform Struct: FrameInfo (std140 layout matching ShaderUniforms)
   final frameInfoFields = [
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iResolution',
       offsetInBytes: 0,
       vecSize: 3,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 12,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iTime',
       offsetInBytes: 12,
       vecSize: 1,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 4,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iTimeDelta',
       offsetInBytes: 16,
       vecSize: 1,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 4,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iFrameRate',
       offsetInBytes: 20,
       vecSize: 1,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 4,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iFrame',
       offsetInBytes: 24,
       vecSize: 1,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 4,
       type: sbg.UniformDataType.kSignedInt,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iMouse',
       offsetInBytes: 32,
       vecSize: 4,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 16,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iDate',
       offsetInBytes: 48,
       vecSize: 4,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 16,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iSampleRate',
       offsetInBytes: 64,
       vecSize: 1,
-      columns: 1,
-      arrayElements: 0,
       totalSizeInBytes: 4,
-      type: sbg.UniformDataType.kFloat,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iChannelResolution',
       offsetInBytes: 80,
       vecSize: 3,
-      columns: 1,
-      arrayElements: 4,
       totalSizeInBytes: 64,
-      type: sbg.UniformDataType.kFloat,
+      arrayElements: 4,
     ),
-    sbg.ShaderUniformStructFieldObjectBuilder(
+    _buildField(
+      b,
       name: 'iCustom',
       offsetInBytes: CommonUniforms.standardUniformsSizeBytes,
       vecSize: 4,
-      columns: 1,
-      arrayElements: CommonUniforms.maxCustomUniformSlots,
       totalSizeInBytes: CommonUniforms.customUniformsSizeBytes,
-      type: sbg.UniformDataType.kFloat,
+      arrayElements: CommonUniforms.maxCustomUniformSlots,
     ),
   ];
 
-  final uniformStructs = [
-    sbg.ShaderUniformStructObjectBuilder(
-      name: 'FrameInfo',
-      sizeInBytes: CommonUniforms.totalUniformBufferSize,
-      fields: frameInfoFields,
-    ),
-  ];
+  final uniformStructOffset = _buildUniformStruct(
+    b,
+    name: 'FrameInfo',
+    sizeInBytes: CommonUniforms.totalUniformBufferSize,
+    fieldOffsets: frameInfoFields,
+  );
 
   // 4. Fragment Uniform Textures (iChannel0..3)
-  final uniformTextures = channelIndices.map((ch) {
-    return sbg.ShaderUniformTextureObjectBuilder(name: 'iChannel$ch');
-  }).toList();
+  final texOffsets = channelIndices
+      .map((ch) => _buildTexture(b, name: 'iChannel$ch', binding: ch))
+      .toList();
 
   // 5. Fragment BackendShader
-  final fragBackend = sbg.BackendShaderObjectBuilder(
-    entrypoint: 'main',
+  final fragBackendOffset = _buildBackendShader(
+    b,
     stage: sbg.ShaderStage.kFragment,
-    shader: fragBytes,
-    uniformStructs: uniformStructs,
-    uniformTextures: uniformTextures,
+    entrypoint: 'main',
+    sourceBytes: fragBytes,
+    structOffsets: [uniformStructOffset],
+    textureOffsets: texOffsets,
+  );
+  final fragShaderOffset = _buildShader(
+    b,
+    name: 'ShaderFragment',
+    backendOffset: fragBackendOffset,
   );
 
   // 6. Root Bundle with QuadVertex and ShaderFragment
-  final bundleObj = sbg.ShaderBundleObjectBuilder(
-    formatVersion: 2,
-    shaders: [
-      sbg.ShaderObjectBuilder(name: 'QuadVertex', openglEs: vertBackend),
-      sbg.ShaderObjectBuilder(name: 'ShaderFragment', openglEs: fragBackend),
-    ],
-  );
-
-  final builder = fb.Builder();
-  final offset = bundleObj.finish(builder);
-  builder.finish(offset);
-  return builder.buffer;
+  final shadersOffset = b.writeList([vertShaderOffset, fragShaderOffset]);
+  b.startTable(2);
+  b.addOffset(0, shadersOffset);
+  b.addUint32(1, 2); // formatVersion: 2
+  final rootOffset = b.endTable();
+  b.finish(rootOffset);
+  return b.buffer;
 }
 
 /// Cleans WebGL2 shader compilation and linking error messages for display in UI.
