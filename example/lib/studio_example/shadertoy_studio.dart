@@ -76,8 +76,8 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
 
   void _syncCodeWithActivePass() {
     final pass = _controller.activePass;
-    if (pass != null && _codeEditorController.text != pass.code) {
-      _codeEditorController.text = pass.code;
+    if (pass != null) {
+      _codeEditorController.loadCode(pass.code);
     }
   }
 
