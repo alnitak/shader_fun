@@ -255,10 +255,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_recorder
-      sha256: "12cfdac6b3e15c11727195d473f079bd44603b5a50310d7383bd856c823a5297"
+      sha256: c2292215a5143c025be02ebefced462bde114d26b9eeea674ad8740fc42c4952
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.5"
+    version: "2.0.6"
   flutter_scene:
     dependency: transitive
     description:
@@ -271,10 +271,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_soloud
-      sha256: e8d484f36045e138e8ed4d58cc6ef3cfc2ba0580d1daeccd012d8d23f164aa0f
+      sha256: ae1b1882f5e38b14e10ec193190e6c474074043d210764149d63897877e46acb
       url: "https://pub.dev"
     source: hosted
-    version: "5.1.2"
+    version: "5.1.6"
   flutter_test:
     dependency: "direct dev"
     description: flutter

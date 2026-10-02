@@ -28,11 +28,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_recorder: ^2.0.5
+  flutter_recorder: ^2.0.6
     # path: ../flutter_recorder
   flutter_scene: ^0.23.0
     # path: ../../tmp/flutter_scene/packages/flutter_scene
-  flutter_soloud: ^5.1.2
+  flutter_soloud: ^5.1.6
     # path: ../flutter_soloud
   flat_buffers: ^25.9.23
   image: ^4.10.1
