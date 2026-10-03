@@ -32,7 +32,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
       controller.loadCode(code2);
       expect(controller.fullText.trim(), code2.trim());
-      expect(controller.text.startsWith('// Header comment in Shader 2'), isTrue);
+      expect(
+        controller.text.startsWith('// Header comment in Shader 2'),
+        isTrue,
+      );
       expect(controller.selection.baseOffset, 0);
       expect(controller.loadCount, 2);
 
@@ -117,8 +120,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   });
 
   group('StudioCodeEditor Widget', () {
-    testWidgets('renders CodeField with fresh Key when loadCount increments',
-        (tester) async {
+    testWidgets('renders CodeField with fresh Key when loadCount increments', (
+      tester,
+    ) async {
       final controller = GlslCodeController(language: glsl);
       controller.loadCode('void mainImage() {}');
 

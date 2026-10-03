@@ -30,7 +30,7 @@ void main() {
       reason: '${pass.name} compilation failed: ${res.errorMessage}',
     );
     expect(res.bundleBytes, isNotNull);
-  });
+  }, skip: !File('example/shaders/Prismatic_Ribbon.json').existsSync());
 
   test('Prismatic Flutter Logo JSON parses and compiles successfully with ImpellerCompiler', () async {
     final file = File('example/shaders/Prismatic_Flutter.json');

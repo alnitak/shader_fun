@@ -51,6 +51,10 @@ This package is an evolution of [shader_buffers](https://pub.dev/packages/shader
 - **Runtime Shader Compilation**:
   - **Native**: Compiles GLSL on the fly using Flutter's offline `impellerc` compiler.
   - **Web**: Uses an in-memory FlatBuffer bundle builder and compiles GLSL ES 3.00 directly in the browser via WebGL2, returning syntax errors with accurate user line numbers.
+- **Custom Vertex & Fragment Shaders (`ShaderPassMode.custom`)**:
+  - Direct control over the vertex stage (`vertexCode`) and fragment stage (`code`) with standard `void main()`.
+  - Custom vertex geometries via `customVertices` (`Float32List`) and `vertexCount` (e.g. triangles, polygons, or meshes).
+  - Layer custom animated geometry over ShaderToy passes, texture-map ShaderToy procedural animations onto custom meshes, or deform live interactive `WidgetChannel`s.
 - **JSON Import / Export**:
   - Directly load/save projects in `.json` format, preserving passes, channel bindings, and metadata.
 
@@ -306,11 +310,54 @@ controller.setUniform('glowColor', Colors.cyanAccent);
 - **Hardware Alignment & Pagination**: Sizing the custom uniform space to 256 bytes aligns with standard GPU driver suballocation pagination (for example, `minUniformBufferOffsetAlignment` on Vulkan and Metal is typically 256 bytes). Even allocating a single 4-byte float still consumes a 256B/4KB physical page in GPU VRAM.
 - **Single-Step Scaling**: If your project requires more custom uniforms, updating `CommonUniforms.maxCustomUniformSlots` (e.g. to `32` or `64`) is the **only step required**. All GLSL wrappers, native Impeller buffers, WebGL reflection structs, and `CommonUniforms.totalUniformBufferSize` dynamically scale together automatically without any code changes across renderers or compilers.
 
+### 5. Custom Vertex & Fragment Shaders (`ShaderPassMode.custom`)
+
+By default, every pass operates in `ShaderPassMode.shaderToy`, running a standard full-screen quad vertex shader and expecting a `mainImage(out vec4 fragColor, in vec2 fragCoord)` entry point.
+
+When you need direct vertex-stage control, custom 2D/3D geometry, or raw fragment shaders without Shadertoy boilerplate, set `mode: ShaderPassMode.custom`:
+
+```dart
+final customPass = ShaderPass(
+  name: 'Custom Triangle Pass',
+  type: PassType.image,
+  mode: ShaderPassMode.custom,
+  vertexCode: '''
+#version 460 core
+layout(location = 0) in vec2 position;
+out vec2 v_uv;
+void main() {
+    v_uv = position * 0.5 + 0.5;
+    gl_Position = vec4(position, 0.0, 1.0);
+}
+''',
+  code: '''
+#version 460 core
+precision highp float;
+in vec2 v_uv;
+layout(location = 0) out vec4 fragColor;
+void main() {
+    fragColor = vec4(v_uv, 0.5, 1.0);
+}
+''',
+  vertexCount: 3,
+  customVertices: Float32List.fromList(<double>[
+    0.0, 0.6,
+    -0.6, -0.4,
+    0.6, -0.4,
+  ]),
+);
+```
+
+#### Layering & Channel Flexibility
+- **Layering Over ShaderToy**: Render a ShaderToy procedural background in `Buffer A`, and layer a custom moving mesh in the `Image` pass with `BufferChannel(bufferIndex: 0)`.
+- **Texture-Mapping ShaderToy**: Project any procedural ShaderToy animation directly onto custom geometry faces with UV mapping (`texture(iChannel0, v_uv)`).
+- **Deforming Live Widgets**: Pass a `WidgetChannel` into a custom vertex/fragment pass to bend or wave live interactive Flutter UI via GPU vertex displacement.
+
 ---
 
 ## Example Applications
 
-The package includes two feature-packed example applications in the `example` folder:
+The package includes three runnable example suites in the `example` folder:
 
 ### 1. Shader Studio (`example/lib/studio_example/main.dart`)
 
@@ -346,6 +393,21 @@ To run the widget showcase:
 ```bash
 cd example
 flutter run -t lib/widget_example/main.dart
+```
+
+### 3. Custom Vertex & Fragment Shader Examples (`example/lib/examples/main.dart`)
+
+Focused, minimalist examples with full-screen `ShaderViewport`s and inlined vertex and fragment GLSL:
+
+- **Moving Triangle Over ShaderToy Background** (`example/lib/examples/custom_moving_triangle_example.dart`): Moving geometry orbiting above an animated ShaderToy plasma background.
+- **Custom Mesh Wavy Flutter Widget** (`example/lib/examples/custom_mesh_widget_example.dart`): Deforming a live interactive Flutter widget via custom sinusoidal vertex displacement.
+- **ShaderToy Inside Custom Triangle Mesh** (`example/lib/examples/shadertoy_inside_custom_triangle_example.dart`): Texture-mapping a procedural ShaderToy kaleidoscope animation onto a rotating triangle mesh.
+
+To run the custom shader examples launcher:
+
+```bash
+cd example
+flutter run -t lib/examples/main.dart
 ```
 
 ---

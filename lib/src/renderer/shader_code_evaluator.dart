@@ -5,19 +5,29 @@ import 'dart:ui' as ui;
 
 import '../channels/audio_texture_provider.dart';
 import '../core/common_uniforms.dart';
+import '../core/shader_pass.dart';
 
 /// Evaluates and extracts parameters and visual expressions from GLSL `mainImage` code.
 class ShaderCodeEvaluator {
   /// Validates GLSL shader code syntax and returns an error description if invalid, or null if valid.
-  static String? validate(String code) {
+  static String? validate(
+    String code, {
+    ShaderPassMode mode = ShaderPassMode.shaderToy,
+  }) {
     final trimmed = code.trim();
     if (trimmed.isEmpty) {
       return 'Empty shader code';
     }
 
-    // 1. Must contain entry point mainImage
-    if (!trimmed.contains('mainImage')) {
-      return 'Missing mainImage function';
+    // 1. Must contain appropriate entry point
+    if (mode == ShaderPassMode.shaderToy) {
+      if (!trimmed.contains('mainImage') && !trimmed.contains('mainSound')) {
+        return 'Missing mainImage function';
+      }
+    } else {
+      if (!trimmed.contains('main')) {
+        return 'Missing main function';
+      }
     }
 
     // 2. Check balanced braces, parentheses, and brackets while ignoring comments/strings

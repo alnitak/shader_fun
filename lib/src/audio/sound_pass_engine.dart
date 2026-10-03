@@ -121,7 +121,9 @@ class SoundPassEngine {
 
   /// Renders a 256x256 chunk at the current [_currentBlockOffset] and pushes to SoLoud.
   Future<void> _renderAndPushNextChunk() async {
-    if (_isRenderingChunk || _activeSoundPass == null || _renderer == null) return;
+    if (_isRenderingChunk || _activeSoundPass == null || _renderer == null) {
+      return;
+    }
     _isRenderingChunk = true;
 
     try {

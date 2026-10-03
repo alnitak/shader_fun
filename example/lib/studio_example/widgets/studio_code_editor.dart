@@ -103,9 +103,11 @@ class GlslCodeController extends CodeController {
     final lines = code.lines;
 
     // Filter out parentheses and brackets folding - only keep braces and comments
-    blocks.removeWhere((b) =>
-        b.type == FoldableBlockType.parentheses ||
-        b.type == FoldableBlockType.brackets);
+    blocks.removeWhere(
+      (b) =>
+          b.type == FoldableBlockType.parentheses ||
+          b.type == FoldableBlockType.brackets,
+    );
 
     for (int i = 0; i < blocks.length; i++) {
       final b = blocks[i];
@@ -159,10 +161,9 @@ class StudioCodeEditor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final glslController =
-        codeController is GlslCodeController
-            ? codeController as GlslCodeController
-            : null;
+    final glslController = codeController is GlslCodeController
+        ? codeController as GlslCodeController
+        : null;
 
     Widget buildCodeField([int? loadCount]) {
       return CodeField(
@@ -263,8 +264,9 @@ class StudioCodeEditor extends StatelessWidget {
                           : const Color(0xFFEF4444),
                       fontSize: 11,
                       fontFamily: 'monospace',
-                      fontWeight:
-                          compileSuccess ? FontWeight.normal : FontWeight.bold,
+                      fontWeight: compileSuccess
+                          ? FontWeight.normal
+                          : FontWeight.bold,
                     ),
                   ),
                 ),

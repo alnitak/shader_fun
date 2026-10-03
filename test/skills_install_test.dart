@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../bin/skills.dart';
@@ -52,9 +53,7 @@ void main() {
 
         expect(
           result,
-          contains(
-            'Installed 10 shader_fun agent skills into .agents/skills.',
-          ),
+          contains('Installed 10 shader_fun agent skills into .agents/skills.'),
         );
 
         for (final skillName in [
@@ -140,9 +139,7 @@ void main() {
       expect(plan.updateCount, 1);
       expect(
         describeSkillPlan(plan),
-        contains(
-          '1 shader_fun agent skill(s) have a newer version available',
-        ),
+        contains('1 shader_fun agent skill(s) have a newer version available'),
       );
 
       // Re-installing updates it

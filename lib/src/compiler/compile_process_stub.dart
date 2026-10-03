@@ -9,6 +9,7 @@ Future<CompileResult> runImpellerCompile({
   String? rawCommonGlsl,
   Map<String, int>? customUniformSlots,
   PassType passType = PassType.image,
+  ShaderPassMode mode = ShaderPassMode.shaderToy,
 }) async {
   return const CompileResult.error(
     'Runtime shader compilation is not supported on this platform. '

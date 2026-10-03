@@ -92,6 +92,7 @@ Future<CompileResult> runImpellerCompile({
   String? rawCommonGlsl,
   Map<String, int>? customUniformSlots,
   PassType passType = PassType.image,
+  ShaderPassMode mode = ShaderPassMode.shaderToy,
 }) async {
   final impellerc = customImpellercPath ?? ImpellerCompiler.findImpellerc();
   if (impellerc == null) {

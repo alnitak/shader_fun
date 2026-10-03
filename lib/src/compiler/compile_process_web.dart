@@ -39,7 +39,8 @@ String _wrapShaderGlslWeb({
     RegExp(r'//.*$|/\*[\s\S]*?\*/', multiLine: true),
     '',
   );
-  final isSound = passType == PassType.sound ||
+  final isSound =
+      passType == PassType.sound ||
       (passType != PassType.common &&
           !cleanUserCode.contains('mainImage') &&
           cleanUserCode.contains('mainSound'));
@@ -173,11 +174,11 @@ $sanitizedUserGlsl
 ''');
 
   if (isSound) {
-    final bool takesSamp = RegExp(
-      r'\bmainSound\s*\(\s*(in\s+)?int\b',
-    ).hasMatch(cleanUserCode);
-    final callMainSound =
-        takesSamp ? 'mainSound(samp, time)' : 'mainSound(time)';
+    final bool takesSamp = RegExp(r'\bmainSound\s*\(\s*(in\s+)?int\b')
+        .hasMatch(cleanUserCode);
+    final callMainSound = takesSamp
+        ? 'mainSound(samp, time)'
+        : 'mainSound(time)';
 
     sb.writeln('''
 void main() {
@@ -290,10 +291,12 @@ int _buildBackendShader(
 }) {
   final entrypointOffset = b.writeString(entrypoint);
   final inputsOffset = inputOffsets != null ? b.writeList(inputOffsets) : null;
-  final structsOffset =
-      structOffsets != null ? b.writeList(structOffsets) : null;
-  final texturesOffset =
-      textureOffsets != null ? b.writeList(textureOffsets) : null;
+  final structsOffset = structOffsets != null
+      ? b.writeList(structOffsets)
+      : null;
+  final texturesOffset = textureOffsets != null
+      ? b.writeList(textureOffsets)
+      : null;
   final shaderOffset = b.writeListUint8(sourceBytes);
 
   b.startTable(6);
@@ -338,30 +341,52 @@ Uint8List _buildWebShaderBundle({
   final vertBytes = Uint8List.fromList(utf8.encode(vertexGlsl));
   final fragBytes = Uint8List.fromList(utf8.encode(fragmentGlsl));
 
-  // 1. Vertex inputs for QuadVertex: position attribute (location 0, vecSize 2)
-  final vertInputOffset = _buildInput(
-    b,
-    name: 'position',
-    location: 0,
-    vecSize: 2,
-    offset: 0,
-  );
+  // 1. Vertex inputs: dynamically parsed from vertexGlsl, or default to position (vec2)
+  final inputOffsets = <int>[];
+  final inputMatches = RegExp(
+    r'(?:layout\s*\(\s*location\s*=\s*(\d+)\s*\)\s*)?in\s+(float|vec2|vec3|vec4)\s+([A-Za-z0-9_]+)\s*;',
+  ).allMatches(vertexGlsl);
 
-  // 2. Vertex BackendShader
-  final vertBackendOffset = _buildBackendShader(
-    b,
-    stage: sbg.ShaderStage.kVertex,
-    entrypoint: 'main',
-    sourceBytes: vertBytes,
-    inputOffsets: [vertInputOffset],
-  );
-  final vertShaderOffset = _buildShader(
-    b,
-    name: 'QuadVertex',
-    backendOffset: vertBackendOffset,
-  );
+  if (inputMatches.isNotEmpty) {
+    int currentOffset = 0;
+    int fallbackLocation = 0;
+    for (final m in inputMatches) {
+      final locStr = m.group(1);
+      final location = locStr != null ? int.parse(locStr) : fallbackLocation;
+      final typeStr = m.group(2)!;
+      final name = m.group(3)!;
+      final int vecSize = switch (typeStr) {
+        'float' => 1,
+        'vec2' => 2,
+        'vec3' => 3,
+        'vec4' => 4,
+        _ => 2,
+      };
+      inputOffsets.add(
+        _buildInput(
+          b,
+          name: name,
+          location: location,
+          vecSize: vecSize,
+          offset: currentOffset,
+        ),
+      );
+      currentOffset += vecSize * 4;
+      fallbackLocation++;
+    }
+  } else {
+    inputOffsets.add(
+      _buildInput(
+        b,
+        name: 'position',
+        location: 0,
+        vecSize: 2,
+        offset: 0,
+      ),
+    );
+  }
 
-  // 3. Fragment Uniform Struct: FrameInfo (std140 layout matching ShaderUniforms)
+  // 2. Uniform Struct: FrameInfo (std140 layout matching ShaderUniforms)
   final frameInfoFields = [
     _buildField(
       b,
@@ -445,18 +470,43 @@ Uint8List _buildWebShaderBundle({
     fieldOffsets: frameInfoFields,
   );
 
+  // 3. Vertex BackendShader
+  final vertStructs =
+      (vertexGlsl.contains('FrameInfo') || vertexGlsl.contains('iTime'))
+      ? [uniformStructOffset]
+      : null;
+  final vertBackendOffset = _buildBackendShader(
+    b,
+    stage: sbg.ShaderStage.kVertex,
+    entrypoint: 'main',
+    sourceBytes: vertBytes,
+    inputOffsets: inputOffsets,
+    structOffsets: vertStructs,
+  );
+  final vertShaderOffset = _buildShader(
+    b,
+    name: 'QuadVertex',
+    backendOffset: vertBackendOffset,
+  );
+
   // 4. Fragment Uniform Textures (iChannel0..3)
   final texOffsets = channelIndices
       .map((ch) => _buildTexture(b, name: 'iChannel$ch', binding: ch))
       .toList();
 
   // 5. Fragment BackendShader
+  final fragUsesFrameInfo =
+      fragmentGlsl.contains('FrameInfo') ||
+      fragmentGlsl.contains('iTime') ||
+      fragmentGlsl.contains('iResolution');
+  final fragStructs = fragUsesFrameInfo ? [uniformStructOffset] : null;
+
   final fragBackendOffset = _buildBackendShader(
     b,
     stage: sbg.ShaderStage.kFragment,
     entrypoint: 'main',
     sourceBytes: fragBytes,
-    structOffsets: [uniformStructOffset],
+    structOffsets: fragStructs,
     textureOffsets: texOffsets,
   );
   final fragShaderOffset = _buildShader(
@@ -513,6 +563,7 @@ Future<CompileResult> runImpellerCompile({
   String? rawCommonGlsl,
   Map<String, int>? customUniformSlots,
   PassType passType = PassType.image,
+  ShaderPassMode mode = ShaderPassMode.shaderToy,
 }) async {
   try {
     final userCode = rawUserGlsl ?? wrappedFragGlsl;
@@ -528,16 +579,82 @@ Future<CompileResult> runImpellerCompile({
       }
     }
 
-    final fragGlslWeb = _wrapShaderGlslWeb(
-      userGlsl: userCode,
-      commonGlsl: rawCommonGlsl,
-      declaredChannels: declaredChannels,
-      customUniformSlots: customUniformSlots,
-      passType: passType,
-    );
+    final String vertGlslWeb;
+    final String fragGlslWeb;
+
+    if (mode == ShaderPassMode.custom) {
+      String adaptToWebGlsl(String glsl, {bool isVertex = false}) {
+        var res = glsl;
+        if (res.contains('#version 460 core')) {
+          res = res.replaceFirst(
+            '#version 460 core',
+            '#version 300 es\nprecision highp float;\nprecision highp int;\n',
+          );
+        } else if (!res.contains('#version 300 es')) {
+          res =
+              '#version 300 es\nprecision highp float;\nprecision highp int;\n$res';
+        }
+        if (isVertex && !res.contains('_impeller_y_flip')) {
+          res = res.replaceFirst(
+            '#version 300 es\n',
+            '#version 300 es\nuniform float _impeller_y_flip;\n',
+          );
+        }
+
+        // Clean layout qualifiers for WebGL2:
+        // Strip `set = X` and `binding = Y` which are not supported in GLSL ES 3.00.
+        res = res.replaceAllMapped(
+          RegExp(r'layout\s*\(([^)]*)\)', multiLine: true),
+          (match) {
+            final content = match.group(1)!;
+            final qualifiers = content
+                .split(',')
+                .map((q) => q.trim())
+                .where((q) => q.isNotEmpty)
+                .toList();
+
+            final validQualifiers = qualifiers.where((q) {
+              final lower = q.toLowerCase();
+              return !lower.startsWith('set') && !lower.startsWith('binding');
+            }).toList();
+
+            if (validQualifiers.isEmpty) {
+              return '';
+            }
+            return 'layout(${validQualifiers.join(', ')})';
+          },
+        );
+
+        // Ensure uniform blocks in WebGL2 have layout(std140)
+        res = res.replaceAllMapped(
+          RegExp(
+            r'(?:layout\s*\([^)]*\)\s*)?uniform\s+([A-Za-z0-9_]+)\s*\{',
+            multiLine: true,
+          ),
+          (match) {
+            final blockName = match.group(1)!;
+            return 'layout(std140) uniform $blockName {';
+          },
+        );
+
+        return res;
+      }
+
+      fragGlslWeb = adaptToWebGlsl(wrappedFragGlsl);
+      vertGlslWeb = adaptToWebGlsl(quadVertexShader, isVertex: true);
+    } else {
+      vertGlslWeb = _quadVertexGlslWeb;
+      fragGlslWeb = _wrapShaderGlslWeb(
+        userGlsl: userCode,
+        commonGlsl: rawCommonGlsl,
+        declaredChannels: declaredChannels,
+        customUniformSlots: customUniformSlots,
+        passType: passType,
+      );
+    }
 
     final bundleBytes = _buildWebShaderBundle(
-      vertexGlsl: _quadVertexGlslWeb,
+      vertexGlsl: vertGlslWeb,
       fragmentGlsl: fragGlslWeb,
       channelIndices: declaredChannels,
     );
