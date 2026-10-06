@@ -20,24 +20,45 @@ class _ShaderToyInsideCustomTriangleExampleState
 
   // Inlined ShaderToy procedural kaleidoscope / mandala animation in Buffer A
   static const String _kaleidoscopeFragGlsl = '''
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    vec2 p = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
-    float t = iTime * 0.4;
+/* This animation is the material of my first youtube tutorial about creative 
+   coding, which is a video in which I try to introduce programmers to GLSL 
+   and to the wonderful world of shaders, while also trying to share my recent 
+   passion for this community.
+                                       Video URL: https://youtu.be/f4s1h2YETNY
+*/
 
-    // Polar kaleidoscope coordinates
-    float r = length(p);
-    float a = atan(p.y, p.x);
-    float segments = 8.0;
-    a = mod(a, 6.28318 / segments) - 3.14159 / segments;
-    p = vec2(cos(a), sin(a)) * r;
+//https://iquilezles.org/articles/palettes/
+vec3 palette( float t ) {
+    vec3 a = vec3(0.5, 0.5, 0.5);
+    vec3 b = vec3(0.5, 0.5, 0.5);
+    vec3 c = vec3(1.0, 1.0, 1.0);
+    vec3 d = vec3(0.263,0.416,0.557);
 
-    // Hypnotic geometric patterns
-    float rings = sin(r * 20.0 - t * 4.0);
-    float spokes = cos(p.x * 15.0 + t * 2.0);
-    float val = smoothstep(0.1, 0.8, abs(rings * spokes));
+    return a + b*cos( 6.28318*(c*t+d) );
+}
 
-    vec3 col = 0.5 + 0.5 * cos(vec3(0.0, 1.0, 2.0) + r * 6.0 + t);
-    fragColor = vec4(col * val, 1.0);
+//https://www.shadertoy.com/view/mtyGWy
+void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+    vec2 uv = (fragCoord * 2.0 - iResolution.xy) / iResolution.y;
+    vec2 uv0 = uv;
+    vec3 finalColor = vec3(0.0);
+    
+    for (float i = 0.0; i < 4.0; i++) {
+        uv = fract(uv * 1.5) - 0.5;
+
+        float d = length(uv) * exp(-length(uv0));
+
+        vec3 col = palette(length(uv0) + i*.4 + iTime*.4);
+
+        d = sin(d*8. + iTime)/8.;
+        d = abs(d);
+
+        d = pow(0.01 / d, 1.2);
+
+        finalColor += col * d;
+    }
+        
+    fragColor = vec4(finalColor, 1.0);
 }
 ''';
 

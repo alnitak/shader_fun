@@ -14,7 +14,7 @@ class CustomMeshWidgetExample extends StatefulWidget {
 
 class _CustomMeshWidgetExampleState extends State<CustomMeshWidgetExample> {
   late final ShaderController _controller;
-  int _counter = 0;
+  double _sliderValue = 0.5;
 
   // Inlined custom vertex shader: applies an animated sinusoidal wave deformation
   static const String _wavyVertexGlsl = '''
@@ -43,7 +43,7 @@ void main() {
 
     // Apply gentle undulating flag / wave deformation in vertex stage
     vec2 pos = position;
-    float wave = sin(pos.x * 3.5 + iTime * 2.5) * 0.08;
+    float wave = sin(pos.x * 3.5 + iTime * 2.5) * 0.1;
     pos.y += wave;
 
     gl_Position = vec4(pos, 0.0, 1.0);
@@ -112,63 +112,65 @@ void main() {
     return Material(
       color: Colors.transparent,
       child: Center(
-        child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: <Color>[Color(0xFF6A11CB), Color(0xFF2575FC)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Colors.black45,
-                blurRadius: 16,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(
-                Icons.auto_awesome,
-                color: Colors.amberAccent,
-                size: 44,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Live Flutter Widget in Custom Shader',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        child: StatefulBuilder(
+          builder: (BuildContext context, StateSetter setInnerState) {
+            return Container(
+              width: 320,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: <Color>[Color(0xFF6A11CB), Color(0xFF2575FC)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 16,
+                    offset: Offset(0, 8),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Taps: $_counter',
-                style: const TextStyle(color: Colors.white70, fontSize: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.amberAccent,
+                    size: 44,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Live Flutter Widget in Custom Shader',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Value: ${(_sliderValue * 100).round()}%',
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: _sliderValue,
+                    activeColor: Colors.white,
+                    inactiveColor: Colors.white30,
+                    thumbColor: Colors.white,
+                    onChanged: (double value) {
+                      setInnerState(() {
+                        _sliderValue = value;
+                      });
+                    },
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _counter++;
-                  });
-                },
-                icon: const Icon(Icons.touch_app),
-                label: const Text('Interact & Tap'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF2575FC),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

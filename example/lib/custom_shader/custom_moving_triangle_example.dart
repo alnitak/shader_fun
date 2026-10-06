@@ -3,8 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:shader_fun/shader_fun.dart';
 
-/// Example demonstrating a custom vertex & fragment shader pass layered over
-/// a ShaderToy procedural background.
+/// Example demonstrating a custom vertex & fragment shader pass.
 class CustomMovingTriangleExample extends StatefulWidget {
   /// Creates a [CustomMovingTriangleExample].
   const CustomMovingTriangleExample({super.key});

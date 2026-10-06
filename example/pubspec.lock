@@ -263,10 +263,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_scene
-      sha256: "1cc32b5ed0d05296c1f7958e63168a750c05c2373d6769ad9b9eaa973b2f97fe"
+      sha256: f7d3e3648509dd0dcf2a2f131ae4a68ccbcc97987daff6ca2283a3826b7abc8e
       url: "https://pub.dev"
     source: hosted
-    version: "0.23.0"
+    version: "0.24.0"
   flutter_soloud:
     dependency: transitive
     description:
@@ -593,10 +593,10 @@ packages:
     dependency: transitive
     description:
       name: scene
-      sha256: f14dd23ea3858041b644ec4824eca5cae817b42aca03c5ed2efcf1afa003d554
+      sha256: "2e80649db2f492eed634a656efb924b43ec8b02a985f92a21d86ab2591583f30"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.0"
+    version: "0.4.1"
   scrollable_positioned_list:
     dependency: transitive
     description:
@@ -616,10 +616,10 @@ packages:
     dependency: "direct main"
     description:
       name: shared_preferences
-      sha256: c3025c5534b01739267eb7d76959bbc25a6d10f6988e1c2a3036940133dd10bf
+      sha256: "1e85e0dccf5b4a016077fea7dfbb4a7cb39c759ac1596fcf60c06deadb7da91f"
       url: "https://pub.dev"
     source: hosted
-    version: "2.5.5"
+    version: "2.5.6"
   shared_preferences_android:
     dependency: transitive
     description:

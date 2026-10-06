@@ -235,7 +235,6 @@ void main() {
 
     _controller = ShaderController(
       autoPlay: true,
-      initialResolution: Size(48, 48),
       initialProject: ShaderProject(passes: <ShaderPass>[cubePass]),
     );
   }
@@ -250,11 +249,7 @@ void main() {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF101018),
-      body: Stack(
-        children: <Widget>[
-          ShaderViewport(controller: _controller, showControls: false),
-        ],
-      ),
+      body: Stack(children: <Widget>[ShaderViewport(controller: _controller)]),
     );
   }
 }
