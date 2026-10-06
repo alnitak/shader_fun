@@ -45,10 +45,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
-dependency_overrides:
-  # Waiting for flutter_scene 0.24.0 to remove this
-  code_assets: ^2.0.0
-
 flutter:
   assets:
     - flutter_scene_generated/
