@@ -16,7 +16,6 @@ platforms:
 topics:
   - shaders
   - shadertoy
-  - GPU sound
 
 environment:
   sdk: ^3.13.2
