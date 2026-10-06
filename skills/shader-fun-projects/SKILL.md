@@ -58,6 +58,23 @@ final project = ShaderProject(
 await controller.loadProject(project);
 ```
 
+### Custom Vertex & Fragment Pass Configuration
+```dart
+final customPass = ShaderPass(
+  name: 'Custom Triangle',
+  type: PassType.image,
+  mode: ShaderPassMode.custom, // bypasses Shadertoy wrapper
+  vertexCode: myCustomVertexGlsl,
+  code: myCustomFragmentGlsl,
+  vertexCount: 3,
+  customVertices: Float32List.fromList([
+    0.0, 0.6,
+    -0.6, -0.4,
+    0.6, -0.4,
+  ]),
+);
+```
+
 ---
 
 ## 2. Loading from JSON & Flutter Assets

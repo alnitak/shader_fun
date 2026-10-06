@@ -32,6 +32,9 @@ abstract class ShaderChannel {
 
   ChannelType get type;
 
+  /// Optional display or uniform name for this channel.
+  String get name => '';
+
   /// Returns the width and height of this channel.
   ui.Size get resolution;
 
@@ -70,6 +73,7 @@ class TextureChannel extends ShaderChannel {
   String? get assetPath => src;
 
   final Uint8List? imageBytes;
+  @override
   final String name;
   ui.Size _resolution;
   ui.Image? cachedImage;
@@ -198,6 +202,7 @@ class CubeMapChannel extends ShaderChannel {
   });
 
   final List<String> assetPaths;
+  @override
   final String name;
 
   @override
@@ -305,6 +310,7 @@ class WidgetChannel extends ShaderChannel {
   final Widget child;
 
   /// Display name of the channel in the studio/inspector UI.
+  @override
   final String name;
 
   /// Logical width in points for layout and rasterization of [child].

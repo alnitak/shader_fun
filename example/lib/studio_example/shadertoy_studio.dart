@@ -50,9 +50,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   @override
   void initState() {
     super.initState();
-    _codeEditorController = GlslCodeController(
-      language: glsl,
-    );
+    _codeEditorController = GlslCodeController(language: glsl);
     _controller = ShaderController(
       initialProject: widget.initialProject ?? ShaderProject.empty(),
       vsync: this,
@@ -76,8 +74,8 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
 
   void _syncCodeWithActivePass() {
     final pass = _controller.activePass;
-    if (pass != null && _codeEditorController.text != pass.code) {
-      _codeEditorController.text = pass.code;
+    if (pass != null) {
+      _codeEditorController.loadCode(pass.code);
     }
   }
 

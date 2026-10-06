@@ -52,6 +52,24 @@ void main() {
     multiLine: true,
   );
 
+  static final RegExp _frameInfoDeclRegex = RegExp(
+    r'uniform\s+FrameInfo\s*\{[^}]*\}\s*;',
+    multiLine: true,
+  );
+
+  static final RegExp _frameInfoMembersRegex = RegExp(
+    r'\b(iResolution|iTime|iTimeDelta|iFrameRate|iFrame|iMouse|iDate|iSampleRate|iChannelResolution|iCustom)\b',
+  );
+
+  /// Returns true if [code] references any FrameInfo uniform member outside of
+  /// comments and the uniform block declaration itself.
+  static bool shaderUsesFrameInfo(String code) {
+    final clean = code
+        .replaceAll(_commentRegex, '')
+        .replaceAll(_frameInfoDeclRegex, '');
+    return _frameInfoMembersRegex.hasMatch(clean);
+  }
+
   /// Returns true if [code] references `iChannel$channelIndex` outside of comments.
   static bool shaderUsesChannel(String code, int channelIndex) {
     final clean = code.replaceAll(_commentRegex, '');
@@ -415,8 +433,11 @@ $sanitizedUserGlsl
 ''');
 
     final cleanCode = sanitizedUserGlsl.replaceAll(_commentRegex, '');
-    final bool takesSamp = RegExp(r'\bmainSound\s*\(\s*(in\s+)?int\b').hasMatch(cleanCode);
-    final callMainSound = takesSamp ? 'mainSound(samp, time)' : 'mainSound(time)';
+    final bool takesSamp = RegExp(r'\bmainSound\s*\(\s*(in\s+)?int\b')
+        .hasMatch(cleanCode);
+    final callMainSound = takesSamp
+        ? 'mainSound(samp, time)'
+        : 'mainSound(time)';
 
     sb.writeln('''
 void main() {
@@ -446,11 +467,49 @@ void main() {
   /// or [CompileResult.error] with the exact compiler diagnostics from `stderr`.
   static Future<CompileResult> compile({
     required String shaderGlsl,
+    String? vertexGlsl,
     String? commonGlsl,
     String? customImpellercPath,
     Map<String, int>? customUniformSlots,
     PassType passType = PassType.image,
+    ShaderPassMode mode = ShaderPassMode.shaderToy,
   }) {
+    if (mode == ShaderPassMode.custom) {
+      String prepareCustomGlsl(String glsl) {
+        final trimmed = glsl.trim();
+        final hasVersion = trimmed.startsWith('#version');
+        final versionLine = hasVersion ? '' : '#version 460 core\n';
+        final commonPart = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+            ? '$commonGlsl\n'
+            : '';
+        if (hasVersion) {
+          final newlineIndex = trimmed.indexOf('\n');
+          if (newlineIndex != -1) {
+            final firstLine = trimmed.substring(0, newlineIndex + 1);
+            final rest = trimmed.substring(newlineIndex + 1);
+            return '$firstLine$commonPart$rest';
+          }
+        }
+        return '$versionLine$commonPart$trimmed';
+      }
+
+      final customFrag = prepareCustomGlsl(shaderGlsl);
+      final customVert = (vertexGlsl != null && vertexGlsl.trim().isNotEmpty)
+          ? prepareCustomGlsl(vertexGlsl)
+          : quadVertexShader;
+
+      return runImpellerCompile(
+        quadVertexShader: customVert,
+        wrappedFragGlsl: customFrag,
+        customImpellercPath: customImpellercPath,
+        rawUserGlsl: shaderGlsl,
+        rawCommonGlsl: commonGlsl,
+        customUniformSlots: customUniformSlots,
+        passType: passType,
+        mode: mode,
+      );
+    }
+
     final wrapped = passType == PassType.sound
         ? wrapSoundShaderGlsl(
             shaderGlsl,
@@ -463,13 +522,16 @@ void main() {
             customUniformSlots: customUniformSlots,
           );
     return runImpellerCompile(
-      quadVertexShader: quadVertexShader,
+      quadVertexShader: (vertexGlsl != null && vertexGlsl.trim().isNotEmpty)
+          ? vertexGlsl
+          : quadVertexShader,
       wrappedFragGlsl: wrapped,
       customImpellercPath: customImpellercPath,
       rawUserGlsl: shaderGlsl,
       rawCommonGlsl: commonGlsl,
       customUniformSlots: customUniformSlots,
       passType: passType,
+      mode: mode,
     );
   }
 

@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_initializing_formals
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -303,7 +304,29 @@ vec2 mainSound( int samp, float time ) {
           break;
       }
 
-      final pass = ShaderPass(type: type, name: passName, code: code);
+      final modeStr = rawPass['mode']?.toString().toLowerCase();
+      final mode = modeStr == 'custom'
+          ? ShaderPassMode.custom
+          : ShaderPassMode.shaderToy;
+      final vertexCode = rawPass['vertexCode']?.toString();
+      final vertexCount = rawPass['vertexCount'] as int?;
+      Float32List? customVertices;
+      if (rawPass['customVertices'] is List) {
+        final list = (rawPass['customVertices'] as List)
+            .map((e) => (e as num).toDouble())
+            .toList();
+        customVertices = Float32List.fromList(list);
+      }
+
+      final pass = ShaderPass(
+        type: type,
+        name: passName,
+        code: code,
+        vertexCode: vertexCode,
+        mode: mode,
+        vertexCount: vertexCount,
+        customVertices: customVertices,
+      );
 
       // Parse iChannel inputs
       final rawInputs = rawPass['inputs'] as List<dynamic>? ?? [];
@@ -559,7 +582,7 @@ vec2 mainSound( int samp, float time ) {
         passTypeStr = 'sound';
       }
 
-      renderpassList.add({
+      final passMap = <String, dynamic>{
         'inputs': inputs,
         'outputs': [
           {'id': 37, 'channel': 0},
@@ -568,7 +591,21 @@ vec2 mainSound( int samp, float time ) {
         'name': pass.name,
         'description': '',
         'type': passTypeStr,
-      });
+      };
+      if (pass.mode != ShaderPassMode.shaderToy) {
+        passMap['mode'] = pass.mode.name;
+      }
+      if (pass.vertexCode != null && pass.vertexCode!.isNotEmpty) {
+        passMap['vertexCode'] = pass.vertexCode;
+      }
+      if (pass.vertexCount != 6) {
+        passMap['vertexCount'] = pass.vertexCount;
+      }
+      if (pass.customVertices != null) {
+        passMap['customVertices'] = pass.customVertices!.toList();
+      }
+
+      renderpassList.add(passMap);
     }
 
     return {

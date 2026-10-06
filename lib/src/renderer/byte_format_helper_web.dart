@@ -39,14 +39,14 @@ Future<Uint8List?> extractSoundPassPcmBytes(
         0,
       );
 
-      final status =
-          gl.checkFramebufferStatus(web.WebGL2RenderingContext.FRAMEBUFFER);
+      final status = gl.checkFramebufferStatus(
+        web.WebGL2RenderingContext.FRAMEBUFFER,
+      );
       if (status != web.WebGL2RenderingContext.FRAMEBUFFER_COMPLETE) {
         return null;
       }
 
-      final isFloat =
-          soundTexture.format == gpu.PixelFormat.r32g32b32a32Float;
+      final isFloat = soundTexture.format == gpu.PixelFormat.r32g32b32a32Float;
       if (isFloat) {
         final jsArray = JSFloat32Array.withLength(width * height * 4);
         gl.readPixels(

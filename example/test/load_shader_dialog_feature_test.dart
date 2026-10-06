@@ -9,8 +9,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('LoadShaderDialog Feature Badges', () {
-    testWidgets('shows GPU sound badge when shader project has sound pass',
-        (tester) async {
+    testWidgets('shows GPU sound badge when shader project has sound pass', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -48,11 +49,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
-            home: Scaffold(
-              body: LoadShaderDialog(
-                onLoadProject: (_) {},
-              ),
-            ),
+            home: Scaffold(body: LoadShaderDialog(onLoadProject: (_) {})),
           ),
         );
 

@@ -54,8 +54,8 @@ class ShaderController
     _bindAudioChannelListener();
     _initProjectChannels();
 
-    // Perform initial compilation in background
-    compile();
+    // Perform initial compilation in background for all passes
+    compileAllPasses();
   }
 
   TickerProvider? _vsync;
@@ -122,6 +122,9 @@ class ShaderController
   /// to the active pass.
   /// Captures compiler error diagnostics from `stderr` on failure.
   Future<bool> compile({String? sourceCode}) async {
+    if (sourceCode == null && _project.passes.length > 1) {
+      return compileAllPasses();
+    }
     final pass = activePass ?? _project.imagePass;
     final codeToCompile = sourceCode ?? pass?.code ?? '';
     if (codeToCompile.trim().isEmpty) {
@@ -162,10 +165,22 @@ class ShaderController
           _uniforms.registerCustomUniformSlot(u.name, u.slot);
         }
 
+        if (pass.vertexCode != null && pass.vertexCode!.isNotEmpty) {
+          final declaredVertUniforms = ImpellerCompiler.extractCustomUniforms(
+            pass.vertexCode!,
+            existingSlots: _uniforms.customSlots,
+          );
+          for (final u in declaredVertUniforms) {
+            _uniforms.registerCustomUniformSlot(u.name, u.slot);
+          }
+        }
+
         final result = await ImpellerCompiler.compile(
           shaderGlsl: pass.code,
+          vertexGlsl: pass.vertexCode,
           commonGlsl: commonCode,
           passType: pass.type,
+          mode: pass.mode,
           customUniformSlots: _uniforms.customSlots,
         );
         if (!result.isSuccess) {
@@ -216,9 +231,15 @@ class ShaderController
 
   /// Compiles an individual [ShaderPass] without recompiling unaffected passes.
   /// If [codeOverride] is specified, it compiles that code and updates [pass.code].
-  Future<bool> compilePass(ShaderPass? pass, {String? codeOverride}) async {
+  /// If [vertexCodeOverride] is specified, it updates [pass.vertexCode].
+  Future<bool> compilePass(
+    ShaderPass? pass, {
+    String? codeOverride,
+    String? vertexCodeOverride,
+  }) async {
     final targetPass = pass ?? activePass;
     final codeToCompile = codeOverride ?? targetPass?.code;
+    final vertexCodeToCompile = vertexCodeOverride ?? targetPass?.vertexCode;
     if (codeToCompile == null || codeToCompile.trim().isEmpty) {
       return false;
     }
@@ -239,10 +260,22 @@ class ShaderController
         _uniforms.registerCustomUniformSlot(u.name, u.slot);
       }
 
+      if (vertexCodeToCompile != null && vertexCodeToCompile.isNotEmpty) {
+        final declaredVertUniforms = ImpellerCompiler.extractCustomUniforms(
+          vertexCodeToCompile,
+          existingSlots: _uniforms.customSlots,
+        );
+        for (final u in declaredVertUniforms) {
+          _uniforms.registerCustomUniformSlot(u.name, u.slot);
+        }
+      }
+
       final result = await ImpellerCompiler.compile(
         shaderGlsl: codeToCompile,
+        vertexGlsl: vertexCodeToCompile,
         commonGlsl: commonCode,
         passType: targetPass?.type ?? PassType.image,
+        mode: targetPass?.mode ?? ShaderPassMode.shaderToy,
         customUniformSlots: _uniforms.customSlots,
       );
       if (!result.isSuccess) {
@@ -257,6 +290,9 @@ class ShaderController
 
       if (targetPass != null) {
         targetPass.code = codeToCompile;
+        if (vertexCodeOverride != null) {
+          targetPass.vertexCode = vertexCodeOverride;
+        }
       }
 
       lastErrorNotifier.value = null;

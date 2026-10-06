@@ -321,6 +321,7 @@ class MicAudioChannel extends AudioChannel {
     super.vflip = false,
   });
 
+  @override
   final String name;
   final double micGain;
   StreamSubscription<rec.AudioVisualizationData>? _vizSubscription;

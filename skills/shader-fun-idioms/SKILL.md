@@ -130,6 +130,54 @@ All passes (except `common`) automatically receive standard Shadertoy uniforms:
 
 ---
 
+## Custom Vertex & Fragment Shaders (`ShaderPassMode.custom`)
+
+By default, every pass operates in `ShaderPassMode.shaderToy`, which wraps the fragment shader with the standard Shadertoy harness (`mainImage(out vec4 fragColor, in vec2 fragCoord)`) and renders a full-screen quad.
+
+When you need direct control over vertex processing, custom mesh geometry, or raw fragment shaders without Shadertoy conventions:
+1. Set `mode: ShaderPassMode.custom` on the `ShaderPass`.
+2. Provide `vertexCode` (GLSL vertex stage) and `code` (GLSL fragment stage) with standard `void main()` entry points.
+3. Optionally supply `customVertices: Float32List` (pairs of `x, y` coordinates) and set `vertexCount` (e.g., 3 for a single triangle).
+
+```dart
+final customPass = ShaderPass(
+  name: 'Moving Mesh',
+  type: PassType.image,
+  mode: ShaderPassMode.custom,
+  vertexCode: '''
+#version 460 core
+layout(location = 0) in vec2 position;
+out vec2 v_uv;
+void main() {
+    v_uv = position * 0.5 + 0.5;
+    gl_Position = vec4(position, 0.0, 1.0);
+}
+''',
+  code: '''
+#version 460 core
+precision highp float;
+in vec2 v_uv;
+layout(location = 0) out vec4 fragColor;
+void main() {
+    fragColor = vec4(v_uv, 0.5, 1.0);
+}
+''',
+  vertexCount: 3,
+  customVertices: Float32List.fromList([
+    0.0, 0.6,
+    -0.6, -0.4,
+    0.6, -0.4,
+  ]),
+);
+```
+
+### Key Capabilities
+- **Layer Custom Geometry over ShaderToy**: Render an animated ShaderToy background in Buffer A, then layer a custom vertex-animated mesh on top in the Image pass by binding `BufferChannel(0)` to `iChannel0`.
+- **Texture-Map ShaderToy inside Custom Geometry**: Render any ShaderToy procedural pattern into Buffer A, and sample `texture(iChannel0, v_uv)` in a custom mesh pass to project it onto rotating or deforming geometry.
+- **Deform Live Flutter Widgets**: Feed a `WidgetChannel` into a custom vertex/fragment pass to wave, bend, or curve live interactive Flutter widgets with GPU vertex displacement.
+
+---
+
 ## Execution Order Per Frame
 
 During each tick of the animation loop:
