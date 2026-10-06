@@ -1,3 +1,6 @@
+## 0.2.1
+- fix: regression of float32 render target support
+
 ## 0.2.0
 - added custom shader pass to use vertex and fragment shaders
 - added `lib/custom_shader` examples

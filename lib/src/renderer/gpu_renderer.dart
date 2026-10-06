@@ -83,14 +83,21 @@ class FlutterGpuRenderer {
   gpu.Texture? _createRenderTargetTexture(int w, int h) {
     if (!_isGpuAvailable) return null;
     try {
+      final supportsFloat32 = gpu.gpuContext.supportsTextureFormat(
+        gpu.PixelFormat.r32g32b32a32Float,
+        renderTarget: true,
+        shaderRead: true,
+      );
       final supportsFloat16 = gpu.gpuContext.supportsTextureFormat(
         gpu.PixelFormat.r16g16b16a16Float,
         renderTarget: true,
         shaderRead: true,
       );
-      final format = supportsFloat16
-          ? gpu.PixelFormat.r16g16b16a16Float
-          : gpu.PixelFormat.r8g8b8a8UNormInt;
+      final format = supportsFloat32
+          ? gpu.PixelFormat.r32g32b32a32Float
+          : (supportsFloat16
+              ? gpu.PixelFormat.r16g16b16a16Float
+              : gpu.PixelFormat.r8g8b8a8UNormInt);
 
       return gpu.gpuContext.createTexture(
         gpu.StorageMode.devicePrivate,

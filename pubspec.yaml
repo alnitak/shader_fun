@@ -3,7 +3,7 @@ description: >-
   Run and experiment with Shadertoy GLSL shaders in Flutter. Features
   multi-pass ping-pong buffers, audio/mic reactive visualizers, and live
   interactive widget textures.
-version: 0.2.0
+version: 0.2.1
 homepage: https://github.com/alnitak/shader_fun
 maintainer: Marco Bavagnoli (@alnitak)
 platforms:
