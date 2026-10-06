@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flat_buffers/flat_buffers.dart' as fb;
 // ignore: implementation_imports
 import 'package:flutter_scene/src/gpu/web/shader_bundle_generated.dart' as sbg;
-import 'package:shader_fun/src/compiler/compile_process_web.dart' as web_compiler;
+import 'package:shader_fun/src/compiler/compile_process_web.dart'
+    as web_compiler;
 import 'package:shader_fun/src/core/shader_pass.dart';
 
 int _buildInput(
@@ -247,10 +248,8 @@ void main() {
     },
   );
 
-  test(
-    'runImpellerCompile for Web adapts custom GLSL 460 shaders with set/binding and multi-attributes',
-    () async {
-      const vertGlsl = '''#version 460 core
+  test('runImpellerCompile for Web adapts custom GLSL 460 shaders with set/binding and multi-attributes', () async {
+    const vertGlsl = '''#version 460 core
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 
@@ -264,7 +263,7 @@ void main() {
 }
 ''';
 
-      const fragGlsl = '''#version 460 core
+    const fragGlsl = '''#version 460 core
 precision highp float;
 
 layout(std140, set = 0, binding = 0) uniform FrameInfo {
@@ -280,45 +279,44 @@ void main() {
 }
 ''';
 
-      final result = await web_compiler.runImpellerCompile(
-        quadVertexShader: vertGlsl,
-        wrappedFragGlsl: fragGlsl,
-        mode: ShaderPassMode.custom,
-      );
+    final result = await web_compiler.runImpellerCompile(
+      quadVertexShader: vertGlsl,
+      wrappedFragGlsl: fragGlsl,
+      mode: ShaderPassMode.custom,
+    );
 
-      expect(result.isSuccess, isTrue);
-      expect(result.bundleBytes, isNotNull);
+    expect(result.isSuccess, isTrue);
+    expect(result.bundleBytes, isNotNull);
 
-      final bundle = sbg.ShaderBundle(result.bundleBytes!);
-      expect(bundle.formatVersion, equals(2));
-      expect(bundle.shaders?.length, equals(2));
+    final bundle = sbg.ShaderBundle(result.bundleBytes!);
+    expect(bundle.formatVersion, equals(2));
+    expect(bundle.shaders?.length, equals(2));
 
-      final vert = bundle.shaders!.firstWhere((s) => s.name == 'QuadVertex');
-      final vertGlslDecoded = utf8.decode(vert.openglEs!.shader!);
-      expect(vertGlslDecoded, contains('#version 300 es'));
-      expect(vertGlslDecoded, contains('layout(std140) uniform FrameInfo'));
-      expect(vertGlslDecoded, isNot(contains('set = 0')));
-      expect(vertGlslDecoded, isNot(contains('binding = 0')));
+    final vert = bundle.shaders!.firstWhere((s) => s.name == 'QuadVertex');
+    final vertGlslDecoded = utf8.decode(vert.openglEs!.shader!);
+    expect(vertGlslDecoded, contains('#version 300 es'));
+    expect(vertGlslDecoded, contains('layout(std140) uniform FrameInfo'));
+    expect(vertGlslDecoded, isNot(contains('set = 0')));
+    expect(vertGlslDecoded, isNot(contains('binding = 0')));
 
-      // Verify two vertex attributes: position (vec3) at offset 0, normal (vec3) at offset 12
-      expect(vert.openglEs?.inputs?.length, equals(2));
-      expect(vert.openglEs?.inputs![0].name, equals('position'));
-      expect(vert.openglEs?.inputs![0].location, equals(0));
-      expect(vert.openglEs?.inputs![0].vecSize, equals(3));
-      expect(vert.openglEs?.inputs![0].offset, equals(0));
+    // Verify two vertex attributes: position (vec3) at offset 0, normal (vec3) at offset 12
+    expect(vert.openglEs?.inputs?.length, equals(2));
+    expect(vert.openglEs?.inputs![0].name, equals('position'));
+    expect(vert.openglEs?.inputs![0].location, equals(0));
+    expect(vert.openglEs?.inputs![0].vecSize, equals(3));
+    expect(vert.openglEs?.inputs![0].offset, equals(0));
 
-      expect(vert.openglEs?.inputs![1].name, equals('normal'));
-      expect(vert.openglEs?.inputs![1].location, equals(1));
-      expect(vert.openglEs?.inputs![1].vecSize, equals(3));
-      expect(vert.openglEs?.inputs![1].offset, equals(12));
+    expect(vert.openglEs?.inputs![1].name, equals('normal'));
+    expect(vert.openglEs?.inputs![1].location, equals(1));
+    expect(vert.openglEs?.inputs![1].vecSize, equals(3));
+    expect(vert.openglEs?.inputs![1].offset, equals(12));
 
-      final frag = bundle.shaders!.firstWhere((s) => s.name == 'ShaderFragment');
-      final fragGlslDecoded = utf8.decode(frag.openglEs!.shader!);
-      expect(fragGlslDecoded, contains('#version 300 es'));
-      expect(fragGlslDecoded, contains('layout(std140) uniform FrameInfo'));
-      expect(fragGlslDecoded, contains('uniform sampler2D iChannel0'));
-      expect(fragGlslDecoded, isNot(contains('binding = 0')));
-      expect(fragGlslDecoded, isNot(contains('set = 0')));
-    },
-  );
+    final frag = bundle.shaders!.firstWhere((s) => s.name == 'ShaderFragment');
+    final fragGlslDecoded = utf8.decode(frag.openglEs!.shader!);
+    expect(fragGlslDecoded, contains('#version 300 es'));
+    expect(fragGlslDecoded, contains('layout(std140) uniform FrameInfo'));
+    expect(fragGlslDecoded, contains('uniform sampler2D iChannel0'));
+    expect(fragGlslDecoded, isNot(contains('binding = 0')));
+    expect(fragGlslDecoded, isNot(contains('set = 0')));
+  });
 }

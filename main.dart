@@ -574,11 +574,23 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       _controller.setUniform('uWaveSpeed', _waveSpeed, passType: passType);
       _controller.setUniform('uChoppiness', _choppiness, passType: passType);
       _controller.setUniform('uFrequency', _frequency, passType: passType);
-      _controller.setUniform('uWaterClarity', _waterClarity, passType: passType);
-      _controller.setUniform('uSunElevation', _sunElevation, passType: passType);
+      _controller.setUniform(
+        'uWaterClarity',
+        _waterClarity,
+        passType: passType,
+      );
+      _controller.setUniform(
+        'uSunElevation',
+        _sunElevation,
+        passType: passType,
+      );
       _controller.setUniform('uSunAzimuth', _sunAzimuth, passType: passType);
       _controller.setUniform('uTurbulence', _turbulence, passType: passType);
-      _controller.setUniform('uFoamIntensity', _foamIntensity, passType: passType);
+      _controller.setUniform(
+        'uFoamIntensity',
+        _foamIntensity,
+        passType: passType,
+      );
       _controller.setUniform('uWindSpeed', _windSpeed, passType: passType);
       _controller.setUniform('uFogDensity', _fogDensity, passType: passType);
     }
@@ -665,9 +677,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       body: Stack(
         children: [
           // Fullscreen Shader Viewport
-          Positioned.fill(
-            child: ShaderViewport(controller: _controller),
-          ),
+          Positioned.fill(child: ShaderViewport(controller: _controller)),
 
           // Top-Left Title Overlay
           Positioned(
@@ -814,9 +824,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
               decoration: BoxDecoration(
                 color: const Color(0xFF0F172A).withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 boxShadow: const [
                   BoxShadow(
                     color: Colors.black54,

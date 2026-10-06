@@ -376,13 +376,7 @@ Uint8List _buildWebShaderBundle({
     }
   } else {
     inputOffsets.add(
-      _buildInput(
-        b,
-        name: 'position',
-        location: 0,
-        vecSize: 2,
-        offset: 0,
-      ),
+      _buildInput(b, name: 'position', location: 0, vecSize: 2, offset: 0),
     );
   }
 
