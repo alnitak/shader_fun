@@ -205,6 +205,12 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
             _compileShader,
         const SingleActivator(LogicalKeyboardKey.enter, control: true):
             _compileShader,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter, alt: true):
+            _compileShader,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter, meta: true):
+            _compileShader,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true):
+            _compileShader,
       },
       child: Column(
         children: [
@@ -266,16 +272,17 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
             ),
           ),
 
-          // 4. iChannel slots bar
-          ChannelBar(
-            pass: pass,
-            onOpenChannelPicker: _openChannelPicker,
-            onOpenChannelSettings: _openChannelSettings,
-            onChannelCleared: (slotIndex) {
-              _controller.setChannel(slotIndex, null);
-              _controller.renderSingleFrame();
-            },
-          ),
+          // 4. iChannel slots bar (hidden for Common pass to match Shadertoy)
+          if (pass?.type != PassType.common)
+            ChannelBar(
+              pass: pass,
+              onOpenChannelPicker: _openChannelPicker,
+              onOpenChannelSettings: _openChannelSettings,
+              onChannelCleared: (slotIndex) {
+                _controller.setChannel(slotIndex, null);
+                _controller.renderSingleFrame();
+              },
+            ),
         ],
       ),
     );

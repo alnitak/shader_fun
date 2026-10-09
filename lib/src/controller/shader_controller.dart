@@ -937,8 +937,19 @@ class ShaderController
     _lastTimestamp = currentSec;
 
     if (dt > 0.0 && dt < 0.5) {
-      _uniforms.time += dt;
-      _uniforms.timeDelta = dt;
+      final soundStreamTime = _soundPassEngine?.playbackTime;
+      if (soundStreamTime != null && soundStreamTime > 0.0) {
+        final audioDt = soundStreamTime - _uniforms.time;
+        if (audioDt > 0.0 && audioDt < 0.5) {
+          _uniforms.timeDelta = audioDt;
+        } else {
+          _uniforms.timeDelta = dt;
+        }
+        _uniforms.time = soundStreamTime;
+      } else {
+        _uniforms.time += dt;
+        _uniforms.timeDelta = dt;
+      }
       _uniforms.frame++;
 
       final currentFps = 1.0 / dt;

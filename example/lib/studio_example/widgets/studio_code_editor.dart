@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
 
@@ -89,6 +90,161 @@ class GlslCodeController extends CodeController {
   set value(TextEditingValue newValue) {
     super.value = newValue;
     _normalizeFoldableBlocks();
+  }
+
+  /// Inserts [str] into the editor text at current selection using standard
+  /// editing value diffing, bypassing [text] setter so [loadNotifier] is not
+  /// triggered, folding is preserved, and the scroll position does not reset to top.
+  @override
+  void insertStr(String str) {
+    final sel = selection;
+    if (sel.start < 0 || sel.end < 0) return;
+    final newText = text.replaceRange(sel.start, sel.end, str);
+    final len = str.length;
+    super.value = TextEditingValue(
+      text: newText,
+      selection: sel.copyWith(
+        baseOffset: sel.start + len,
+        extentOffset: sel.start + len,
+      ),
+    );
+  }
+
+  @override
+  void removeChar() {
+    if (selection.start < 1) return;
+    final sel = selection;
+    final newText = text.replaceRange(sel.start - 1, sel.start, '');
+    super.value = TextEditingValue(
+      text: newText,
+      selection: sel.copyWith(
+        baseOffset: sel.start - 1,
+        extentOffset: sel.start - 1,
+      ),
+    );
+  }
+
+  @override
+  void removeSelection() {
+    final sel = selection;
+    if (sel.start < 0 || sel.end < 0) return;
+    final newText = text.replaceRange(sel.start, sel.end, '');
+    super.value = TextEditingValue(
+      text: newText,
+      selection: sel.copyWith(
+        baseOffset: sel.start,
+        extentOffset: sel.start,
+      ),
+    );
+  }
+
+  @override
+  KeyEventResult onKey(KeyEvent event) {
+    // Intercept Tab to insert tab spaces (or indent/outdent) and prevent
+    // Flutter's FocusTraversalGroup from moving focus away from the editor.
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        if (HardwareKeyboard.instance.isShiftPressed) {
+          outdentSelection();
+        } else if (popupController.shouldShow) {
+          insertSelectedWord();
+        } else {
+          indentSelection();
+        }
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Route Numpad Enter through onEnterKeyAction (unless compile shortcuts with Alt/Cmd/Ctrl are held)
+    if (event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final isModPressed = HardwareKeyboard.instance.isAltPressed ||
+          HardwareKeyboard.instance.isMetaPressed ||
+          HardwareKeyboard.instance.isControlPressed;
+      if (!isModPressed) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          onEnterKeyAction();
+        }
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Intercept Home key to move caret to start of line (instead of scrolling to top of document)
+    if (event.logicalKey == LogicalKeyboardKey.home) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        _handleHomeKey();
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Intercept End key to move caret to end of line (instead of scrolling to bottom of document)
+    if (event.logicalKey == LogicalKeyboardKey.end) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        _handleEndKey();
+      }
+      return KeyEventResult.handled;
+    }
+
+    return super.onKey(event);
+  }
+
+  void _handleHomeKey() {
+    if (text.isEmpty) return;
+    final pos = selection.extentOffset.clamp(0, text.length);
+    final isDocBoundary = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    final int target;
+    if (isDocBoundary) {
+      target = 0;
+    } else {
+      final lineStart = pos > 0 ? text.lastIndexOf('\n', pos - 1) + 1 : 0;
+      var firstNonWs = lineStart;
+      while (firstNonWs < text.length &&
+          (text[firstNonWs] == ' ' || text[firstNonWs] == '\t') &&
+          text[firstNonWs] != '\n') {
+        firstNonWs++;
+      }
+
+      // If already at first non-whitespace character, toggle to column 0; otherwise jump to first non-ws
+      if (pos == firstNonWs) {
+        target = lineStart;
+      } else {
+        target = firstNonWs;
+      }
+    }
+
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      selection = TextSelection(
+        baseOffset: selection.baseOffset.clamp(0, text.length),
+        extentOffset: target,
+      );
+    } else {
+      selection = TextSelection.collapsed(offset: target);
+    }
+  }
+
+  void _handleEndKey() {
+    if (text.isEmpty) return;
+    final pos = selection.extentOffset.clamp(0, text.length);
+    final isDocBoundary = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    final int target;
+    if (isDocBoundary) {
+      target = text.length;
+    } else {
+      final nextNewline = text.indexOf('\n', pos);
+      target = nextNewline == -1 ? text.length : nextNewline;
+    }
+
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      selection = TextSelection(
+        baseOffset: selection.baseOffset.clamp(0, text.length),
+        extentOffset: target,
+      );
+    } else {
+      selection = TextSelection.collapsed(offset: target);
+    }
   }
 
   /// Unfolds all currently folded blocks so hidden lines are fully visible.

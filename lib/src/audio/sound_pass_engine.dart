@@ -53,6 +53,19 @@ class SoundPassEngine {
   double get currentBlockOffset => _currentBlockOffset;
   double get sampleRate => _sampleRate;
 
+  /// Elapsed playback time in seconds reported by the audio stream DAC.
+  ///
+  /// Returns `null` if streaming is not active.
+  double? get playbackTime {
+    if (!_isStreaming || _audioSource == null) return null;
+    try {
+      final duration = SoLoud.instance.getStreamTimeConsumed(_audioSource!);
+      return duration.inMicroseconds / 1000000.0;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Starts or restarts procedural audio streaming for [soundPass].
   Future<void> start({
     required ShaderPass soundPass,
