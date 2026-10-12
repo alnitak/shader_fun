@@ -1,3 +1,8 @@
+## 0.2.2
+- feat: added math sound shaders
+- update flutter_scene to 0.24.3 and fixed WebGL texture casting
+- updated flutter_soloud dep
+
 ## 0.2.1
 - fix: regression of float32 render target support
 
