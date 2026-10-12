@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_scene/src/gpu/web/_gpu.dart' as web_gpu;
+import 'package:flutter_scene/src/gpu/web/webgl/_webgl.dart' as webgl;
 import 'package:web/web.dart' as web;
 
 import '../gpu/gpu.dart' as gpu;
@@ -21,8 +22,8 @@ Future<Uint8List?> extractSoundPassPcmBytes(
   int height,
 ) async {
   try {
-    final webTex = soundTexture as web_gpu.Texture;
-    final gl = web_gpu.gpuContext.gl;
+    final webTex = soundTexture as webgl.WebGlTexture;
+    final gl = (web_gpu.gpuContext as webgl.WebGlContext).gl;
     final glTexture = webTex.glTexture;
     if (glTexture == null) return null;
 
