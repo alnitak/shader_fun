@@ -1,5 +1,8 @@
-## 0.2.X
-- feat: add colliding_balls multi-pass physics and reactive sound shader example
+## 1.0.0
+- feat: added reactive GPU Sound pass support (`SoundPassEngine.detectReactivePass`) with low-latency `256x8` frame-synced chunks aligned to `iTime` / `currentBlockOffset`
+- feat: added `example/shaders/colliding_balls.json` multi-pass 2D elastic collision physics and reactive stereo GPU collision sound example
+- fix: fixed initial `Buffer A` Frame 0 rendering, ping-pong buffer zero-initialization, single-pass pipeline assignment, SoLoud stream play order, Web `samp` rounding, and native `ui.Image` disposal in audio readback
+- chore: updated dependencies of `flutter_soloud` and `flutter_recorder`
 
 ## 0.2.2
 - feat: added math sound shaders

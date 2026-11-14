@@ -38,9 +38,9 @@ This package is an evolution of [shader_buffers](https://pub.dev/packages/shader
   - `float iSampleRate`: Audio playback sample rate (typically 44100 Hz).
   - `vec3 iChannelResolution[4]`: Resolution of each bound input channel.
 - **Multi-Pass Pipelines & Ping-Pong Buffers**:
-  - Full support for multi-stage rendering: `Common`, `Buffer A`, `Buffer B`, `Buffer C`, `Buffer D`, and `Image` passes.
-  - Automatic double-buffering (ping-pong) enabling self-referential feedback loops (e.g. fluid simulations, game of life, iterative raymarching, smoke & erosion).
-  - Upstream buffer passes can be piped into any downstream pass channel.
+  - Full support for multi-stage rendering: `Common`, `Buffer A`, `Buffer B`, `Buffer C`, `Buffer D`, `Image`, and `Sound` (`PassType.sound`) passes.
+  - Automatic double-buffering (ping-pong) enabling self-referential feedback loops (e.g. fluid simulations, game of life, physics simulations, iterative raymarching, smoke & erosion).
+  - Upstream buffer passes can be piped into any downstream pass channel, including real-time procedural & reactive **GPU Sound passes** driven via `flutter_soloud`.
 - **Dynamic Channel Types (`iChannel0` .. `iChannel3`)**:
   - **Live Interactive Widgets (`WidgetChannel`)**: Rasterize any Flutter widget subtree into a live GPU texture (`sampler2D`) on every frame with zero frame delay. Supports full bidirectional gestures (taps, drags, mouse scrolls, keyboard typing in `TextField`s). Offers `autoRender = true` (automatic placement via horizontal and vertical percentiles) and `autoRender = false` (raw sampling for custom GLSL effects, distortions, and page transitions).
   - **2D Textures**: Load PNG/JPEG images from assets or files with configurable filter options (nearest, linear, mipmap), address modes (clamp, repeat, mirror), and vertical flip (`vflip`).
@@ -365,9 +365,11 @@ An in-depth interactive GLSL workstation and IDE:
 
 - **Live Code Editor**: Write and edit GLSL shaders in real time with immediate compilation and hot reloading.
 - **Diagnostics Panel**: Compiler syntax errors with exact source lines are surfaced whenever compilation fails.
-- **Pass Tabs**: Switch between `Common`, `Buffer A`, `Buffer B`, `Buffer C`, `Buffer D`, and `Image` passes.
+- **Pass Tabs**: Switch between `Common`, `Buffer A`, `Buffer B`, `Buffer C`, `Buffer D`, `Image`, and `Sound` passes.
 - **Channel Setup Dialog**: Configure channels interactively (select textures, audio files, mic inputs, buffers, or keyboard).
-- **Bundled Showcase**: Includes complex multi-pass and audio-reactive shaders stored in `example/shaders`:
+- **Bundled Showcase**: Includes complex multi-pass, physics, and audio-reactive shaders stored in `example/shaders`:
+  - *Colliding Balls* (`colliding_balls.json` — multi-pass 2D elastic collision physics with mouse-controlled blue ball, configurable `Common` parameters, and reactive GPU collision sound)
+  - *Bricks Game* (`Bricks_Game.json` — interactive breakout game with keyboard/mouse control and reactive GPU sound effects)
   - *Heartfelt* (procedural rainy window with texture channels and depth blur)
   - *Mouse Paint Eroded Mountains* (multi-pass ping-pong terrain simulation)
   - *Dancing Flutter* (multi-pass audio-reactive visualizer)
