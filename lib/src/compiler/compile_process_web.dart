@@ -183,7 +183,7 @@ $sanitizedUserGlsl
     sb.writeln('''
 void main() {
     float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * ${soundTextureWidth.toDouble()};
-    int samp = int(pixelIndex + iBlockOffset * iSampleRate);
+    int samp = int(pixelIndex + round(iBlockOffset * iSampleRate));
     float time = float(samp) / iSampleRate;
 
     vec2 sound = $callMainSound;

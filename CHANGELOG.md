@@ -1,3 +1,6 @@
+## 0.2.X
+- feat: add colliding_balls multi-pass physics and reactive sound shader example
+
 ## 0.2.2
 - feat: added math sound shaders
 - update flutter_scene to 0.24.3 and fixed WebGL texture casting

@@ -68,12 +68,18 @@ class ShaderController
 
   bool _isDisposed = false;
   bool _isRendering = false;
+  bool _isRenderingFrame = false;
+  Future<void>? _activeRenderFuture;
+  int _rewindGeneration = 0;
   AudioChannel? _boundAudioChannel;
   SoundPassEngine? _soundPassEngine;
 
   /// Dedicated audio synthesis engine for [PassType.sound].
-  SoundPassEngine get soundPassEngine =>
-      _soundPassEngine ??= SoundPassEngine(renderer: _renderer.gpuRenderer);
+  SoundPassEngine get soundPassEngine => _soundPassEngine ??= SoundPassEngine(
+    renderer: _renderer.gpuRenderer,
+    uniformsProvider: () => _uniforms,
+    commonCodeProvider: () => _project.commonPass?.code,
+  );
 
   /// Fine-grained [listen.ValueNotifier] reactive state properties.
   final listen.ValueNotifier<bool> isPlayingNotifier;
@@ -149,10 +155,14 @@ class ShaderController
     notifyListeners();
 
     try {
+      _renderer.gpuRenderer.clearPassPipelines();
       final commonCode = _project.commonPass?.code;
       final visualPasses = _project.passes.where(
         (p) => p.enabled && p.type != PassType.common,
       );
+
+      final compiledBundles =
+          <({PassType passType, Uint8List bundleBytes, String fullCode})>[];
 
       for (final pass in visualPasses) {
         if (pass.code.trim().isEmpty) continue;
@@ -184,11 +194,13 @@ class ShaderController
           customUniformSlots: _uniforms.customSlots,
         );
         if (!result.isSuccess) {
-          lastErrorNotifier.value =
-              '${pass.name}: ${result.errorMessage ?? "Shader compilation failed"}';
-          notifyListeners();
+          if (!_isDisposed) {
+            lastErrorNotifier.value =
+                '${pass.name}: ${result.errorMessage ?? "Shader compilation failed"}';
+            notifyListeners();
+          }
           flutter_foundation.debugPrint(
-            'Shader error in ${pass.name}: ${lastErrorNotifier.value}',
+            'Shader error in ${pass.name}: ${result.errorMessage}',
           );
           return false;
         }
@@ -197,35 +209,67 @@ class ShaderController
           final fullCode = (commonCode != null && commonCode.isNotEmpty)
               ? '$commonCode\n${pass.code}'
               : pass.code;
-          await _renderer.loadShaderBundle(
-            result.bundleBytes!,
+          compiledBundles.add((
             passType: pass.type,
-            activeCode: fullCode,
-          );
+            bundleBytes: result.bundleBytes!,
+            fullCode: fullCode,
+          ));
         }
       }
 
-      if (_project.hasSoundPass && _project.soundPass!.enabled && isPlaying) {
-        unawaited(
-          soundPassEngine.start(
-            soundPass: _project.soundPass!,
-            sampleRate: _uniforms.sampleRate,
-          ),
+      if (_isDisposed) return false;
+      while (_activeRenderFuture != null) {
+        await _activeRenderFuture;
+        if (_isDisposed) return false;
+      }
+
+      for (final b in compiledBundles) {
+        await _renderer.loadShaderBundle(
+          b.bundleBytes,
+          passType: b.passType,
+          activeCode: b.fullCode,
         );
       }
 
+      if (_isDisposed) return false;
       lastErrorNotifier.value = null;
-      await renderSingleFrame();
-      notifyListeners();
+
+      // Reset playback state right before Frame 0 so buffers always initialize
+      // cleanly with iFrame == 0 and iTime == 0.0 even when compilation took
+      // multiple ticker frames.
+      _resetPlaybackState();
+
+      // Render Frame 0 first so upstream buffers (e.g. iFrame == 0 init) are
+      // populated before the sound pass samples them for its initial chunks.
+      await renderSingleFrame(force: true);
+      if (_isDisposed) return false;
+      _uniforms.frame = 1;
+      _lastTimestamp = 0.0;
+
+      if (_project.hasSoundPass && _project.soundPass!.enabled) {
+        await soundPassEngine.start(
+          soundPass: _project.soundPass!,
+          sampleRate: _uniforms.sampleRate,
+          paused: !isPlaying,
+        );
+      }
+
+      if (!_isDisposed) {
+        notifyListeners();
+      }
       return true;
     } catch (e) {
-      lastErrorNotifier.value = 'Compilation exception: $e';
+      if (!_isDisposed) {
+        lastErrorNotifier.value = 'Compilation exception: $e';
+        notifyListeners();
+      }
       flutter_foundation.debugPrint('Compilation exception: $e');
-      notifyListeners();
       return false;
     } finally {
-      isCompilingNotifier.value = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        isCompilingNotifier.value = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -279,11 +323,13 @@ class ShaderController
         customUniformSlots: _uniforms.customSlots,
       );
       if (!result.isSuccess) {
-        lastErrorNotifier.value =
-            result.errorMessage ?? 'Shader compilation failed';
-        notifyListeners();
+        if (!_isDisposed) {
+          lastErrorNotifier.value =
+              result.errorMessage ?? 'Shader compilation failed';
+          notifyListeners();
+        }
         flutter_foundation.debugPrint(
-          'Shader error: ${lastErrorNotifier.value}',
+          'Shader error: ${result.errorMessage}',
         );
         return false;
       }
@@ -295,7 +341,9 @@ class ShaderController
         }
       }
 
-      lastErrorNotifier.value = null;
+      if (!_isDisposed) {
+        lastErrorNotifier.value = null;
+      }
       if (result.bundleBytes != null) {
         final fullCode = (commonCode != null && commonCode.isNotEmpty)
             ? '$commonCode\n$codeToCompile'
@@ -307,28 +355,35 @@ class ShaderController
         );
       }
 
-      if (targetPass?.type == PassType.sound &&
-          isPlaying &&
+      if (_isDisposed) return false;
+      await renderSingleFrame(force: true);
+
+      if (!_isDisposed &&
+          targetPass?.type == PassType.sound &&
           (targetPass?.enabled ?? true)) {
-        unawaited(
-          soundPassEngine.start(
-            soundPass: targetPass!,
-            sampleRate: _uniforms.sampleRate,
-          ),
+        await soundPassEngine.start(
+          soundPass: targetPass!,
+          sampleRate: _uniforms.sampleRate,
+          paused: !isPlaying,
         );
       }
 
-      await renderSingleFrame();
-      notifyListeners();
+      if (!_isDisposed) {
+        notifyListeners();
+      }
       return true;
     } catch (e) {
-      lastErrorNotifier.value = 'Compilation exception: $e';
+      if (!_isDisposed) {
+        lastErrorNotifier.value = 'Compilation exception: $e';
+        notifyListeners();
+      }
       flutter_foundation.debugPrint('Compilation exception: $e');
-      notifyListeners();
       return false;
     } finally {
-      isCompilingNotifier.value = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        isCompilingNotifier.value = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -422,6 +477,7 @@ class ShaderController
     bool autoCompile = true,
     int? activePassIndex,
   }) async {
+    _rewindGeneration++;
     try {
       if (sl.SoLoud.instance.isInitialized) {
         await sl.SoLoud.instance.disposeAllSources();
@@ -441,6 +497,8 @@ class ShaderController
       }
     }
 
+    if (_isDisposed) return;
+
     lastErrorNotifier.value = null;
 
     _project = newProject;
@@ -449,20 +507,23 @@ class ShaderController
     );
     activePassIndexNotifier.value =
         activePassIndex ?? (defaultIdx >= 0 ? defaultIdx : 0);
-    _renderer.clearAudio();
-    _renderer.gpuRenderer.clearPingPongBuffers();
+    _resetPlaybackState();
     _renderer.gpuRenderer.clearTextureChannels();
 
     await _initProjectChannels();
+    if (_isDisposed) return;
 
     if (autoCompile) {
       await compileAllPasses();
+    } else {
+      rewind();
     }
-    rewind();
-    if (isPlaying) {
-      _startTicker();
+    if (!_isDisposed) {
+      if (isPlaying) {
+        _startTicker();
+      }
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// Loads project settings from a JSON string (supporting standard shader and concise JSON formats).
@@ -793,7 +854,7 @@ class ShaderController
         if (soundPassEngine.isPaused) {
           soundPassEngine.resume();
         }
-      } else {
+      } else if (!isCompiling) {
         unawaited(
           soundPassEngine.start(
             soundPass: _project.soundPass!,
@@ -826,9 +887,7 @@ class ShaderController
     }
   }
 
-  /// Rewinds/restarts playback to time 0, resetting frame count, iMouse, iDate,
-  /// iChannelTime, keyboard buffers, and ping-pong buffers to initial defaults.
-  void rewind() {
+  void _resetPlaybackState() {
     _uniforms.time = 0.0;
     _uniforms.frame = 0;
     _uniforms.timeDelta = isPlaying ? 0.016 : 0.0;
@@ -837,6 +896,7 @@ class ShaderController
     _uniforms.date = DateTime.now();
     _uniforms.channelTime = List<double>.filled(4, 0.0);
     _lastTimestamp = 0.0;
+    _fpsHistory.clear();
     _renderer.clearAudio();
     _keyboard.reset();
     _renderer.gpuRenderer.clearPingPongBuffers();
@@ -844,22 +904,33 @@ class ShaderController
     if (audio is SoLoudAudioChannel) {
       audio.seek(Duration.zero);
     }
-    if (_project.hasSoundPass && _project.soundPass!.enabled) {
-      if (isPlaying) {
-        unawaited(
-          soundPassEngine.start(
-            soundPass: _project.soundPass!,
-            sampleRate: _uniforms.sampleRate,
-          ),
-        );
-      } else {
-        _soundPassEngine?.rewind();
-      }
-    } else {
-      _soundPassEngine?.stop();
-    }
-    renderSingleFrame();
+  }
+
+  /// Rewinds/restarts playback to time 0, resetting frame count, iMouse, iDate,
+  /// iChannelTime, keyboard buffers, and ping-pong buffers to initial defaults.
+  void rewind() {
+    _rewindGeneration++;
+    _resetPlaybackState();
+    _soundPassEngine?.stop();
+    unawaited(_rewindAndRenderAndStartSound(_rewindGeneration));
     notifyListeners();
+  }
+
+  Future<void> _rewindAndRenderAndStartSound(int gen) async {
+    _uniforms.frame = 0;
+    _uniforms.time = 0.0;
+    _uniforms.timeDelta = isPlaying ? 0.016 : 0.0;
+    await renderSingleFrame(force: true);
+    if (_isDisposed || gen != _rewindGeneration) return;
+    _uniforms.frame = 1;
+    _lastTimestamp = 0.0;
+    if (_project.hasSoundPass && _project.soundPass!.enabled) {
+      await soundPassEngine.start(
+        soundPass: _project.soundPass!,
+        sampleRate: _uniforms.sampleRate,
+        paused: !isPlaying,
+      );
+    }
   }
 
   /// Alias for [rewind], restarting shader execution from the beginning with default uniforms.
@@ -925,33 +996,49 @@ class ShaderController
   }
 
   void _onTick(Duration elapsed) {
-    if (!isPlaying) return;
+    if (!isPlaying || _isRendering || _isRenderingFrame) return;
 
-    final currentSec = elapsed.inMicroseconds / 1000000.0;
-    if (_lastTimestamp == 0.0) {
-      _lastTimestamp = currentSec;
-      return;
+    final currentSeconds = elapsed.inMicroseconds / 1000000.0;
+    double dt = currentSeconds - _lastTimestamp;
+    if (dt < 0.0 || _lastTimestamp == 0.0 || dt > 0.5) {
+      dt = 0.016;
+    }
+    _lastTimestamp = currentSeconds;
+
+    final engine = _soundPassEngine;
+    final hasActiveSound =
+        _project.hasSoundPass &&
+        _project.soundPass!.enabled &&
+        engine != null &&
+        engine.isStreaming &&
+        !engine.isPaused;
+
+    if (hasActiveSound && engine.isReactive) {
+      // Keep visual iTime aligned with (and never ahead of) the next sound
+      // chunk's blockOffset so event timestamps (iTime) written to buffers
+      // never have t0 > time in mainSound(samp, time).
+      final targetTime = engine.currentBlockOffset;
+      final effectiveDt = targetTime > _uniforms.time
+          ? (targetTime - _uniforms.time)
+          : 0.0;
+      _uniforms.timeDelta = effectiveDt > 0.0 ? effectiveDt : dt;
+      _uniforms.time = targetTime;
+    } else if (hasActiveSound) {
+      final audioTime = engine.playbackTime;
+      if (audioTime != null && audioTime > 0.0) {
+        final audioDt = audioTime - _uniforms.time;
+        _uniforms.timeDelta = (audioDt > 0.0 && audioDt < 0.5) ? audioDt : dt;
+        _uniforms.time = audioTime;
+      } else {
+        _uniforms.timeDelta = dt;
+        _uniforms.time += dt;
+      }
+    } else {
+      _uniforms.timeDelta = dt;
+      _uniforms.time += dt;
     }
 
-    final dt = currentSec - _lastTimestamp;
-    _lastTimestamp = currentSec;
-
-    if (dt > 0.0 && dt < 0.5) {
-      final soundStreamTime = _soundPassEngine?.playbackTime;
-      if (soundStreamTime != null && soundStreamTime > 0.0) {
-        final audioDt = soundStreamTime - _uniforms.time;
-        if (audioDt > 0.0 && audioDt < 0.5) {
-          _uniforms.timeDelta = audioDt;
-        } else {
-          _uniforms.timeDelta = dt;
-        }
-        _uniforms.time = soundStreamTime;
-      } else {
-        _uniforms.time += dt;
-        _uniforms.timeDelta = dt;
-      }
-      _uniforms.frame++;
-
+    if (dt > 0.0) {
       final currentFps = 1.0 / dt;
       _fpsHistory.add(currentFps);
       if (_fpsHistory.length > 20) {
@@ -959,17 +1046,31 @@ class ShaderController
       }
       final avgFps = _fpsHistory.reduce((a, b) => a + b) / _fpsHistory.length;
       _uniforms.frameRate = avgFps;
+    }
 
-      final audioChannel = _findActiveAudioChannel();
-      if (audioChannel != null) {
-        if (audioChannel is SoLoudAudioChannel) {
-          audioChannel.updatePlaybackTime(dt);
-        }
-      }
+    final audioChannel = _findActiveAudioChannel();
+    if (audioChannel is SoLoudAudioChannel) {
+      audioChannel.updatePlaybackTime(dt);
+    }
 
-      if (!_isRendering) {
-        renderSingleFrame();
+    unawaited(_renderFrameAndNotifySound());
+  }
+
+  Future<void> _renderFrameAndNotifySound() async {
+    if (_isRenderingFrame) return;
+    _isRenderingFrame = true;
+    try {
+      await renderSingleFrame();
+      if (_isDisposed || !isPlaying) return;
+      _uniforms.frame++;
+      if (_project.hasSoundPass &&
+          _project.soundPass!.enabled &&
+          _soundPassEngine != null &&
+          _soundPassEngine!.isStreaming) {
+        await _soundPassEngine!.onFrameRendered();
       }
+    } finally {
+      _isRenderingFrame = false;
     }
   }
 
@@ -1115,8 +1216,23 @@ class ShaderController
   }
 
   /// Renders a single frame and updates the current image output.
-  Future<void> renderSingleFrame() async {
-    if (_isRendering || _isDisposed) return;
+  /// When [force] is `true` and a frame render is already in flight, waits for
+  /// it to finish and then renders a fresh frame so upstream buffer state is guaranteed
+  /// up to date.
+  Future<void> renderSingleFrame({bool force = false}) async {
+    if (_isDisposed) return;
+    while (_activeRenderFuture != null) {
+      if (!force) return;
+      await _activeRenderFuture;
+      if (_isDisposed) return;
+    }
+    final future = _doRenderSingleFrame();
+    _activeRenderFuture = future;
+    await future;
+  }
+
+  Future<void> _doRenderSingleFrame() async {
+    if (_isDisposed) return;
     _isRendering = true;
     try {
       final audio = _findActiveAudioChannel();
@@ -1150,6 +1266,7 @@ class ShaderController
       flutter_foundation.debugPrint('Render error: $e');
     } finally {
       _isRendering = false;
+      _activeRenderFuture = null;
     }
   }
 

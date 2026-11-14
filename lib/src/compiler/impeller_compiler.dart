@@ -399,6 +399,9 @@ layout(std140, set = 0, binding = 0) uniform FrameInfo {
 vec4 st_texture(sampler2D s, vec2 uv) {
     return texture(s, vec2(uv.x, 1.0 - uv.y));
 }
+vec4 st_texture(sampler2D s, vec2 uv, float bias) {
+    return texture(s, vec2(uv.x, 1.0 - uv.y), bias);
+}
 vec4 st_textureLod(sampler2D s, vec2 uv, float lod) {
     return textureLod(s, vec2(uv.x, 1.0 - uv.y), lod);
 }
@@ -442,7 +445,7 @@ $sanitizedUserGlsl
     sb.writeln('''
 void main() {
     float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * ${textureWidth.toDouble()};
-    int samp = int(pixelIndex + iBlockOffset * iSampleRate);
+    int samp = int(pixelIndex + round(iBlockOffset * iSampleRate));
     float time = float(samp) / iSampleRate;
 
     vec2 sound = $callMainSound;

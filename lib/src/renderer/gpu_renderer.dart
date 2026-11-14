@@ -80,6 +80,36 @@ class FlutterGpuRenderer {
     _clearPingPongBuffers();
   }
 
+  /// Clears all compiled shader pipelines so stale passes are not rendered
+  /// while a project is recompiling.
+  void clearPassPipelines() {
+    _passPipelines.clear();
+    _renderPipeline = null;
+    _fragmentShader = null;
+    _vertexShader = null;
+    _shaderLibrary = null;
+    _activeCode = null;
+  }
+
+  void _clearTexture(gpu.Texture? texture) {
+    if (texture == null || !_isGpuAvailable) return;
+    try {
+      final cmd = gpu.gpuContext.createCommandBuffer();
+      cmd.createRenderPass(
+        gpu.RenderTarget.singleColor(
+          gpu.ColorAttachment(
+            texture: texture,
+            loadAction: gpu.LoadAction.clear,
+            storeAction: gpu.StoreAction.store,
+          ),
+        ),
+      );
+      cmd.submit();
+    } catch (e) {
+      debugPrint('Failed to clear texture: $e');
+    }
+  }
+
   gpu.Texture? _createRenderTargetTexture(int w, int h) {
     if (!_isGpuAvailable) return null;
     try {
@@ -116,11 +146,15 @@ class FlutterGpuRenderer {
   _PingPongBuffer _getOrCreatePingPong(PassType type, int w, int h) {
     var buffer = _bufferPingPongs[type];
     if (buffer == null) {
+      final readTex = _createRenderTargetTexture(w, h);
+      final writeTex = _createRenderTargetTexture(w, h);
+      _clearTexture(readTex);
+      _clearTexture(writeTex);
       buffer = _PingPongBuffer()
-        ..readTexture = _createRenderTargetTexture(w, h)
+        ..readTexture = readTex
         ..readWidth = w
         ..readHeight = h
-        ..writeTexture = _createRenderTargetTexture(w, h)
+        ..writeTexture = writeTex
         ..writeWidth = w
         ..writeHeight = h;
       _bufferPingPongs[type] = buffer;
@@ -129,11 +163,15 @@ class FlutterGpuRenderer {
       // Retain readTexture (even with its old dimensions) so ping-pong buffers that
       // accumulate state (such as Buffer A) can bilinearly resample their previous
       // content into the new resolution on this frame without losing their data or centering.
-      buffer.writeTexture = _createRenderTargetTexture(w, h);
+      final writeTex = _createRenderTargetTexture(w, h);
+      _clearTexture(writeTex);
+      buffer.writeTexture = writeTex;
       buffer.writeWidth = w;
       buffer.writeHeight = h;
       if (buffer.readTexture == null) {
-        buffer.readTexture = _createRenderTargetTexture(w, h);
+        final readTex = _createRenderTargetTexture(w, h);
+        _clearTexture(readTex);
+        buffer.readTexture = readTex;
         buffer.readWidth = w;
         buffer.readHeight = h;
       }
@@ -299,13 +337,15 @@ class FlutterGpuRenderer {
         code: activeCode,
       );
 
-      // Fallback single-pass fields for backwards compatibility
-      _shaderLibrary = lib;
-      _vertexShader = vert;
-      _fragmentShader = frag;
-      _renderPipeline = pipeline;
-      if (activeCode != null) {
-        _activeCode = activeCode;
+      // Fallback single-pass fields for backwards compatibility (Image pass only)
+      if (passType == PassType.image) {
+        _shaderLibrary = lib;
+        _vertexShader = vert;
+        _fragmentShader = frag;
+        _renderPipeline = pipeline;
+        if (activeCode != null) {
+          _activeCode = activeCode;
+        }
       }
       return true;
     } catch (e) {
@@ -604,6 +644,19 @@ class FlutterGpuRenderer {
         pass.channels[channelIndex] != null) {
       final ch = pass.channels[channelIndex]!;
       if (ch is BufferChannel) {
+        final targetType = _bufferIndexToPassType(ch.bufferIndex);
+        final pingPong = _bufferPingPongs[targetType];
+        if (pingPong != null &&
+            pingPong.readWidth > 0 &&
+            pingPong.readHeight > 0) {
+          return ui.Size(
+            pingPong.readWidth.toDouble(),
+            pingPong.readHeight.toDouble(),
+          );
+        }
+        if (width > 0 && height > 0) {
+          return ui.Size(width.toDouble(), height.toDouble());
+        }
         return ui.Size(targetWidth, targetHeight);
       } else if (ch is TextureChannel) {
         if (_textureChannelResolutions.containsKey(channelIndex)) {
@@ -787,6 +840,7 @@ class FlutterGpuRenderer {
           gpu.ColorAttachment(
             texture: pingPong.writeTexture!,
             loadAction: gpu.LoadAction.clear,
+            storeAction: gpu.StoreAction.store,
           ),
         );
 
@@ -876,6 +930,7 @@ class FlutterGpuRenderer {
           commonCode: commonCode,
         );
 
+        renderPass.setColorBlendEnable(false);
         renderPass.draw(pass.vertexCount);
         passCommandBuffer.submit();
         executedBufferPasses.add(bpType);
@@ -887,6 +942,7 @@ class FlutterGpuRenderer {
         gpu.ColorAttachment(
           texture: presentationTexture,
           loadAction: gpu.LoadAction.clear,
+          storeAction: gpu.StoreAction.store,
         ),
       );
 
@@ -901,7 +957,9 @@ class FlutterGpuRenderer {
 
       final presentationPipeline =
           _passPipelines[presentationPass.type] ??
-          (hasPipeline
+          ((_renderPipeline != null &&
+                  _fragmentShader != null &&
+                  _vertexShader != null)
               ? _PassPipeline(
                   pipeline: _renderPipeline!,
                   fragmentShader: _fragmentShader!,
@@ -994,6 +1052,7 @@ class FlutterGpuRenderer {
         commonCode: commonCode,
       );
 
+      surfaceRenderPass.setColorBlendEnable(false);
       surfaceRenderPass.draw(presentationPass.vertexCount);
 
       // 4. Swap ping-pong buffers for executed buffer passes
@@ -1026,6 +1085,8 @@ class FlutterGpuRenderer {
     required double sampleRate,
     int width = 256,
     int height = 256,
+    CommonUniforms? uniforms,
+    String? commonCode,
   }) async {
     if (!_isGpuAvailable) _initGpuResources();
     if (!_isGpuAvailable) return null;
@@ -1089,6 +1150,27 @@ class FlutterGpuRenderer {
         time: blockOffset,
         sampleRate: sampleRate,
       );
+      if (uniforms != null) {
+        soundUniforms
+          ..timeDelta = uniforms.timeDelta
+          ..frameRate = uniforms.frameRate
+          ..frame = uniforms.frame
+          ..mouse = uniforms.mouse
+          ..date = uniforms.date
+          ..channelTime = List<double>.from(uniforms.channelTime)
+          ..channelResolution = List<ui.Size>.from(uniforms.channelResolution);
+        for (final entry in uniforms.customSlots.entries) {
+          soundUniforms.registerCustomUniformSlot(entry.key, entry.value);
+        }
+        final srcData = uniforms.customData;
+        final dstData = soundUniforms.customData;
+        final copyLen = srcData.length < dstData.length
+            ? srcData.length
+            : dstData.length;
+        for (int i = 0; i < copyLen; i++) {
+          dstData[i] = srcData[i];
+        }
+      }
 
       final uniformByteData = _packUniformByteData(
         uniforms: soundUniforms,
@@ -1113,15 +1195,26 @@ class FlutterGpuRenderer {
       final fallbackTex = _getDefaultTexture();
       if (fallbackTex == null) return null;
 
+      final soundAvailableTextures = <PassType, gpu.Texture>{};
+      for (final entry in _bufferPingPongs.entries) {
+        final tex = entry.value.readTexture ?? entry.value.writeTexture;
+        if (tex != null) {
+          soundAvailableTextures[entry.key] = tex;
+        }
+      }
+
       _bindPassChannels(
         renderPass: renderPass,
         fragmentShader: pipelineInfo.fragmentShader,
+        vertexShader: pipelineInfo.vertexShader,
         codeForChannels: pipelineInfo.code ?? soundPass.code,
         pass: soundPass,
-        availableTextures: const {},
+        availableTextures: soundAvailableTextures,
         fallbackTex: fallbackTex,
+        commonCode: commonCode,
       );
 
+      renderPass.setColorBlendEnable(false);
       renderPass.draw(6);
       cmdBuffer.submit();
 
