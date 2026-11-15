@@ -131,10 +131,7 @@ class GlslCodeController extends CodeController {
     final newText = text.replaceRange(sel.start, sel.end, '');
     super.value = TextEditingValue(
       text: newText,
-      selection: sel.copyWith(
-        baseOffset: sel.start,
-        extentOffset: sel.start,
-      ),
+      selection: sel.copyWith(baseOffset: sel.start, extentOffset: sel.start),
     );
   }
 
@@ -157,7 +154,8 @@ class GlslCodeController extends CodeController {
 
     // Route Numpad Enter through onEnterKeyAction (unless compile shortcuts with Alt/Cmd/Ctrl are held)
     if (event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      final isModPressed = HardwareKeyboard.instance.isAltPressed ||
+      final isModPressed =
+          HardwareKeyboard.instance.isAltPressed ||
           HardwareKeyboard.instance.isMetaPressed ||
           HardwareKeyboard.instance.isControlPressed;
       if (!isModPressed) {
@@ -190,7 +188,8 @@ class GlslCodeController extends CodeController {
   void _handleHomeKey() {
     if (text.isEmpty) return;
     final pos = selection.extentOffset.clamp(0, text.length);
-    final isDocBoundary = HardwareKeyboard.instance.isControlPressed ||
+    final isDocBoundary =
+        HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
 
     final int target;
@@ -226,7 +225,8 @@ class GlslCodeController extends CodeController {
   void _handleEndKey() {
     if (text.isEmpty) return;
     final pos = selection.extentOffset.clamp(0, text.length);
-    final isDocBoundary = HardwareKeyboard.instance.isControlPressed ||
+    final isDocBoundary =
+        HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
 
     final int target;

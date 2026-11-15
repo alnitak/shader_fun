@@ -119,25 +119,28 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       controller.dispose();
     });
 
-    test('insertStr and Enter do not increment loadCount and preserve cursor', () {
-      final controller = GlslCodeController(language: glsl);
-      controller.loadCode('float x = 1.0;\nfloat y = 2.0;');
-      final initialLoadCount = controller.loadCount;
+    test(
+      'insertStr and Enter do not increment loadCount and preserve cursor',
+      () {
+        final controller = GlslCodeController(language: glsl);
+        controller.loadCode('float x = 1.0;\nfloat y = 2.0;');
+        final initialLoadCount = controller.loadCount;
 
-      // Position cursor at end of line 1
-      controller.selection = const TextSelection.collapsed(offset: 14);
+        // Position cursor at end of line 1
+        controller.selection = const TextSelection.collapsed(offset: 14);
 
-      // Simulates pressing Enter
-      controller.onEnterKeyAction();
+        // Simulates pressing Enter
+        controller.onEnterKeyAction();
 
-      // loadCount must NOT increment (preventing scroll reset to line 1)
-      expect(controller.loadCount, initialLoadCount);
-      // Cursor must have advanced to new line (not reset to 0)
-      expect(controller.selection.baseOffset, greaterThan(14));
-      expect(controller.text.contains('\n'), isTrue);
+        // loadCount must NOT increment (preventing scroll reset to line 1)
+        expect(controller.loadCount, initialLoadCount);
+        // Cursor must have advanced to new line (not reset to 0)
+        expect(controller.selection.baseOffset, greaterThan(14));
+        expect(controller.text.contains('\n'), isTrue);
 
-      controller.dispose();
-    });
+        controller.dispose();
+      },
+    );
 
     test('onKey handles Tab key without losing focus and indents', () {
       final controller = GlslCodeController(language: glsl);
@@ -265,49 +268,52 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       controller.dispose();
     });
 
-    test('onKey handles Shift+End and Shift+Home to expand selection', () async {
-      final controller = GlslCodeController(language: glsl);
-      controller.loadCode('    float x = 1.0;');
-      controller.selection = const TextSelection.collapsed(offset: 4);
+    test(
+      'onKey handles Shift+End and Shift+Home to expand selection',
+      () async {
+        final controller = GlslCodeController(language: glsl);
+        controller.loadCode('    float x = 1.0;');
+        controller.selection = const TextSelection.collapsed(offset: 4);
 
-      await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
 
-      final resultEnd = controller.onKey(
-        const KeyDownEvent(
-          physicalKey: PhysicalKeyboardKey.end,
-          logicalKey: LogicalKeyboardKey.end,
-          timeStamp: Duration.zero,
-        ),
-      );
-      expect(resultEnd, KeyEventResult.handled);
-      expect(controller.selection.baseOffset, 4);
-      expect(controller.selection.extentOffset, 18);
+        final resultEnd = controller.onKey(
+          const KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.end,
+            logicalKey: LogicalKeyboardKey.end,
+            timeStamp: Duration.zero,
+          ),
+        );
+        expect(resultEnd, KeyEventResult.handled);
+        expect(controller.selection.baseOffset, 4);
+        expect(controller.selection.extentOffset, 18);
 
-      final resultHome1 = controller.onKey(
-        const KeyDownEvent(
-          physicalKey: PhysicalKeyboardKey.home,
-          logicalKey: LogicalKeyboardKey.home,
-          timeStamp: Duration.zero,
-        ),
-      );
-      expect(resultHome1, KeyEventResult.handled);
-      expect(controller.selection.baseOffset, 4);
-      expect(controller.selection.extentOffset, 4);
+        final resultHome1 = controller.onKey(
+          const KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.home,
+            logicalKey: LogicalKeyboardKey.home,
+            timeStamp: Duration.zero,
+          ),
+        );
+        expect(resultHome1, KeyEventResult.handled);
+        expect(controller.selection.baseOffset, 4);
+        expect(controller.selection.extentOffset, 4);
 
-      final resultHome2 = controller.onKey(
-        const KeyDownEvent(
-          physicalKey: PhysicalKeyboardKey.home,
-          logicalKey: LogicalKeyboardKey.home,
-          timeStamp: Duration.zero,
-        ),
-      );
-      expect(resultHome2, KeyEventResult.handled);
-      expect(controller.selection.baseOffset, 4);
-      expect(controller.selection.extentOffset, 0);
+        final resultHome2 = controller.onKey(
+          const KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.home,
+            logicalKey: LogicalKeyboardKey.home,
+            timeStamp: Duration.zero,
+          ),
+        );
+        expect(resultHome2, KeyEventResult.handled);
+        expect(controller.selection.baseOffset, 4);
+        expect(controller.selection.extentOffset, 0);
 
-      await simulateKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-      controller.dispose();
-    });
+        await simulateKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        controller.dispose();
+      },
+    );
   });
 
   group('StudioCodeEditor Widget', () {
