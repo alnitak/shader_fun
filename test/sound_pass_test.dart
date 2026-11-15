@@ -146,19 +146,22 @@ void main() {
       controller.dispose();
     });
 
-    test('wrapSoundShaderGlsl uses sample rounding and includes biased st_texture', () {
-      const soundCode = '''
+    test(
+      'wrapSoundShaderGlsl uses sample rounding and includes biased st_texture',
+      () {
+        const soundCode = '''
 vec2 mainSound( int samp, float time ) {
     return texture(iChannel0, vec2(0.5), 0.0).xy;
 }
 ''';
-      final wrapped = ImpellerCompiler.wrapSoundShaderGlsl(soundCode);
-      expect(wrapped, contains('round(iBlockOffset * iSampleRate)'));
-      expect(
-        wrapped,
-        contains('vec4 st_texture(sampler2D s, vec2 uv, float bias)'),
-      );
-    });
+        final wrapped = ImpellerCompiler.wrapSoundShaderGlsl(soundCode);
+        expect(wrapped, contains('round(iBlockOffset * iSampleRate)'));
+        expect(
+          wrapped,
+          contains('vec4 st_texture(sampler2D s, vec2 uv, float bias)'),
+        );
+      },
+    );
 
     test('SoundPassEngine.detectReactivePass distinguishes static and reactive passes', () {
       final staticPass = ShaderPass(

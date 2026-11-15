@@ -328,9 +328,7 @@ class ShaderController
               result.errorMessage ?? 'Shader compilation failed';
           notifyListeners();
         }
-        flutter_foundation.debugPrint(
-          'Shader error: ${result.errorMessage}',
-        );
+        flutter_foundation.debugPrint('Shader error: ${result.errorMessage}');
         return false;
       }
 
