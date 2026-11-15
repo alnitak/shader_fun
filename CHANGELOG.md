@@ -19,5 +19,4 @@
 - added 3 GPU sound examples
 
 ## 0.1.0
-
 - Initial release!
