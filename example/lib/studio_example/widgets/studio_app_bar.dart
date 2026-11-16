@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Top application bar for ShaderToy Studio with branding, title, and file actions.
 class StudioAppBar extends StatelessWidget implements PreferredSizeWidget {

@@ -1,6 +1,6 @@
 import 'package:example/studio_example/dialogs/save_shader_dialog.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 void main() {

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'shader_types.dart';
+
 /// Container for all standard shader uniforms passed to shaders.
 ///
 /// Encapsulates the runtime variables accessible in GLSL code
@@ -199,7 +201,7 @@ class CommonUniforms {
   }
 
   /// Standard uniform block size in bytes (iResolution, iTime, etc.).
-  static const int standardUniformsSizeBytes = 144;
+  static const int standardUniformsSizeBytes = kStandardUniformsSizeBytes;
 
   /// Maximum number of generic vec4 custom uniform registers (16 vec4s = 64 floats = 256 bytes by default).
   ///
@@ -208,22 +210,21 @@ class CommonUniforms {
   /// in Vulkan and Metal is typically 256 bytes). Even allocating a single 4-byte float still consumes
   /// a 256B/4KB physical page in GPU VRAM.
   ///
-  /// To increase the custom uniforms capacity across the entire engine, updating this single
-  /// [maxCustomUniformSlots] constant (e.g. to 32) is the **only** required step. All GLSL wrappers,
+  /// To increase the custom uniforms capacity across the entire engine, updating [kMaxCustomUniformSlots]
+  /// (e.g. to 32) is the **only** required step. All GLSL wrappers,
   /// GPU byte buffers, and WebGL reflection structures will automatically scale to match
   /// [totalUniformBufferSize].
-  static const int maxCustomUniformSlots = 16;
+  static const int maxCustomUniformSlots = kMaxCustomUniformSlots;
 
   /// Byte size reserved for custom uniforms (16 bytes per vec4 register).
-  static const int customUniformsSizeBytes = maxCustomUniformSlots * 16;
+  static const int customUniformsSizeBytes = kCustomUniformsSizeBytes;
 
   /// Total uniform buffer size in bytes uploaded to the GPU [FrameInfo] block
   /// ([standardUniformsSizeBytes] + [customUniformsSizeBytes]).
   ///
   /// Referenced across native Impeller and WebGL pipelines to allocate and bind
   /// uniform byte buffers matching GPU memory alignment and pagination constraints.
-  static const int totalUniformBufferSize =
-      standardUniformsSizeBytes + customUniformsSizeBytes;
+  static const int totalUniformBufferSize = kTotalUniformBufferSize;
 
   /// Flattened raw float data for custom uniforms ([maxCustomUniformSlots] vec4 registers * 4 floats).
   final Float32List customData = Float32List(maxCustomUniformSlots * 4);
@@ -312,6 +313,13 @@ class CommonUniforms {
           'Unsupported uniform value type for "$name": ${value.runtimeType}',
         );
     }
+  }
+
+  /// Clears all registered custom uniform slots and values (called when loading a new project).
+  void clearCustomUniforms() {
+    _customSlots.clear();
+    _customValues.clear();
+    customData.fillRange(0, customData.length, 0.0);
   }
 
   /// Gets the currently assigned value for custom uniform [name], if any.

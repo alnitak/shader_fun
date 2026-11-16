@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:highlight/languages/glsl.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 import 'dialogs/channel_picker_modal.dart';
@@ -47,10 +48,21 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   final double _fontSize = 15.0;
   final GlobalKey _viewportKey = GlobalKey();
 
+  bool get _isMobile =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
+
   @override
   void initState() {
     super.initState();
-    _codeEditorController = GlslCodeController(language: glsl);
+    if (_isMobile) {
+      _compileStatus = 'Read-only on mobile (Pre-compiled)';
+    }
+    _codeEditorController = GlslCodeController(
+      language: glsl,
+      readOnly: _isMobile,
+    );
     _controller = ShaderController(
       initialProject: widget.initialProject ?? ShaderProject.empty(),
       vsync: this,
@@ -88,6 +100,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   }
 
   Future<void> _compileShader() async {
+    if (_isMobile) return;
     final newCode = _codeEditorController.text;
 
     setState(() {
@@ -197,6 +210,85 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
   }
 
   Widget _buildEditorSection(ShaderPass? pass) {
+    final content = Column(
+      children: [
+        // 1. Pass Tabs Strip
+        PassTabsBar(
+          passes: _controller.project.passes,
+          activePassIndex: _controller.activePassIndex,
+          readOnly: _isMobile,
+          onSelectPass: (index) {
+            final cur = _controller.activePass;
+            if (cur != null && !_isMobile) {
+              cur.code = _codeEditorController.text;
+            }
+            _controller.setActivePass(index);
+            _syncCodeWithActivePass();
+            setState(() {});
+          },
+          onAddPass: (type) async {
+            final cur = _controller.activePass;
+            if (cur != null && !_isMobile) {
+              cur.code = _codeEditorController.text;
+            }
+            await _controller.addPass(type);
+            _syncCodeWithActivePass();
+            setState(() {});
+          },
+          onRemovePass: (type) async {
+            await _controller.removePass(type);
+            _syncCodeWithActivePass();
+            setState(() {});
+          },
+          showInputs: _showInputs,
+          onToggleInputs: () => setState(() => _showInputs = !_showInputs),
+          isPlaying: _controller.isPlaying,
+          onTogglePlay: () => _controller.togglePlay(),
+          onCompile: _compileShader,
+        ),
+
+        // 2. Collapsible Shader Inputs Drawer
+        if (_showInputs) ShaderInputsDrawer(uniforms: _controller.uniforms),
+
+        // 3. Code Editor
+        Expanded(
+          child: StudioCodeEditor(
+            codeController: _codeEditorController,
+            fontSize: _fontSize,
+            compileSuccess: _compileSuccess,
+            compileStatus: _compileStatus,
+            hasError: _controller.hasError,
+            lastError: _controller.lastError,
+            readOnly: _isMobile,
+            onCodeChanged: (val) {
+              if (_compileStatus !=
+                  'Uncompiled changes (Alt+Enter to compile)') {
+                setState(() {
+                  _compileStatus = 'Uncompiled changes (Alt+Enter to compile)';
+                });
+              }
+            },
+          ),
+        ),
+
+        // 4. iChannel slots bar (hidden for Common pass to match Shadertoy)
+        if (pass?.type != PassType.common)
+          ChannelBar(
+            pass: pass,
+            onOpenChannelPicker: _openChannelPicker,
+            onOpenChannelSettings: _openChannelSettings,
+            onChannelCleared: (slotIndex) {
+              _controller.setChannel(slotIndex, null);
+              _controller.renderSingleFrame();
+            },
+          ),
+      ],
+    );
+
+    if (_isMobile) {
+      return content;
+    }
+
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.enter, alt: true):
@@ -212,79 +304,7 @@ class _ShaderToyStudioState extends State<ShaderToyStudio>
         const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true):
             _compileShader,
       },
-      child: Column(
-        children: [
-          // 1. Pass Tabs Strip
-          PassTabsBar(
-            passes: _controller.project.passes,
-            activePassIndex: _controller.activePassIndex,
-            onSelectPass: (index) {
-              final cur = _controller.activePass;
-              if (cur != null) {
-                cur.code = _codeEditorController.text;
-              }
-              _controller.setActivePass(index);
-              _syncCodeWithActivePass();
-              setState(() {});
-            },
-            onAddPass: (type) async {
-              final cur = _controller.activePass;
-              if (cur != null) {
-                cur.code = _codeEditorController.text;
-              }
-              await _controller.addPass(type);
-              _syncCodeWithActivePass();
-              setState(() {});
-            },
-            onRemovePass: (type) async {
-              await _controller.removePass(type);
-              _syncCodeWithActivePass();
-              setState(() {});
-            },
-            showInputs: _showInputs,
-            onToggleInputs: () => setState(() => _showInputs = !_showInputs),
-            isPlaying: _controller.isPlaying,
-            onTogglePlay: () => _controller.togglePlay(),
-            onCompile: _compileShader,
-          ),
-
-          // 2. Collapsible Shader Inputs Drawer
-          if (_showInputs) ShaderInputsDrawer(uniforms: _controller.uniforms),
-
-          // 3. Code Editor
-          Expanded(
-            child: StudioCodeEditor(
-              codeController: _codeEditorController,
-              fontSize: _fontSize,
-              compileSuccess: _compileSuccess,
-              compileStatus: _compileStatus,
-              hasError: _controller.hasError,
-              lastError: _controller.lastError,
-              onCodeChanged: (val) {
-                if (_compileStatus !=
-                    'Uncompiled changes (Alt+Enter to compile)') {
-                  setState(() {
-                    _compileStatus =
-                        'Uncompiled changes (Alt+Enter to compile)';
-                  });
-                }
-              },
-            ),
-          ),
-
-          // 4. iChannel slots bar (hidden for Common pass to match Shadertoy)
-          if (pass?.type != PassType.common)
-            ChannelBar(
-              pass: pass,
-              onOpenChannelPicker: _openChannelPicker,
-              onOpenChannelSettings: _openChannelSettings,
-              onChannelCleared: (slotIndex) {
-                _controller.setChannel(slotIndex, null);
-                _controller.renderSingleFrame();
-              },
-            ),
-        ],
-      ),
+      child: content,
     );
   }
 

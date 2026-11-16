@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 /// Horizontal tab strip for switching between Image, Buffers, Common, and Sound passes.
@@ -15,6 +15,7 @@ class PassTabsBar extends StatelessWidget {
     required this.isPlaying,
     required this.onTogglePlay,
     required this.onCompile,
+    this.readOnly = false,
   });
 
   final List<ShaderPass> passes;
@@ -27,6 +28,7 @@ class PassTabsBar extends StatelessWidget {
   final bool isPlaying;
   final VoidCallback onTogglePlay;
   final VoidCallback onCompile;
+  final bool readOnly;
 
   static IconData iconForPassType(PassType type) {
     switch (type) {
@@ -55,71 +57,72 @@ class PassTabsBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // "+" Add Tab Button
-          Container(
-            margin: const EdgeInsets.only(right: 6, top: 4, bottom: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2E2E36),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: PopupMenuButton<PassType>(
-              tooltip: 'Add Tab',
-              icon: const Icon(Icons.add, size: 18, color: Colors.white),
-              padding: EdgeInsets.zero,
-              color: const Color(0xFF1F1F28),
-              itemBuilder: (context) {
-                const addableTypes = [
-                  PassType.common,
-                  PassType.bufferA,
-                  PassType.bufferB,
-                  PassType.bufferC,
-                  PassType.bufferD,
-                  PassType.sound,
-                ];
-                final existing = passes.map((p) => p.type).toSet();
-                final available = addableTypes
-                    .where((t) => !existing.contains(t))
-                    .toList();
-
-                if (available.isEmpty) {
-                  return [
-                    const PopupMenuItem<PassType>(
-                      enabled: false,
-                      child: Text(
-                        'All tabs added',
-                        style: TextStyle(color: Colors.white38, fontSize: 13),
-                      ),
-                    ),
+          // "+" Add Tab Button (hidden in read-only mode)
+          if (!readOnly)
+            Container(
+              margin: const EdgeInsets.only(right: 6, top: 4, bottom: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2E2E36),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: PopupMenuButton<PassType>(
+                tooltip: 'Add Tab',
+                icon: const Icon(Icons.add, size: 18, color: Colors.white),
+                padding: EdgeInsets.zero,
+                color: const Color(0xFF1F1F28),
+                itemBuilder: (context) {
+                  const addableTypes = [
+                    PassType.common,
+                    PassType.bufferA,
+                    PassType.bufferB,
+                    PassType.bufferC,
+                    PassType.bufferD,
+                    PassType.sound,
                   ];
-                }
+                  final existing = passes.map((p) => p.type).toSet();
+                  final available = addableTypes
+                      .where((t) => !existing.contains(t))
+                      .toList();
 
-                return available.map((type) {
-                  return PopupMenuItem<PassType>(
-                    value: type,
-                    child: Row(
-                      children: [
-                        Icon(
-                          iconForPassType(type),
-                          size: 16,
-                          color: const Color(0xFFFF9900),
+                  if (available.isEmpty) {
+                    return [
+                      const PopupMenuItem<PassType>(
+                        enabled: false,
+                        child: Text(
+                          'All tabs added',
+                          style: TextStyle(color: Colors.white38, fontSize: 13),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          type.displayName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
+                      ),
+                    ];
+                  }
+
+                  return available.map((type) {
+                    return PopupMenuItem<PassType>(
+                      value: type,
+                      child: Row(
+                        children: [
+                          Icon(
+                            iconForPassType(type),
+                            size: 16,
+                            color: const Color(0xFFFF9900),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList();
-              },
-              onSelected: onAddPass,
+                          const SizedBox(width: 8),
+                          Text(
+                            type.displayName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList();
+                },
+                onSelected: onAddPass,
+              ),
             ),
-          ),
 
           // Pass Tabs
           Expanded(
@@ -171,7 +174,7 @@ class PassTabsBar extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (!isImage) ...[
+                        if (!isImage && !readOnly) ...[
                           const SizedBox(width: 6),
                           InkWell(
                             onTap: () => onRemovePass(p.type),
@@ -223,13 +226,14 @@ class PassTabsBar extends StatelessWidget {
             onPressed: onTogglePlay,
           ),
 
-          // Compile button
-          IconButton(
-            iconSize: 18,
-            icon: const Icon(Icons.bolt, color: Color(0xFF00E5FF)),
-            tooltip: 'Compile & Run Shader (Alt + Enter)',
-            onPressed: onCompile,
-          ),
+          // Compile button (hidden in read-only mode)
+          if (!readOnly)
+            IconButton(
+              iconSize: 18,
+              icon: const Icon(Icons.bolt, color: Color(0xFF00E5FF)),
+              tooltip: 'Compile & Run Shader (Alt + Enter)',
+              onPressed: onCompile,
+            ),
         ],
       ),
     );

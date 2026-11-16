@@ -505,6 +505,7 @@ class ShaderController
     );
     activePassIndexNotifier.value =
         activePassIndex ?? (defaultIdx >= 0 ? defaultIdx : 0);
+    _uniforms.clearCustomUniforms();
     _resetPlaybackState();
     _renderer.gpuRenderer.clearTextureChannels();
 

@@ -1,0 +1,505 @@
+import 'dart:typed_data';
+
+import '../core/shader_types.dart';
+
+/// Result of an `impellerc` shader compilation.
+class CompileResult {
+  const CompileResult.success(this.bundleBytes)
+    : isSuccess = true,
+      errorMessage = null;
+
+  const CompileResult.error(this.errorMessage)
+    : isSuccess = false,
+      bundleBytes = null;
+
+  final bool isSuccess;
+  final Uint8List? bundleBytes;
+  final String? errorMessage;
+}
+
+/// Represents a user-declared or injected custom uniform mapping.
+class CustomUniformDeclaration {
+  const CustomUniformDeclaration({
+    required this.name,
+    required this.type,
+    required this.slot,
+  });
+
+  final String name;
+  final String type; // 'float', 'int', 'vec2', 'vec3', 'vec4'
+  final int slot;
+}
+
+/// Pure-Dart GLSL wrapping, uniform extraction, source preparation, and
+/// deterministic bundle hashing shared between [ImpellerCompiler] and the
+/// build-time hook (which runs on the standalone Dart VM without `dart:ui`).
+abstract final class ImpellerCompilerCore {
+  /// The full-screen quad vertex shader source.
+  static const String quadVertexShader = '''#version 460 core
+layout(location = 0) in vec2 position;
+void main() {
+    gl_Position = vec4(position, 0.0, 1.0);
+}
+''';
+
+  static final RegExp _commentRegex = RegExp(
+    r'//.*$|/\*[\s\S]*?\*/',
+    multiLine: true,
+  );
+
+  static final RegExp _frameInfoDeclRegex = RegExp(
+    r'uniform\s+FrameInfo\s*\{[^}]*\}\s*;',
+    multiLine: true,
+  );
+
+  static final RegExp _frameInfoMembersRegex = RegExp(
+    r'\b(iResolution|iTime|iTimeDelta|iFrameRate|iFrame|iMouse|iDate|iSampleRate|iChannelResolution|iCustom)\b',
+  );
+
+  /// Returns true if [code] references any FrameInfo uniform member outside of
+  /// comments and the uniform block declaration itself.
+  static bool shaderUsesFrameInfo(String code) {
+    final clean = code
+        .replaceAll(_commentRegex, '')
+        .replaceAll(_frameInfoDeclRegex, '');
+    return _frameInfoMembersRegex.hasMatch(clean);
+  }
+
+  /// Returns true if [code] references `iChannel$channelIndex` outside of comments.
+  static bool shaderUsesChannel(String code, int channelIndex) {
+    final clean = code.replaceAll(_commentRegex, '');
+    return RegExp('\\biChannel$channelIndex\\b').hasMatch(clean);
+  }
+
+  static final _customUniformRegex = RegExp(
+    r'^\s*uniform\s+(float|int|vec2|vec3|vec4)\s+([a-zA-Z0-9_]+)\s*;',
+    multiLine: true,
+  );
+
+  static const _builtInUniformNames = {
+    'iResolution',
+    'iTime',
+    'iTimeDelta',
+    'iFrameRate',
+    'iFrame',
+    'iMouse',
+    'iDate',
+    'iSampleRate',
+    'iChannelResolution',
+    'iChannelTime',
+    'iChannel0',
+    'iChannel1',
+    'iChannel2',
+    'iChannel3',
+  };
+
+  /// Extracts user-declared custom uniforms from GLSL code.
+  /// Looks for top-level `uniform <type> <name>;` lines where type is
+  /// `float`, `int`, `vec2`, `vec3`, or `vec4`.
+  static List<CustomUniformDeclaration> extractCustomUniforms(
+    String glsl, {
+    Map<String, int>? existingSlots,
+  }) {
+    final uniforms = <CustomUniformDeclaration>[];
+    final assignedSlots = <int>{...?existingSlots?.values};
+    final seen = <String>{};
+
+    int getNextSlot(String name) {
+      if (existingSlots != null && existingSlots.containsKey(name)) {
+        return existingSlots[name]!;
+      }
+      for (int i = 0; i < kMaxCustomUniformSlots; i++) {
+        if (!assignedSlots.contains(i)) {
+          assignedSlots.add(i);
+          return i;
+        }
+      }
+      return 0;
+    }
+
+    for (final match in _customUniformRegex.allMatches(glsl)) {
+      final type = match.group(1)!;
+      final name = match.group(2)!;
+      if (_builtInUniformNames.contains(name) || seen.contains(name)) {
+        continue;
+      }
+      seen.add(name);
+      final slot = getNextSlot(name);
+      uniforms.add(
+        CustomUniformDeclaration(name: name, type: type, slot: slot),
+      );
+    }
+    return uniforms;
+  }
+
+  static void _writeCustomUniformDefines(
+    StringBuffer sb,
+    String codeForChannels,
+    Map<String, int>? customUniformSlots,
+  ) {
+    final declaredCustoms = extractCustomUniforms(
+      codeForChannels,
+      existingSlots: customUniformSlots,
+    );
+
+    final handledNames = <String>{};
+    for (final u in declaredCustoms) {
+      handledNames.add(u.name);
+      switch (u.type) {
+        case 'float':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].x)');
+        case 'int':
+          sb.writeln('#define ${u.name} (int(iCustom[${u.slot}].x))');
+        case 'vec2':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xy)');
+        case 'vec3':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}].xyz)');
+        case 'vec4':
+          sb.writeln('#define ${u.name} (iCustom[${u.slot}])');
+      }
+    }
+
+    if (customUniformSlots != null) {
+      for (final entry in customUniformSlots.entries) {
+        if (!handledNames.contains(entry.key) &&
+            !_builtInUniformNames.contains(entry.key)) {
+          sb.writeln('#define ${entry.key} (iCustom[${entry.value}].x)');
+        }
+      }
+    }
+  }
+
+  static String _sanitizeCustomUniforms(String code) {
+    return code.replaceAllMapped(_customUniformRegex, (m) {
+      final name = m.group(2)!;
+      if (_builtInUniformNames.contains(name)) {
+        return m.group(0)!;
+      }
+      return '// ${m.group(0)}';
+    });
+  }
+
+  static void _writeChannelSamplersAndPowClamp(
+    StringBuffer sb,
+    List<int> declaredChannels,
+  ) {
+    if (declaredChannels.isNotEmpty) {
+      // In Vulkan and Metal, render target textures have (0, 0) at the top-left,
+      // whereas shader and OpenGL use bottom-left conventions.
+      // Sampling offscreen buffer textures with hardware UVs would invert the Y
+      // axis on every pass/frame, causing alternating ping-pong flip flickering.
+      // These wrappers invert Y so that sampling is always consistent with shader.
+      sb.writeln('''
+vec4 st_texture(sampler2D s, vec2 uv) {
+    return texture(s, vec2(uv.x, 1.0 - uv.y));
+}
+vec4 st_texture(sampler2D s, vec2 uv, float bias) {
+    return texture(s, vec2(uv.x, 1.0 - uv.y), bias);
+}
+vec4 st_textureLod(sampler2D s, vec2 uv, float lod) {
+    return textureLod(s, vec2(uv.x, 1.0 - uv.y), lod);
+}
+vec4 st_texelFetch(sampler2D s, ivec2 p, int lod) {
+    return texelFetch(s, ivec2(p.x, textureSize(s, lod).y - 1 - p.y), lod);
+}
+#define texture st_texture
+#define textureLod st_textureLod
+#define texelFetch st_texelFetch
+''');
+    }
+
+    sb.writeln('''
+// Metal Shading Language translates pow(x, y) to powr(x, y), which produces
+// undefined results / NaNs if x < 0. In GLSL on OpenGL/Vulkan, hardware drivers
+// often clamp or handle negative bases gracefully. st_pow clamps the base to >= 0.0
+// to avoid Metal NaN poisoning across procedural distance and lighting functions.
+float st_pow(float x, float y) { return pow(max(0.0, x), y); }
+vec2 st_pow(vec2 x, vec2 y) { return pow(max(vec2(0.0), x), y); }
+vec3 st_pow(vec3 x, vec3 y) { return pow(max(vec3(0.0), x), y); }
+vec4 st_pow(vec4 x, vec4 y) { return pow(max(vec4(0.0), x), y); }
+vec2 st_pow(vec2 x, float y) { return pow(max(vec2(0.0), x), vec2(y)); }
+vec3 st_pow(vec3 x, float y) { return pow(max(vec3(0.0), x), vec3(y)); }
+vec4 st_pow(vec4 x, float y) { return pow(max(vec4(0.0), x), vec4(y)); }
+#define pow st_pow
+''');
+  }
+
+  /// Wraps user shader GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// optional samplers, macros, and standard main() entry point.
+  /// If [commonGlsl] is provided, it is prepended so shared functions/structs
+  /// are accessible to the pass.
+  /// Uses `#line 1` so compiler error lines match the user's source lines.
+  static String wrapShaderGlsl(
+    String userGlsl, {
+    String? commonGlsl,
+    Map<String, int>? customUniformSlots,
+  }) {
+    final sb = StringBuffer();
+    sb.writeln('''#version 460 core
+
+layout(std140, set = 0, binding = 0) uniform FrameInfo {
+    vec3 iResolution;
+    float iTime;
+    float iTimeDelta;
+    float iFrameRate;
+    int iFrame;
+    vec4 iMouse;
+    vec4 iDate;
+    float iSampleRate;
+    vec3 iChannelResolution[4];
+    // $kMaxCustomUniformSlots vec4 registers = $kCustomUniformsSizeBytes bytes reserved for custom uniforms.
+    // Total FrameInfo buffer size: $kTotalUniformBufferSize bytes.
+    // Controlled globally via [ShaderUniforms.maxCustomUniformSlots] and [ShaderUniforms.totalUniformBufferSize].
+    vec4 iCustom[$kMaxCustomUniformSlots];
+};
+''');
+
+    final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+        ? '$commonGlsl\n$userGlsl'
+        : userGlsl;
+
+    _writeCustomUniformDefines(sb, codeForChannels, customUniformSlots);
+
+    final sanitizedUserGlsl = _sanitizeCustomUniforms(userGlsl);
+    final sanitizedCommonGlsl = commonGlsl != null
+        ? _sanitizeCustomUniforms(commonGlsl)
+        : null;
+
+    final declaredChannels = <int>[];
+    for (int i = 0; i < 4; i++) {
+      if (shaderUsesChannel(codeForChannels, i)) {
+        declaredChannels.add(i);
+        sb.writeln(
+          'layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;',
+        );
+      }
+    }
+
+    sb.writeln('layout(location = 0) out vec4 fragColor;');
+    sb.writeln();
+
+    _writeChannelSamplersAndPowClamp(sb, declaredChannels);
+
+    if (sanitizedCommonGlsl != null && sanitizedCommonGlsl.trim().isNotEmpty) {
+      sb.writeln('// Common Tab source');
+      sb.writeln(sanitizedCommonGlsl);
+      sb.writeln();
+    }
+
+    sb.writeln('''#line 1
+$sanitizedUserGlsl
+
+void main() {
+    vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+    mainImage(fragColor, fragCoord);''');
+
+    if (declaredChannels.isNotEmpty) {
+      // Force impellerc / SPIRV-Cross to retain all declared samplers in the
+      // target shader function signature (assigning valid ext_res_0 indices).
+      // If a channel is declared but not sampled in active user code (e.g. inside
+      // an inactive #if), impellerc would otherwise assign UINT32_MAX to its
+      // slot, causing Metal/driver SIGBUS crashes when bindTexture is called.
+      // iResolution.x is always >= 0.0 at runtime, so this branch is never taken.
+      sb.writeln('    if (iResolution.x < 0.0) {');
+      for (final ch in declaredChannels) {
+        sb.writeln('        fragColor += texture(iChannel$ch, vec2(0.0));');
+      }
+      sb.writeln('    }');
+    }
+
+    sb.writeln('}');
+    return sb.toString();
+  }
+
+  /// Wraps user sound shader GLSL with Vulkan GLSL 4.60 headers, uniform buffers,
+  /// optional samplers, macros, and standard main() entry point for PassType.sound.
+  /// Generates sample coordinates:
+  /// samp = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * 256.0 + iBlockOffset * iSampleRate
+  /// time = float(samp) / iSampleRate
+  static String wrapSoundShaderGlsl(
+    String userGlsl, {
+    String? commonGlsl,
+    Map<String, int>? customUniformSlots,
+    int textureWidth = 256,
+  }) {
+    final sb = StringBuffer();
+    sb.writeln('''#version 460 core
+
+layout(std140, set = 0, binding = 0) uniform FrameInfo {
+    vec3 iResolution;
+    float iTime;
+    float iTimeDelta;
+    float iFrameRate;
+    int iFrame;
+    vec4 iMouse;
+    vec4 iDate;
+    float iSampleRate;
+    vec3 iChannelResolution[4];
+    vec4 iCustom[$kMaxCustomUniformSlots];
+};
+
+#define iBlockOffset iTime
+''');
+
+    final codeForChannels = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+        ? '$commonGlsl\n$userGlsl'
+        : userGlsl;
+
+    _writeCustomUniformDefines(sb, codeForChannels, customUniformSlots);
+
+    final sanitizedUserGlsl = _sanitizeCustomUniforms(userGlsl);
+    final sanitizedCommonGlsl = commonGlsl != null
+        ? _sanitizeCustomUniforms(commonGlsl)
+        : null;
+
+    final declaredChannels = <int>[];
+    for (int i = 0; i < 4; i++) {
+      if (shaderUsesChannel(codeForChannels, i)) {
+        declaredChannels.add(i);
+        sb.writeln(
+          'layout(set = 0, binding = ${i + 1}) uniform sampler2D iChannel$i;',
+        );
+      }
+    }
+
+    sb.writeln('layout(location = 0) out vec4 fragColor;');
+    sb.writeln();
+
+    _writeChannelSamplersAndPowClamp(sb, declaredChannels);
+
+    if (sanitizedCommonGlsl != null && sanitizedCommonGlsl.trim().isNotEmpty) {
+      sb.writeln('// Common Tab source');
+      sb.writeln(sanitizedCommonGlsl);
+      sb.writeln();
+    }
+
+    sb.writeln('''#line 1
+$sanitizedUserGlsl
+''');
+
+    final cleanCode = sanitizedUserGlsl.replaceAll(_commentRegex, '');
+    final bool takesSamp = RegExp(
+      r'\bmainSound\s*\(\s*(in\s+)?int\b',
+    ).hasMatch(cleanCode);
+    final callMainSound = takesSamp
+        ? 'mainSound(samp, time)'
+        : 'mainSound(time)';
+
+    sb.writeln('''
+void main() {
+    float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * ${textureWidth.toDouble()};
+    int samp = int(pixelIndex + round(iBlockOffset * iSampleRate));
+    float time = float(samp) / iSampleRate;
+
+    vec2 sound = $callMainSound;
+    fragColor = vec4(sound.x, sound.y, 0.0, 1.0);
+''');
+
+    if (declaredChannels.isNotEmpty) {
+      sb.writeln('    if (iResolution.x < 0.0) {');
+      for (final ch in declaredChannels) {
+        sb.writeln('        fragColor += texture(iChannel$ch, vec2(0.0));');
+      }
+      sb.writeln('    }');
+    }
+
+    sb.writeln('}');
+    return sb.toString();
+  }
+
+  /// Prepares the final vertex and fragment GLSL strings for compilation.
+  static ({String vertexGlsl, String fragmentGlsl}) prepareShaderSources({
+    required String shaderGlsl,
+    String? vertexGlsl,
+    String? commonGlsl,
+    Map<String, int>? customUniformSlots,
+    PassType passType = PassType.image,
+    ShaderPassMode mode = ShaderPassMode.shaderToy,
+  }) {
+    if (mode == ShaderPassMode.custom) {
+      String prepareCustomGlsl(String glsl) {
+        final trimmed = glsl.trim();
+        final hasVersion = trimmed.startsWith('#version');
+        final versionLine = hasVersion ? '' : '#version 460 core\n';
+        final commonPart = (commonGlsl != null && commonGlsl.trim().isNotEmpty)
+            ? '$commonGlsl\n'
+            : '';
+        if (hasVersion) {
+          final newlineIndex = trimmed.indexOf('\n');
+          if (newlineIndex != -1) {
+            final firstLine = trimmed.substring(0, newlineIndex + 1);
+            final rest = trimmed.substring(newlineIndex + 1);
+            return '$firstLine$commonPart$rest';
+          }
+        }
+        return '$versionLine$commonPart$trimmed';
+      }
+
+      final customFrag = prepareCustomGlsl(shaderGlsl);
+      final customVert = (vertexGlsl != null && vertexGlsl.trim().isNotEmpty)
+          ? prepareCustomGlsl(vertexGlsl)
+          : quadVertexShader;
+      return (vertexGlsl: customVert, fragmentGlsl: customFrag);
+    }
+
+    final wrapped = passType == PassType.sound
+        ? wrapSoundShaderGlsl(
+            shaderGlsl,
+            commonGlsl: commonGlsl,
+            customUniformSlots: customUniformSlots,
+          )
+        : wrapShaderGlsl(
+            shaderGlsl,
+            commonGlsl: commonGlsl,
+            customUniformSlots: customUniformSlots,
+          );
+    final vert = (vertexGlsl != null && vertexGlsl.trim().isNotEmpty)
+        ? vertexGlsl
+        : quadVertexShader;
+    return (vertexGlsl: vert, fragmentGlsl: wrapped);
+  }
+
+  /// Computes a deterministic 16-hex-character hash for a prepared (vertex, fragment) GLSL pair.
+  static String computeBundleHash({
+    required String vertexGlsl,
+    required String fragmentGlsl,
+  }) {
+    final normVert = vertexGlsl.replaceAll('\r\n', '\n').trim();
+    final normFrag = fragmentGlsl.replaceAll('\r\n', '\n').trim();
+    final combined = '$normVert\n---\n$normFrag';
+    int h1 = 0x811c9dc5;
+    int h2 = 0x01000193;
+    for (int i = 0; i < combined.length; i++) {
+      final c = combined.codeUnitAt(i);
+      h1 ^= c;
+      h1 = (h1 * 0x01000193) & 0xFFFFFFFF;
+      h2 ^= (c ^ (i & 0xFF));
+      h2 = (h2 * 0x811c9dc5) & 0xFFFFFFFF;
+    }
+    return '${h1.toRadixString(16).padLeft(8, '0')}${h2.toRadixString(16).padLeft(8, '0')}';
+  }
+
+  /// Asset key under `flutter_scene_generated/` for a pre-compiled shader bundle.
+  static String bundleAssetKeyForHash(String hash) =>
+      'flutter_scene_generated/sf_$hash.shaderbundle';
+
+  /// Cleans and formats raw impellerc stderr for human-friendly UI display.
+  static String cleanCompilerError(String raw) {
+    final lines = raw.split('\n');
+    final cleaned = <String>[];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      // Filter internal compilation notices that clutter UI
+      if (trimmed.startsWith('Compilation failed for bundled shader')) continue;
+      if (trimmed.contains('GLSL to SPIRV failed; Compilation error')) continue;
+      cleaned.add(trimmed);
+    }
+
+    if (cleaned.isEmpty) {
+      return raw.trim();
+    }
+    return cleaned.join('\n');
+  }
+}

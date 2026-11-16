@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 /// Example demonstrating how to project and texture-map a ShaderToy procedural

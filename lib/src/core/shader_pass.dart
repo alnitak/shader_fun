@@ -4,51 +4,9 @@ import 'dart:typed_data';
 import 'package:listen/listen.dart' as listen;
 
 import '../channels/shader_channel.dart';
+import 'shader_types.dart';
 
-/// Supported render pass types.
-enum PassType { image, bufferA, bufferB, bufferC, bufferD, common, sound }
-
-/// The rendering and authoring mode for a [ShaderPass].
-enum ShaderPassMode {
-  /// Standard ShaderToy compatibility: user writes mainImage(), and shader_fun
-  /// wraps it with Vulkan/WebGL2 headers, standard FrameInfo uniforms, and a full-screen quad.
-  shaderToy,
-
-  /// Raw / Custom shader: user provides custom vertex and/or fragment GLSL with standard main(),
-  /// without ShaderToy boilerplate or automatic wrapping.
-  custom,
-}
-
-extension PassTypeExtension on PassType {
-  String get displayName {
-    switch (this) {
-      case PassType.image:
-        return 'Image';
-      case PassType.bufferA:
-        return 'Buffer A';
-      case PassType.bufferB:
-        return 'Buffer B';
-      case PassType.bufferC:
-        return 'Buffer C';
-      case PassType.bufferD:
-        return 'Buffer D';
-      case PassType.common:
-        return 'Common';
-      case PassType.sound:
-        return 'Sound';
-    }
-  }
-
-  bool get isBuffer =>
-      this == PassType.bufferA ||
-      this == PassType.bufferB ||
-      this == PassType.bufferC ||
-      this == PassType.bufferD;
-
-  bool get isImage => this == PassType.image;
-  bool get isCommon => this == PassType.common;
-  bool get isSound => this == PassType.sound;
-}
+export 'shader_types.dart';
 
 /// Represents an individual rendering pass in a project.
 /// Implements [listen.ChangeNotifier] to dispatch notifications upon code or channel changes.

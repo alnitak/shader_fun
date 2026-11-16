@@ -1,8 +1,11 @@
-import 'package:example/studio_example/widgets/studio_code_editor.dart';
-import 'package:flutter/material.dart';
+import 'package:example/studio_example/shadertoy_studio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:highlight/languages/glsl.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:shader_fun/shader_fun.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -347,6 +350,101 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       expect(find.byKey(const ValueKey('code_field_2')), findsOneWidget);
 
       controller.dispose();
+    });
+
+    testWidgets('readOnly disables CodeField editing', (tester) async {
+      final controller = GlslCodeController(language: glsl, readOnly: true);
+      controller.loadCode('void mainImage() {}');
+      var changed = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StudioCodeEditor(
+              codeController: controller,
+              fontSize: 14.0,
+              compileSuccess: true,
+              compileStatus: 'Read-only on mobile (Pre-compiled)',
+              hasError: false,
+              lastError: null,
+              readOnly: true,
+              onCodeChanged: (_) => changed = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final codeField = tester.widget<CodeField>(find.byType(CodeField));
+      expect(codeField.readOnly, isTrue);
+      expect(codeField.onChanged, isNull);
+      expect(changed, isFalse);
+
+      controller.dispose();
+    });
+
+    testWidgets('PassTabsBar hides add, close, and compile controls when readOnly', (
+      tester,
+    ) async {
+      final passes = [
+        ShaderPass(type: PassType.bufferA, name: 'Buffer A', code: ''),
+        ShaderPass(type: PassType.image, name: 'Image', code: ''),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PassTabsBar(
+              passes: passes,
+              activePassIndex: 0,
+              onSelectPass: (_) {},
+              onAddPass: (_) {},
+              onRemovePass: (_) {},
+              showInputs: false,
+              onToggleInputs: () {},
+              isPlaying: true,
+              onTogglePlay: () {},
+              onCompile: () {},
+              readOnly: true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.add), findsNothing);
+      expect(find.byIcon(Icons.close), findsNothing);
+      expect(find.byIcon(Icons.bolt), findsNothing);
+      expect(find.byIcon(Icons.pause_circle_filled), findsOneWidget);
+    });
+
+    testWidgets('ShaderToyStudio sets editor read-only on iOS', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(const MaterialApp(home: ShaderToyStudio()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final codeField = tester.widget<CodeField>(find.byType(CodeField));
+      expect(codeField.readOnly, isTrue);
+      expect(find.byIcon(Icons.bolt), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(PassTabsBar),
+          matching: find.byIcon(Icons.add),
+        ),
+        findsNothing,
+      );
+      final tabsBar = tester.widget<PassTabsBar>(find.byType(PassTabsBar));
+      expect(tabsBar.readOnly, isTrue);
+      expect(
+        find.text('Read-only on mobile (Pre-compiled)'),
+        findsOneWidget,
+      );
     });
   });
 }

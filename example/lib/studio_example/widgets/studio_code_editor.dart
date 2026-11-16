@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+// ignore: deprecated_member_use
+import 'package:flutter/material.dart' as flutter_material;
 import 'package:flutter/services.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Specialized [CodeController] for GLSL shader code that normalizes
 /// foldable blocks and handles complete shader code reloads cleanly without
@@ -25,6 +27,7 @@ class GlslCodeController extends CodeController {
     super.patternMap,
     super.params,
     super.modifiers,
+    super.readOnly,
   }) {
     _isInitialized = true;
     _normalizeFoldableBlocks();
@@ -140,6 +143,9 @@ class GlslCodeController extends CodeController {
     // Intercept Tab to insert tab spaces (or indent/outdent) and prevent
     // Flutter's FocusTraversalGroup from moving focus away from the editor.
     if (event.logicalKey == LogicalKeyboardKey.tab) {
+      if (readOnly) {
+        return KeyEventResult.handled;
+      }
       if (event is KeyDownEvent || event is KeyRepeatEvent) {
         if (HardwareKeyboard.instance.isShiftPressed) {
           outdentSelection();
@@ -154,6 +160,9 @@ class GlslCodeController extends CodeController {
 
     // Route Numpad Enter through onEnterKeyAction (unless compile shortcuts with Alt/Cmd/Ctrl are held)
     if (event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      if (readOnly) {
+        return KeyEventResult.handled;
+      }
       final isModPressed =
           HardwareKeyboard.instance.isAltPressed ||
           HardwareKeyboard.instance.isMetaPressed ||
@@ -305,6 +314,7 @@ class StudioCodeEditor extends StatelessWidget {
     required this.hasError,
     required this.lastError,
     this.onCodeChanged,
+    this.readOnly = false,
   });
 
   final CodeController codeController;
@@ -314,6 +324,7 @@ class StudioCodeEditor extends StatelessWidget {
   final bool hasError;
   final String? lastError;
   final ValueChanged<String>? onCodeChanged;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +336,7 @@ class StudioCodeEditor extends StatelessWidget {
       return CodeField(
         key: loadCount != null ? ValueKey('code_field_$loadCount') : null,
         controller: codeController,
+        readOnly: readOnly,
         expands: true,
         wrap: false,
         textStyle: TextStyle(
@@ -343,7 +355,7 @@ class StudioCodeEditor extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.35),
           ),
         ),
-        onChanged: onCodeChanged,
+        onChanged: readOnly ? null : onCodeChanged,
       );
     }
 
@@ -355,12 +367,28 @@ class StudioCodeEditor extends StatelessWidget {
             color: const Color(0xFF181820),
             child: CodeTheme(
               data: CodeThemeData(styles: monokaiSublimeTheme),
-              child: glslController != null
-                  ? ValueListenableBuilder<int>(
-                      valueListenable: glslController.loadNotifier,
-                      builder: (context, count, _) => buildCodeField(count),
-                    )
-                  : buildCodeField(),
+              // flutter_code_editor's CodeField internally uses legacy
+              // flutter/material TextField, which requires legacy Material,
+              // Theme, and MaterialLocalizations ancestors.
+              child: flutter_material.Theme(
+                data: flutter_material.ThemeData.dark(),
+                child: Localizations.override(
+                  context: context,
+                  delegates: const [
+                    flutter_material.DefaultMaterialLocalizations.delegate,
+                  ],
+                  child: flutter_material.Material(
+                    type: flutter_material.MaterialType.transparency,
+                    child: glslController != null
+                        ? ValueListenableBuilder<int>(
+                            valueListenable: glslController.loadNotifier,
+                            builder: (context, count, _) =>
+                                buildCodeField(count),
+                          )
+                        : buildCodeField(),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
