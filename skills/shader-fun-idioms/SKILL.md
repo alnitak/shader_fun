@@ -17,7 +17,7 @@ Assumptions carried over from standard Flutter `FragmentProgram` / `.frag` shade
 ## Minimal Example
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 void main() => runApp(const MaterialApp(home: SimpleShaderScreen()));

@@ -15,7 +15,7 @@ description: Embedding ShaderViewport, handling iMouse pointer interactions, key
 Place `ShaderViewport` inside any layout container (e.g. `AspectRatio`, `Expanded`, `Container`):
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shader_fun/shader_fun.dart';
 
 class ShaderCanvas extends StatelessWidget {

@@ -28,7 +28,39 @@ flutter pub get
 
 ---
 
-## 2. Web Configuration
+## 2. Mobile Setup (iOS & Android Build Hook)
+
+Mobile targets (iOS and Android) cannot invoke Flutter's `impellerc` compiler binary at runtime on-device. Instead, `shader_fun` provides a build hook (`package:shader_fun/build_hooks.dart`) that runs **only on mobile builds (`ios` and `android`)** to pre-compile shaders into `.shaderbundle` assets on your host machine during `flutter build` / `flutter run`. On desktop and web, the hook is a no-op.
+
+1. Add `hooks` to your app's `dev_dependencies` and declare the generated directory under `flutter: assets:` in `pubspec.yaml`:
+
+```yaml
+dev_dependencies:
+  hooks: ^2.0.0
+
+flutter:
+  assets:
+    - flutter_scene_generated/
+```
+
+2. Create `hook/build.dart` in your app package:
+
+```dart
+import 'package:hooks/hooks.dart';
+import 'package:shader_fun/build_hooks.dart';
+
+void main(List<String> args) async {
+  await build(args, (input, output) async {
+    await buildShaderFunBundles(buildInput: input, buildOutput: output);
+  });
+}
+```
+
+During mobile builds, `buildShaderFunBundles` scans `shaders/`, `assets/`, default starter passes, and inline shaders in `lib/**/*.dart` and compiles them into `flutter_scene_generated/sf_<hash>.shaderbundle`, which `shader_fun` loads automatically from `rootBundle` at runtime on iOS and Android.
+
+---
+
+## 3. Web Configuration
 
 On the web platform, `shader_fun` relies on WebGL2 and WebAssembly. If you use audio playback (`SoLoudAudioChannel`), live microphone capture (`MicAudioChannel`), or procedural sound (`PassType.sound`), you must include the companion JS loaders in `web/index.html`.
 
@@ -67,7 +99,7 @@ When testing locally with `flutter run -d chrome`, Flutter dev tools handles loc
 
 ---
 
-## 3. Platform Microphone Permissions
+## 4. Platform Microphone Permissions
 
 If your shaders utilize live microphone input (`MicAudioChannel` / `MicChannel`) to drive audio-reactive visuals, configure microphone access permissions for each platform:
 
@@ -102,9 +134,9 @@ Add `RECORD_AUDIO` to `android/app/src/main/AndroidManifest.xml` inside `<manife
 
 ---
 
-## 4. Graphics & GPU Requirements
+## 5. Graphics & GPU Requirements
 
-`shader_fun` compiles shaders into native GPU pipelines via Impeller on mobile/desktop and WebGL2 on web:
+`shader_fun` compiles shaders on desktop via `impellerc`, pre-compiles `.shaderbundle` assets at build time via `hook/build.dart` on mobile (`ios` / `android`), and compiles GLSL ES 3.00 in-browser via WebGL2 on web:
 
 | Platform | Rendering Backend | Notes |
 |---|---|---|
@@ -117,10 +149,11 @@ Add `RECORD_AUDIO` to `android/app/src/main/AndroidManifest.xml` inside `<manife
 
 ---
 
-## 5. Verification Checklist
+## 6. Verification Checklist
 
 Before running your first shader:
 1. `flutter pub get` completed without version conflicts.
-2. If using microphone input, `Info.plist` / `AndroidManifest.xml` has permission entries.
-3. If building for web, `init_soloud.js` and `init_recorder_module.dart.js` are linked in `web/index.html`.
-4. Test with a minimal shader in `ShaderViewport` to verify GPU quad rendering.
+2. If targeting iOS or Android, `hook/build.dart` calls `buildShaderFunBundles` and `pubspec.yaml` lists `flutter_scene_generated/` under `flutter: assets:`.
+3. If using microphone input, `Info.plist` / `AndroidManifest.xml` has permission entries.
+4. If building for web, `init_soloud.js` and `init_recorder_module.dart.js` are linked in `web/index.html`.
+5. Test with a minimal shader in `ShaderViewport` to verify GPU quad rendering.
