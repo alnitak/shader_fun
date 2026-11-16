@@ -62,27 +62,81 @@ void main() {
       },
     );
 
-    test(
-      'precompilePackageShaders builds bundles for all example JSON and inline shaders on iOS',
-      () async {
-        final exampleDir = Directory('example');
-        expect(exampleDir.existsSync(), isTrue);
+    test('precompilePackageShaders builds bundles for all example JSON and inline shaders on iOS', () async {
+      final exampleDir = Directory('example');
+      expect(exampleDir.existsSync(), isTrue);
 
-        final deps = <Uri>[];
-        final compiledCount = await precompilePackageShaders(
-          packageRoot: exampleDir,
-          targetOs: 'ios',
-          recordedDependencies: deps,
+      final deps = <Uri>[];
+      final compiledCount = await precompilePackageShaders(
+        packageRoot: exampleDir,
+        targetOs: 'ios',
+        recordedDependencies: deps,
+      );
+      expect(compiledCount, greaterThan(0));
+      expect(deps, isNotEmpty);
+
+      // 1. Verify default starter passes
+      final defaultEmpty = ShaderProject.empty();
+      for (final pass in defaultEmpty.passes) {
+        final prepared = ImpellerCompiler.prepareShaderSources(
+          shaderGlsl: pass.code,
+          vertexGlsl: pass.vertexCode,
+          passType: pass.type,
+          mode: pass.mode,
         );
-        expect(compiledCount, greaterThan(0));
-        expect(deps, isNotEmpty);
+        final hash = ImpellerCompiler.computeBundleHash(
+          vertexGlsl: prepared.vertexGlsl,
+          fragmentGlsl: prepared.fragmentGlsl,
+        );
+        final assetKey = ImpellerCompiler.bundleAssetKeyForHash(hash);
+        final file = File('${exampleDir.path}/$assetKey');
+        expect(
+          file.existsSync() && file.lengthSync() > 0,
+          isTrue,
+          reason: 'Missing bundle for default ${pass.name}: $assetKey',
+        );
+      }
 
-        // 1. Verify default starter passes
-        final defaultEmpty = ShaderProject.empty();
-        for (final pass in defaultEmpty.passes) {
+      // 2. Verify every JSON shader project in example/shaders/
+      final shadersDir = Directory('${exampleDir.path}/shaders');
+      final jsonFiles = shadersDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.json'))
+          .toList();
+      expect(jsonFiles, isNotEmpty);
+
+      for (final jsonFile in jsonFiles) {
+        final project = ShaderProject.parseJsonString(
+          jsonFile.readAsStringSync(),
+        );
+        final commonCode = project.commonPass?.code;
+        final uniforms = CommonUniforms();
+
+        for (final pass in project.passes.where(
+          (p) => p.enabled && p.type != PassType.common,
+        )) {
+          if (pass.code.trim().isEmpty) continue;
+          for (final u in ImpellerCompiler.extractCustomUniforms(
+            pass.code,
+            existingSlots: uniforms.customSlots,
+          )) {
+            uniforms.registerCustomUniformSlot(u.name, u.slot);
+          }
+          if (pass.vertexCode != null && pass.vertexCode!.isNotEmpty) {
+            for (final u in ImpellerCompiler.extractCustomUniforms(
+              pass.vertexCode!,
+              existingSlots: uniforms.customSlots,
+            )) {
+              uniforms.registerCustomUniformSlot(u.name, u.slot);
+            }
+          }
+
           final prepared = ImpellerCompiler.prepareShaderSources(
             shaderGlsl: pass.code,
             vertexGlsl: pass.vertexCode,
+            commonGlsl: commonCode,
+            customUniformSlots: uniforms.customSlots,
             passType: pass.type,
             mode: pass.mode,
           );
@@ -95,132 +149,74 @@ void main() {
           expect(
             file.existsSync() && file.lengthSync() > 0,
             isTrue,
-            reason: 'Missing bundle for default ${pass.name}: $assetKey',
+            reason:
+                'Missing pre-compiled bundle for ${jsonFile.path} pass ${pass.name}: $assetKey',
           );
         }
+      }
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
-        // 2. Verify every JSON shader project in example/shaders/
-        final shadersDir = Directory('${exampleDir.path}/shaders');
-        final jsonFiles = shadersDir
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.json'))
-            .toList();
-        expect(jsonFiles, isNotEmpty);
-
-        for (final jsonFile in jsonFiles) {
-          final project = ShaderProject.parseJsonString(
-            jsonFile.readAsStringSync(),
-          );
-          final commonCode = project.commonPass?.code;
-          final uniforms = CommonUniforms();
-
-          for (final pass in project.passes.where(
-            (p) => p.enabled && p.type != PassType.common,
-          )) {
-            if (pass.code.trim().isEmpty) continue;
-            for (final u in ImpellerCompiler.extractCustomUniforms(
-              pass.code,
-              existingSlots: uniforms.customSlots,
-            )) {
-              uniforms.registerCustomUniformSlot(u.name, u.slot);
-            }
-            if (pass.vertexCode != null && pass.vertexCode!.isNotEmpty) {
-              for (final u in ImpellerCompiler.extractCustomUniforms(
-                pass.vertexCode!,
-                existingSlots: uniforms.customSlots,
-              )) {
-                uniforms.registerCustomUniformSlot(u.name, u.slot);
-              }
-            }
-
-            final prepared = ImpellerCompiler.prepareShaderSources(
-              shaderGlsl: pass.code,
-              vertexGlsl: pass.vertexCode,
-              commonGlsl: commonCode,
-              customUniformSlots: uniforms.customSlots,
-              passType: pass.type,
-              mode: pass.mode,
-            );
-            final hash = ImpellerCompiler.computeBundleHash(
-              vertexGlsl: prepared.vertexGlsl,
-              fragmentGlsl: prepared.fragmentGlsl,
-            );
-            final assetKey = ImpellerCompiler.bundleAssetKeyForHash(hash);
-            final file = File('${exampleDir.path}/$assetKey');
-            expect(
-              file.existsSync() && file.lengthSync() > 0,
-              isTrue,
-              reason:
-                  'Missing pre-compiled bundle for ${jsonFile.path} pass ${pass.name}: $assetKey',
-            );
-          }
+    test('example/hook/build.dart runs cleanly in standalone Dart VM for iOS', () async {
+      final exampleDir = Directory('example').absolute;
+      final tempDir = await Directory.systemTemp.createTemp('hook_vm_exec_');
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
         }
-      },
-      timeout: const Timeout(Duration(minutes: 2)),
-    );
+      });
 
-    test(
-      'example/hook/build.dart runs cleanly in standalone Dart VM for iOS',
-      () async {
-        final exampleDir = Directory('example').absolute;
-        final tempDir = await Directory.systemTemp.createTemp('hook_vm_exec_');
-        addTearDown(() async {
-          if (await tempDir.exists()) {
-            await tempDir.delete(recursive: true);
-          }
-        });
+      final sharedOutDir = Directory('${tempDir.path}/shared')..createSync();
+      final inputFile = File('${tempDir.path}/input.json');
+      final outputFile = File('${tempDir.path}/output.json');
 
-        final sharedOutDir = Directory('${tempDir.path}/shared')..createSync();
-        final inputFile = File('${tempDir.path}/input.json');
-        final outputFile = File('${tempDir.path}/output.json');
-
-        inputFile.writeAsStringSync(
-          jsonEncode(<String, Object?>{
-            'assets': <String, Object?>{},
-            'config': <String, Object?>{
-              'build_asset_types': <String>['code_assets/code'],
-              'extensions': <String, Object?>{
-                'code_assets': <String, Object?>{
-                  'link_mode_preference': 'dynamic',
-                  'target_architecture': 'arm64',
-                  'target_os': 'ios',
-                },
+      inputFile.writeAsStringSync(
+        jsonEncode(<String, Object?>{
+          'assets': <String, Object?>{},
+          'config': <String, Object?>{
+            'build_asset_types': <String>['code_assets/code'],
+            'extensions': <String, Object?>{
+              'code_assets': <String, Object?>{
+                'link_mode_preference': 'dynamic',
+                'target_architecture': 'arm64',
+                'target_os': 'ios',
               },
-              'linking_enabled': false,
             },
-            'out_dir_shared': sharedOutDir.uri.toFilePath(),
-            'out_file': outputFile.uri.toFilePath(),
-            'package_name': 'example',
-            'package_root': exampleDir.uri.toFilePath(),
-            'user_defines': <String, Object?>{},
-          }),
-        );
+            'linking_enabled': false,
+          },
+          'out_dir_shared': sharedOutDir.uri.toFilePath(),
+          'out_file': outputFile.uri.toFilePath(),
+          'package_name': 'example',
+          'package_root': exampleDir.uri.toFilePath(),
+          'user_defines': <String, Object?>{},
+        }),
+      );
 
-        final impellerc = ImpellerCompiler.findImpellerc();
-        expect(impellerc, isNotNull);
-        final flutterBinDir = File(
-          impellerc!,
-        ).parent.parent.parent.parent.parent.path;
-        final dartExe = File(
-          '$flutterBinDir/cache/dart-sdk/bin/dart${Platform.isWindows ? '.exe' : ''}',
-        );
-        final dartCmd = dartExe.existsSync() ? dartExe.path : 'dart';
+      final impellerc = ImpellerCompiler.findImpellerc();
+      expect(impellerc, isNotNull);
+      final flutterBinDir = File(impellerc!)
+          .parent
+          .parent
+          .parent
+          .parent
+          .parent
+          .path;
+      final dartExe = File(
+        '$flutterBinDir/cache/dart-sdk/bin/dart${Platform.isWindows ? '.exe' : ''}',
+      );
+      final dartCmd = dartExe.existsSync() ? dartExe.path : 'dart';
 
-        final res = await Process.run(
-          dartCmd,
-          ['run', 'hook/build.dart', '--config=${inputFile.path}'],
-          workingDirectory: exampleDir.path,
-        );
-        expect(
-          res.exitCode,
-          0,
-          reason:
-              'example/hook/build.dart failed:\nstdout: ${res.stdout}\nstderr: ${res.stderr}',
-        );
-        expect(outputFile.existsSync(), isTrue);
-      },
-      timeout: const Timeout(Duration(minutes: 2)),
-    );
+      final res = await Process.run(dartCmd, [
+        'run',
+        'hook/build.dart',
+        '--config=${inputFile.path}',
+      ], workingDirectory: exampleDir.path);
+      expect(
+        res.exitCode,
+        0,
+        reason:
+            'example/hook/build.dart failed:\nstdout: ${res.stdout}\nstderr: ${res.stderr}',
+      );
+      expect(outputFile.existsSync(), isTrue);
+    }, timeout: const Timeout(Duration(minutes: 2)));
   });
 }

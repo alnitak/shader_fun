@@ -1,3 +1,7 @@
+## 1.0.1
+- feat: added mobile build hook (`package:shader_fun/build_hooks.dart`) to pre-compile `.shaderbundle` assets via `impellerc` on iOS and Android builds and load them at runtime without requiring `impellerc` on device
+- feat: made the studio example code editor read-only on mobile and added a full-screen mobile shader viewer example (`example/lib/studio_example/main_mobile.dart`)
+
 ## 1.0.0
 - feat: added reactive GPU Sound pass support (`SoundPassEngine.detectReactivePass`) with low-latency `256x8` frame-synced chunks aligned to `iTime` / `currentBlockOffset`
 - feat: added `example/shaders/colliding_balls.json` multi-pass 2D elastic collision physics and reactive stereo GPU collision sound example

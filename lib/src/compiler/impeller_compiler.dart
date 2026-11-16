@@ -2,8 +2,7 @@ import '../core/shader_types.dart';
 import 'compile_process.dart';
 import 'shader_compiler_core.dart';
 
-export 'shader_compiler_core.dart'
-    show CompileResult, CustomUniformDeclaration;
+export 'shader_compiler_core.dart' show CompileResult, CustomUniformDeclaration;
 
 /// Compiler service that wraps shader GLSL code into modern Vulkan GLSL 4.60,
 /// generates full-screen quad vertex shader geometry, and invokes `impellerc`

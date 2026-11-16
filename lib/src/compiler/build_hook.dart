@@ -7,7 +7,8 @@ import '../core/shader_types.dart';
 import 'impellerc_runner_io.dart';
 import 'shader_compiler_core.dart';
 
-const String _defaultEmptyImageCode = '''void mainImage( out vec4 fragColor, in vec2 fragCoord )
+const String _defaultEmptyImageCode =
+    '''void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     // Normalized pixel coordinates (from 0 to 1)
     vec2 uv = fragCoord/iResolution.xy;
@@ -31,14 +32,16 @@ vec2 rot(vec2 p, float a) {
 }
 ''';
 
-const String _defaultBufferCode = '''void mainImage( out vec4 fragColor, in vec2 fragCoord )
+const String _defaultBufferCode =
+    '''void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = fragCoord / iResolution.xy;
     fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
 }
 ''';
 
-const String _defaultSoundCode = '''// Sound Pass - Audio synthesis in stereo [-1.0 .. 1.0]
+const String _defaultSoundCode =
+    '''// Sound Pass - Audio synthesis in stereo [-1.0 .. 1.0]
 vec2 mainSound( int samp, float time ) {
     // 440 Hz Sine wave (A4) with exponential decay
     return vec2( sin(6.283185 * 440.0 * time) * exp(-3.0 * fract(time)) );
@@ -203,7 +206,9 @@ Future<int> precompilePackageShaders({
   final pendingEntries =
       <MapEntry<String, ({String vertexGlsl, String fragmentGlsl})>>[];
   for (final entry in preparedPairs.entries) {
-    final bundleFile = File('${generatedDir.path}/sf_${entry.key}.shaderbundle');
+    final bundleFile = File(
+      '${generatedDir.path}/sf_${entry.key}.shaderbundle',
+    );
     if (!bundleFile.existsSync() || bundleFile.lengthSync() == 0) {
       pendingEntries.add(entry);
     }
@@ -251,15 +256,14 @@ Future<int> precompilePackageShaders({
   return preparedPairs.length;
 }
 
-typedef _AddPassCallback =
-    void Function({
-      required String code,
-      String? vertexCode,
-      String? commonCode,
-      Map<String, int>? customUniformSlots,
-      PassType passType,
-      ShaderPassMode mode,
-    });
+typedef _AddPassCallback = void Function({
+  required String code,
+  String? vertexCode,
+  String? commonCode,
+  Map<String, int>? customUniformSlots,
+  PassType passType,
+  ShaderPassMode mode,
+});
 
 void _collectShadersFromJsonFile(File file, _AddPassCallback addPassSources) {
   final Object? decoded;

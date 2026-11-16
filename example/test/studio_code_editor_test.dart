@@ -383,39 +383,40 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       controller.dispose();
     });
 
-    testWidgets('PassTabsBar hides add, close, and compile controls when readOnly', (
-      tester,
-    ) async {
-      final passes = [
-        ShaderPass(type: PassType.bufferA, name: 'Buffer A', code: ''),
-        ShaderPass(type: PassType.image, name: 'Image', code: ''),
-      ];
+    testWidgets(
+      'PassTabsBar hides add, close, and compile controls when readOnly',
+      (tester) async {
+        final passes = [
+          ShaderPass(type: PassType.bufferA, name: 'Buffer A', code: ''),
+          ShaderPass(type: PassType.image, name: 'Image', code: ''),
+        ];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PassTabsBar(
-              passes: passes,
-              activePassIndex: 0,
-              onSelectPass: (_) {},
-              onAddPass: (_) {},
-              onRemovePass: (_) {},
-              showInputs: false,
-              onToggleInputs: () {},
-              isPlaying: true,
-              onTogglePlay: () {},
-              onCompile: () {},
-              readOnly: true,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: PassTabsBar(
+                passes: passes,
+                activePassIndex: 0,
+                onSelectPass: (_) {},
+                onAddPass: (_) {},
+                onRemovePass: (_) {},
+                showInputs: false,
+                onToggleInputs: () {},
+                isPlaying: true,
+                onTogglePlay: () {},
+                onCompile: () {},
+                readOnly: true,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byIcon(Icons.add), findsNothing);
-      expect(find.byIcon(Icons.close), findsNothing);
-      expect(find.byIcon(Icons.bolt), findsNothing);
-      expect(find.byIcon(Icons.pause_circle_filled), findsOneWidget);
-    });
+        expect(find.byIcon(Icons.add), findsNothing);
+        expect(find.byIcon(Icons.close), findsNothing);
+        expect(find.byIcon(Icons.bolt), findsNothing);
+        expect(find.byIcon(Icons.pause_circle_filled), findsOneWidget);
+      },
+    );
 
     testWidgets('ShaderToyStudio sets editor read-only on iOS', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
@@ -441,10 +442,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       );
       final tabsBar = tester.widget<PassTabsBar>(find.byType(PassTabsBar));
       expect(tabsBar.readOnly, isTrue);
-      expect(
-        find.text('Read-only on mobile (Pre-compiled)'),
-        findsOneWidget,
-      );
+      expect(find.text('Read-only on mobile (Pre-compiled)'), findsOneWidget);
     });
   });
 }

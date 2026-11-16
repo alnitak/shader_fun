@@ -378,9 +378,8 @@ $sanitizedUserGlsl
 ''');
 
     final cleanCode = sanitizedUserGlsl.replaceAll(_commentRegex, '');
-    final bool takesSamp = RegExp(
-      r'\bmainSound\s*\(\s*(in\s+)?int\b',
-    ).hasMatch(cleanCode);
+    final bool takesSamp = RegExp(r'\bmainSound\s*\(\s*(in\s+)?int\b')
+        .hasMatch(cleanCode);
     final callMainSound = takesSamp
         ? 'mainSound(samp, time)'
         : 'mainSound(time)';
