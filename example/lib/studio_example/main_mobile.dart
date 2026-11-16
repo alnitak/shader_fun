@@ -235,13 +235,13 @@ class _ShaderToyMobileScreenState extends State<ShaderToyMobileScreen>
         ? _selectedShaderId
         : _options.first.id;
 
-    return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned.fill(child: ShaderViewport(controller: _controller)),
-          SafeArea(
-            child: Align(
+    return SafeArea(
+      child: Scaffold(
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: ShaderViewport(controller: _controller)),
+            Align(
               alignment: Alignment.topCenter,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -317,8 +317,8 @@ class _ShaderToyMobileScreenState extends State<ShaderToyMobileScreen>
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
