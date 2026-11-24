@@ -57,6 +57,13 @@ const int kMaxCustomUniformSlots = 16;
 /// Byte size reserved for custom uniforms (16 bytes per `vec4` register).
 const int kCustomUniformsSizeBytes = kMaxCustomUniformSlots * 16;
 
+/// Frames SoLoud mixes ahead of the output device (native only, ignored on
+/// web). It enables the render-ahead ring, so audio pushed to a realtime
+/// stream is spliced in at the playhead instead of after a whole mix buffer.
+/// Every place that initializes SoLoud passes it, since the first `init` wins.
+/// Half of SoLoud's default mix buffer of 2048 frames.
+const int kSoLoudRenderAheadFrames = 1024;
+
 /// Total uniform buffer size in bytes uploaded to the GPU `FrameInfo` block.
 const int kTotalUniformBufferSize =
     kStandardUniformsSizeBytes + kCustomUniformsSizeBytes;

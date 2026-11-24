@@ -1,3 +1,5 @@
+// The realtime stream API of flutter_soloud is still marked experimental.
+// ignore_for_file: experimental_member_use
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -37,6 +39,11 @@ const int kReactiveSoundChunkSizeBytes = kReactiveSoundChunkSamples * 2 * 4;
 /// textures, keyboard, audio, or custom uniforms, uses small low-latency 256x8
 /// chunks (~46.4ms) synchronized with the visual frame loop.
 ///
+/// The two modes feed different SoLoud sources. Static chunks go to a buffer
+/// stream, which holds seconds of audio. Reactive chunks go to a realtime
+/// stream: a lock-free ring that never pauses the voice to buffer, and fades
+/// to silence instead when a chunk arrives late.
+///
 /// NOTE (Web): On Flutter Web (`dart:ui`), [ui.ImageByteFormat.rawExtendedRgba128] is not
 /// available yet. As a result, [ui.ImageByteFormat.rawStraightRgba] (8-bit UNorm) is used as
 /// a fallback, which can introduce background noise or distortion due to 8-bit quantization.
@@ -53,6 +60,15 @@ class SoundPassEngine {
 
   AudioSource? _audioSource;
   SoundHandle? _soundHandle;
+
+  /// The realtime stream behind [_audioSource] in reactive mode, else null.
+  RealtimeStreamHandle? _realtimeStream;
+
+  /// Frames pushed to [_realtimeStream] since it was created or rewound.
+  int _realtimeFramesPushed = 0;
+
+  /// Ring capacity of the reactive stream: four reactive chunks.
+  static const int _kRealtimeBufferFrames = kReactiveSoundChunkSamples * 4;
   Timer? _timer;
 
   bool _isStreaming = false;
@@ -108,6 +124,16 @@ class SoundPassEngine {
   /// Returns `null` if streaming is not active.
   double? get playbackTime {
     if (!_isStreaming || _audioSource == null) return null;
+    final realtime = _realtimeStream;
+    if (realtime != null) {
+      // What the mixer has taken out of the ring so far.
+      try {
+        final consumed = _realtimeFramesPushed - realtime.availableToRead;
+        return (consumed < 0 ? 0 : consumed) / _sampleRate;
+      } catch (_) {
+        return null;
+      }
+    }
     try {
       final duration = SoLoud.instance.getStreamTimeConsumed(_audioSource!);
       return duration.inMicroseconds / 1000000.0;
@@ -135,7 +161,7 @@ class SoundPassEngine {
     // Ensure SoLoud is initialized
     if (!SoLoud.instance.isInitialized) {
       try {
-        await SoLoud.instance.init();
+        await SoLoud.instance.init(renderAheadFrames: kSoLoudRenderAheadFrames);
       } catch (e) {
         debugPrint('SoundPassEngine: Failed to initialize SoLoud: $e');
         return;
@@ -144,14 +170,25 @@ class SoundPassEngine {
     if (gen != _startGeneration) return;
 
     try {
-      final source = SoLoud.instance.setBufferStream(
-        maxBufferSizeBytes: _isReactive ? 1024 * 256 : 1024 * 1024 * 10,
-        sampleRate: _sampleRate.toInt(),
-        channels: Channels.stereo,
-        format: BufferType.f32le,
-        bufferingType: BufferingType.released,
-        bufferingTimeNeeds: _isReactive ? 0.04 : 0.5,
-      );
+      final AudioSource source;
+      if (_isReactive) {
+        final realtime = SoLoud.instance.setRealtimeStream(
+          sampleRate: _sampleRate.toInt(),
+          bufferFrames: _kRealtimeBufferFrames,
+        );
+        _realtimeStream = realtime;
+        _realtimeFramesPushed = 0;
+        source = realtime.source;
+      } else {
+        source = SoLoud.instance.setBufferStream(
+          maxBufferSizeBytes: 1024 * 1024 * 10,
+          sampleRate: _sampleRate.toInt(),
+          channels: Channels.stereo,
+          format: BufferType.f32le,
+          bufferingType: BufferingType.released,
+          bufferingTimeNeeds: 0.5,
+        );
+      }
       _audioSource = source;
 
       _isStreaming = true;
@@ -162,6 +199,7 @@ class SoundPassEngine {
       // Register the active voice handle BEFORE pushing chunks so SoLoud's
       // BufferStream::checkBuffering() finds an active handle immediately.
       _soundHandle = SoLoud.instance.play(source, paused: _isPaused);
+      _realtimeStream?.bindActiveVoice(_soundHandle);
 
       // Pre-buffer 2 initial chunks.
       for (int i = 0; i < 2; i++) {
@@ -206,7 +244,20 @@ class SoundPassEngine {
     }
 
     try {
+      final realtime = _realtimeStream;
       final targetBufferBytes = _activeChunkSizeBytes * 2;
+      // Keep one engine mix quantum plus a chunk queued, and at least two
+      // chunks: below one quantum the ring runs dry on every mix.
+      final quantumTarget =
+          (realtime?.engineQuantumFrames ?? 0) + _activeChunkSamples;
+      final targetBufferFrames = quantumTarget > _activeChunkSamples * 2
+          ? quantumTarget
+          : _activeChunkSamples * 2;
+      bool needsChunk() => realtime != null
+          ? realtime.availableToRead < targetBufferFrames &&
+                realtime.availableToWrite >= _activeChunkSamples
+          : soloud.getBufferSize(source) < targetBufferBytes;
+
       final maxChunksPerCheck = _isReactive ? 3 : 1;
       int chunksPushed = 0;
       while (_isStreaming &&
@@ -214,7 +265,7 @@ class SoundPassEngine {
           _audioSource != null &&
           identical(_audioSource, source) &&
           chunksPushed < maxChunksPerCheck &&
-          soloud.getBufferSize(source) < targetBufferBytes) {
+          needsChunk()) {
         await _renderAndPushNextChunk();
         chunksPushed++;
       }
@@ -249,8 +300,20 @@ class SoundPassEngine {
           gen == _startGeneration &&
           _isStreaming &&
           identical(_audioSource, targetSource)) {
-        SoLoud.instance.addAudioDataStream(targetSource, pcmBytes);
-        _currentSampleOffset += chunkSamples;
+        final realtime = _realtimeStream;
+        var framesAccepted = chunkSamples;
+        if (realtime != null) {
+          framesAccepted = realtime.pushFloat32(
+            _asFloat32(pcmBytes),
+            frameCount: chunkSamples,
+          );
+          _realtimeFramesPushed += framesAccepted;
+        } else {
+          SoLoud.instance.addAudioDataStream(targetSource, pcmBytes);
+        }
+        // Advance by what was really queued, so a full ring does not skip
+        // part of the timeline.
+        _currentSampleOffset += framesAccepted;
         _currentBlockOffset = _currentSampleOffset / _sampleRate;
       }
     } catch (e) {
@@ -260,6 +323,15 @@ class SoundPassEngine {
         _activeChunkRenderToken = null;
       }
     }
+  }
+
+  /// [bytes] as 32-bit float samples, without a copy when its offset allows.
+  static Float32List _asFloat32(Uint8List bytes) {
+    final length = bytes.lengthInBytes ~/ 4;
+    if (bytes.offsetInBytes % 4 == 0) {
+      return bytes.buffer.asFloat32List(bytes.offsetInBytes, length);
+    }
+    return Uint8List.fromList(bytes).buffer.asFloat32List(0, length);
   }
 
   /// Pauses audio playback.
@@ -295,7 +367,13 @@ class SoundPassEngine {
     final source = _audioSource;
     if (source != null) {
       try {
-        SoLoud.instance.resetBufferStream(source);
+        final realtime = _realtimeStream;
+        if (realtime != null) {
+          realtime.reset();
+          _realtimeFramesPushed = 0;
+        } else {
+          SoLoud.instance.resetBufferStream(source);
+        }
       } catch (_) {}
     }
 
@@ -317,6 +395,8 @@ class SoundPassEngine {
       } catch (_) {}
       _audioSource = null;
     }
+    _realtimeStream = null;
+    _realtimeFramesPushed = 0;
 
     _soundHandle = null;
     _isStreaming = false;
