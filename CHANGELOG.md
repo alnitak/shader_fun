@@ -1,4 +1,6 @@
-## 1.0.3 (unreleased)
+## 1.0.3 (24 Nov 2026)
+- Feed reactive sound passes through a flutter_soloud realtime stream
+- fix GPU sound pass failing to compile on JavaScript web builds
 - update dependencies and improve GPU resource management for the new 0.24.5 flutter_scene
 
 ## 1.0.2

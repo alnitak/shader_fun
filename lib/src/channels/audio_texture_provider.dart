@@ -7,6 +7,7 @@ import 'package:flutter_recorder/flutter_recorder.dart' as rec;
 import 'package:flutter_soloud/flutter_soloud.dart' as sl;
 import 'package:listen/listen.dart' as listen;
 
+import '../core/shader_types.dart';
 import 'shader_channel.dart';
 
 /// ShaderToy standard audio texture size: 512 columns x 2 rows.
@@ -198,7 +199,7 @@ class SoLoudAudioChannel extends AudioChannel {
     try {
       final soloud = sl.SoLoud.instance;
       if (!soloud.isInitialized) {
-        await soloud.init();
+        await soloud.init(renderAheadFrames: kSoLoudRenderAheadFrames);
       }
 
       soloud.setVisualizationEnabled(

@@ -35,8 +35,8 @@ dependencies:
     # path: ../flutter_recorder
   flutter_scene: ^0.24.5
     # path: ../../tmp/flutter_scene/packages/flutter_scene
-  flutter_soloud: #^5.3.2
-    path: ../flutter_soloud
+  flutter_soloud: ^5.3.2
+    # path: ../flutter_soloud
   flat_buffers: ^25.9.23
   hooks: ^2.0.0
   image: ^4.13.1

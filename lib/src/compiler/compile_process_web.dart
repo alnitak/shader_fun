@@ -180,9 +180,11 @@ $sanitizedUserGlsl
         ? 'mainSound(samp, time)'
         : 'mainSound(time)';
 
+    // The width goes in as `float(N)`: a Dart double printed from JavaScript
+    // loses its `.0`, and GLSL ES then rejects `float * int`.
     sb.writeln('''
 void main() {
-    float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * ${soundTextureWidth.toDouble()};
+    float pixelIndex = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * float($soundTextureWidth);
     int samp = int(pixelIndex + round(iBlockOffset * iSampleRate));
     float time = float(samp) / iSampleRate;
 
