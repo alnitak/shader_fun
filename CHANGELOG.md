@@ -1,3 +1,6 @@
+## 1.0.3 (unreleased)
+- update dependencies and improve GPU resource management for the new 0.24.5 flutter_scene
+
 ## 1.0.2
 - feat: added mobile build hook (`package:shader_fun/build_hooks.dart`) to pre-compile `.shaderbundle` assets via `impellerc` on iOS and Android builds and load them at runtime without requiring `impellerc` on device
 - feat: made the studio example code editor read-only on mobile and added a full-screen mobile shader viewer example (`example/lib/studio_example/main_mobile.dart`)

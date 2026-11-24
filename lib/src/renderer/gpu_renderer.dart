@@ -20,10 +20,19 @@ class FlutterGpuRenderer {
   int width;
   int height;
 
-  final List<gpu.Texture> _swapchainColors = [];
-  int _swapchainCursor = 0;
-  int _swapchainWidth = 0;
-  int _swapchainHeight = 0;
+  /// Pool of presentable color textures. It never hands out a texture that
+  /// Flutter still draws or the GPU still writes, and it frees the textures
+  /// of an old size when the viewport is resized.
+  gpu.GpuImageSurface? _imageSurface;
+
+  /// Bump allocator for the per-pass `FrameInfo` uniforms. Rotates through
+  /// its frames on [gpu.HostBuffer.reset], so a frame's uniforms reuse the
+  /// same device buffers instead of allocating one per pass per frame.
+  gpu.HostBuffer? _uniformHostBuffer;
+
+  /// Room for every pass of a frame (4 buffers + image) at the largest
+  /// uniform alignment a backend asks for.
+  static const int _uniformBlockLengthInBytes = 8192;
   bool _isGpuAvailable = false;
 
   gpu.ShaderLibrary? _shaderLibrary;
@@ -69,8 +78,22 @@ class FlutterGpuRenderer {
     _keyboardTexture = null;
   }
 
+  /// Frees [texture]'s GPU memory now. On the web a texture otherwise lives
+  /// until its wrapper is garbage collected; on native this is a no-op until
+  /// Flutter GPU has an explicit release. [texture] must not be used again.
+  void _releaseTexture(gpu.Texture? texture) {
+    if (texture == null) return;
+    try {
+      gpu.gpuHost.releaseTexture(texture);
+    } catch (_) {}
+  }
+
   void _clearPingPongBuffers() {
     for (final buffer in _bufferPingPongs.values) {
+      _releaseTexture(buffer.readTexture);
+      if (!identical(buffer.writeTexture, buffer.readTexture)) {
+        _releaseTexture(buffer.writeTexture);
+      }
       buffer.clear();
     }
     _bufferPingPongs.clear();
@@ -165,6 +188,11 @@ class FlutterGpuRenderer {
       // content into the new resolution on this frame without losing their data or centering.
       final writeTex = _createRenderTargetTexture(w, h);
       _clearTexture(writeTex);
+      // The outgoing write target has the old size and nothing samples it
+      // any more (the retained read texture is a different one).
+      if (!identical(buffer.writeTexture, buffer.readTexture)) {
+        _releaseTexture(buffer.writeTexture);
+      }
       buffer.writeTexture = writeTex;
       buffer.writeWidth = w;
       buffer.writeHeight = h;
@@ -209,27 +237,20 @@ class FlutterGpuRenderer {
     }
   }
 
-  gpu.Texture _getNextSwapchainTexture(int w, int h) {
-    if (w != _swapchainWidth || h != _swapchainHeight) {
-      _swapchainColors.clear();
-      _swapchainCursor = 0;
-      _swapchainWidth = w;
-      _swapchainHeight = h;
-    }
-    if (_swapchainCursor >= _swapchainColors.length) {
-      final tex = gpu.gpuContext.createTexture(
-        gpu.StorageMode.devicePrivate,
+  /// Leases the next presentation target at [w] x [h]. The caller must end
+  /// the lease with `present` or `discard`.
+  gpu.GpuImageSurfaceFrame _acquirePresentationFrame(int w, int h) {
+    var surface = _imageSurface;
+    if (surface == null) {
+      surface = _imageSurface = gpu.gpuContext.createImageSurface(
         w,
         h,
         format: gpu.PixelFormat.r8g8b8a8UNormInt,
-        enableRenderTargetUsage: true,
-        enableShaderReadUsage: true,
       );
-      _swapchainColors.add(tex);
+    } else if (surface.width != w || surface.height != h) {
+      surface.resize(w, h);
     }
-    final result = _swapchainColors[_swapchainCursor];
-    _swapchainCursor = (_swapchainCursor + 1) % 2;
-    return result;
+    return surface.acquireNextFrame();
   }
 
   void _initGpuResources() {
@@ -360,10 +381,6 @@ class FlutterGpuRenderer {
 
     width = newWidth;
     height = newHeight;
-    _swapchainColors.clear();
-    _swapchainCursor = 0;
-    _swapchainWidth = width;
-    _swapchainHeight = height;
   }
 
   /// Uploads audio spectrum (FFT) and waveform data to a 512x2 GPU texture.
@@ -781,8 +798,15 @@ class FlutterGpuRenderer {
       return null;
     }
 
+    gpu.GpuImageSurfaceFrame? presentationFrame;
     try {
-      gpu.DeviceBuffer? createPassUniformBuffer(ShaderPass pass) {
+      final uniformHostBuffer = _uniformHostBuffer ??= gpu.gpuContext
+          .createHostBuffer(blockLengthInBytes: _uniformBlockLengthInBytes);
+      // Start this frame's uniforms on the next set of blocks; the ones the
+      // previous frames wrote may still be read by the GPU.
+      uniformHostBuffer.reset();
+
+      gpu.BufferView? createPassUniformView(ShaderPass pass) {
         final byteData = _packUniformByteData(
           uniforms: uniforms,
           targetWidth: targetWidth.toDouble(),
@@ -790,11 +814,9 @@ class FlutterGpuRenderer {
           pass: pass,
         );
         try {
-          return gpu.gpuContext.createDeviceBufferWithCopy(byteData);
+          return uniformHostBuffer.emplace(byteData);
         } catch (e) {
-          debugPrint(
-            'Failed to allocate uniform device buffer for ${pass.name}: $e',
-          );
+          debugPrint('Failed to upload uniforms for ${pass.name}: $e');
           return null;
         }
       }
@@ -857,8 +879,8 @@ class FlutterGpuRenderer {
         }
 
         try {
-          final passUniformDeviceBuffer = createPassUniformBuffer(pass);
-          if (passUniformDeviceBuffer != null) {
+          final passUniformView = createPassUniformView(pass);
+          if (passUniformView != null) {
             final fragCode = pipelineInfo.code ?? pass.code;
             if (pass.mode != ShaderPassMode.custom ||
                 ImpellerCompiler.shaderUsesFrameInfo(fragCode)) {
@@ -866,14 +888,7 @@ class FlutterGpuRenderer {
                 final uniformSlot = pipelineInfo.fragmentShader.getUniformSlot(
                   'FrameInfo',
                 );
-                renderPass.bindUniform(
-                  uniformSlot,
-                  gpu.BufferView(
-                    passUniformDeviceBuffer,
-                    offsetInBytes: 0,
-                    lengthInBytes: passUniformDeviceBuffer.sizeInBytes,
-                  ),
-                );
+                renderPass.bindUniform(uniformSlot, passUniformView);
               } catch (_) {}
             }
             final vertCode = pass.vertexCode;
@@ -883,14 +898,7 @@ class FlutterGpuRenderer {
               try {
                 final vertUniformSlot = pipelineInfo.vertexShader
                     .getUniformSlot('FrameInfo');
-                renderPass.bindUniform(
-                  vertUniformSlot,
-                  gpu.BufferView(
-                    passUniformDeviceBuffer,
-                    offsetInBytes: 0,
-                    lengthInBytes: passUniformDeviceBuffer.sizeInBytes,
-                  ),
-                );
+                renderPass.bindUniform(vertUniformSlot, passUniformView);
               } catch (_) {}
             }
           }
@@ -937,15 +945,6 @@ class FlutterGpuRenderer {
       }
 
       // 3. Execute presentation pass (Image) to swapchain color texture
-      final presentationTexture = _getNextSwapchainTexture(width, height);
-      final surfaceRenderTarget = gpu.RenderTarget.singleColor(
-        gpu.ColorAttachment(
-          texture: presentationTexture,
-          loadAction: gpu.LoadAction.clear,
-          storeAction: gpu.StoreAction.store,
-        ),
-      );
-
       final presentationPass = passes.firstWhere(
         (p) => p.type == PassType.image && p.enabled,
         orElse: () =>
@@ -972,6 +971,16 @@ class FlutterGpuRenderer {
         return null;
       }
 
+      presentationFrame = _acquirePresentationFrame(width, height);
+      final presentationTexture = presentationFrame.colorTexture;
+      final surfaceRenderTarget = gpu.RenderTarget.singleColor(
+        gpu.ColorAttachment(
+          texture: presentationTexture,
+          loadAction: gpu.LoadAction.clear,
+          storeAction: gpu.StoreAction.store,
+        ),
+      );
+
       final presentationCommandBuffer = gpu.gpuContext.createCommandBuffer();
       final surfaceRenderPass = presentationCommandBuffer.createRenderPass(
         surfaceRenderTarget,
@@ -989,10 +998,8 @@ class FlutterGpuRenderer {
       }
 
       try {
-        final presentationUniformDeviceBuffer = createPassUniformBuffer(
-          presentationPass,
-        );
-        if (presentationUniformDeviceBuffer != null) {
+        final presentationUniformView = createPassUniformView(presentationPass);
+        if (presentationUniformView != null) {
           final fragCode = presentationPipeline.code ?? presentationPass.code;
           if (presentationPass.mode != ShaderPassMode.custom ||
               ImpellerCompiler.shaderUsesFrameInfo(fragCode)) {
@@ -1001,11 +1008,7 @@ class FlutterGpuRenderer {
                   .getUniformSlot('FrameInfo');
               surfaceRenderPass.bindUniform(
                 uniformSlot,
-                gpu.BufferView(
-                  presentationUniformDeviceBuffer,
-                  offsetInBytes: 0,
-                  lengthInBytes: presentationUniformDeviceBuffer.sizeInBytes,
-                ),
+                presentationUniformView,
               );
             } catch (_) {}
           }
@@ -1018,11 +1021,7 @@ class FlutterGpuRenderer {
                   .getUniformSlot('FrameInfo');
               surfaceRenderPass.bindUniform(
                 vertUniformSlot,
-                gpu.BufferView(
-                  presentationUniformDeviceBuffer,
-                  offsetInBytes: 0,
-                  lengthInBytes: presentationUniformDeviceBuffer.sizeInBytes,
-                ),
+                presentationUniformView,
               );
             } catch (_) {}
           }
@@ -1060,15 +1059,19 @@ class FlutterGpuRenderer {
         _bufferPingPongs[bpType]?.swap();
       }
 
-      // 5. Submit presentation command buffer and snapshot texture to ui.Image
+      // 5. Publish the frame, submit its command buffer and hand the result
+      // to Flutter as a ui.Image. The surface wants `present` before `submit`.
+      presentationFrame.present(presentationCommandBuffer);
       presentationCommandBuffer.submit();
 
       if (kIsWeb) {
         return await gpu.presentTextureAsImage(presentationTexture);
       } else {
-        return presentationTexture.asImage();
+        return _imageSurface?.currentImage;
       }
     } catch (e) {
+      // A no-op once the frame was presented.
+      presentationFrame?.discard();
       debugPrint('GPU renderFrame error: $e');
       return null;
     }
@@ -1107,6 +1110,7 @@ class FlutterGpuRenderer {
             ? gpu.PixelFormat.r32g32b32a32Float
             : gpu.PixelFormat.r8g8b8a8UNormInt;
 
+        _releaseTexture(_soundTexture);
         _soundTexture = gpu.gpuContext.createTexture(
           gpu.StorageMode.devicePrivate,
           width,
@@ -1227,16 +1231,22 @@ class FlutterGpuRenderer {
 
   void dispose() {
     _clearPingPongBuffers();
-    _swapchainColors.clear();
+    _imageSurface = null;
+    // Channel textures belong to their providers; only drop the references.
     _textureChannels.clear();
     _textureChannelResolutions.clear();
     _passPipelines.clear();
+    _releaseTexture(_soundTexture);
+    _releaseTexture(_audioTexture);
+    _releaseTexture(_keyboardTexture);
+    _releaseTexture(_defaultTexture);
     _soundTexture = null;
     _audioTexture = null;
     _keyboardTexture = null;
     _defaultTexture = null;
     _activeCode = null;
     _quadVertexBuffer = null;
+    _uniformHostBuffer = null;
     _passVertexBuffers.clear();
     _renderPipeline = null;
     _shaderLibrary = null;
