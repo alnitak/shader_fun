@@ -210,7 +210,11 @@ vec2 mainSound(int samp, float time) {
 
     test('Loads Bricks_Game.json, detects reactive BufferChannel sound, and compiles all passes', () async {
       final file = File('example/shaders/colliding_balls.json');
-      expect(file.existsSync(), isTrue, reason: 'colliding_balls.json must exist');
+      expect(
+        file.existsSync(),
+        isTrue,
+        reason: 'colliding_balls.json must exist',
+      );
 
       final project = ShaderProject.parseJsonString(file.readAsStringSync());
 
